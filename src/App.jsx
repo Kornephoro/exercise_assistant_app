@@ -10,18 +10,19 @@ import {
   getT3Progression
 } from './progression';
 import TodayScreen from './TodayScreen';
+import PlanScreen from './PlanScreen';
 import CalendarScreen from './CalendarScreen';
-import SettingsModal from './SettingsModal';
+import TrainSession from './TrainSession';
+import FloatingBall from './FloatingBall';
 import { 
   Dumbbell, 
-  Loader2, 
   CheckCircle, 
   AlertTriangle, 
   Settings
 } from 'lucide-react';
 
 function App() {
-  // 1. 选项卡 Tab 状态 ('today' | 'calendar')
+  // 1. 选项卡 Tab 状态 ('today' | 'plan' | 'calendar')
   const [activeTab, setActiveTab] = useState('today');
 
   // 2. 全局数据加载及保存状态
@@ -31,12 +32,10 @@ function App() {
   const [toast, setToast] = useState(null); // { type: 'success'|'error', message: '' }
   
   const [currentDay, setCurrentDay] = useState('Day1');
-  const [recentLogs, setRecentLogs] = useState([]);
   
   // 自定义重量与动作进阶步长状态
   const [customWeights, setCustomWeights] = useState({});
   const [customIncrements, setCustomIncrements] = useState({});
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // 动作中文名映射状态
   const [exercisesCnMap, setExercisesCnMap] = useState({});
@@ -65,14 +64,17 @@ function App() {
   const [t1LastRecord, setT1LastRecord] = useState(null);
   const [t2LastRecord, setT2LastRecord] = useState(null);
   const [t3LastRecord, setT3LastRecord] = useState(null);
-  
-  // 用户输入：最后一组完成次数
-  const [t1InputReps, setT1InputReps] = useState('');
-  const [t2InputReps, setT2InputReps] = useState('');
-  const [t3InputReps, setT3InputReps] = useState('');
 
-  // 历史展开折叠状态
-  const [showRecentLogs, setShowRecentLogs] = useState(false);
+  // 3. 实时打卡会话状态 (sessionState)
+  const [sessionState, setSessionState] = useState({
+    isActive: false,
+    isMinimized: false,
+    setsData: {
+      T1: [],
+      T2: [],
+      T3: []
+    }
+  });
 
   // Toast 计时器
   useEffect(() => {
@@ -83,6 +85,14 @@ function App() {
       return () => clearTimeout(timer);
     }
   }, [toast]);
+
+  // 根据计划数反推组数
+  const getT1TotalSets = (reps) => {
+    if (reps === 3) return 5;
+    if (reps === 2) return 6;
+    if (reps === 1) return 10;
+    return 5;
+  };
 
   // 核心数据获取与计算逻辑
   const loadWorkoutData = async () => {
@@ -229,21 +239,6 @@ function App() {
       setT3PlannedReps(t3Result.planned_reps);
       setT3SchemeText(t3Result.scheme_text);
 
-      // 初始输入框默认计划值
-      setT1InputReps(t1Result.planned_reps.toString());
-      setT2InputReps(t2Result.planned_reps.toString());
-      setT3InputReps(t3Result.planned_reps.toString());
-
-      // 获取最近 10 条日志以呈现在底部面板
-      const { data: logsData, error: logsError } = await supabase
-        .from('workouts')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10);
-      
-      if (logsError) throw logsError;
-      setRecentLogs(logsData || []);
-
     } catch (err) {
       console.error(err);
       setError('无法加载配置或训练记录，请检查连接：' + err.message);
@@ -257,34 +252,104 @@ function App() {
     loadWorkoutData();
   }, []);
 
-  // 保存今日训练记录逻辑
-  const handleSaveWorkout = async () => {
-    const t1RepsVal = parseInt(t1InputReps, 10);
-    const t2RepsVal = parseInt(t2InputReps, 10);
-    const t3RepsVal = parseInt(t3InputReps, 10);
+  // 4. 开启实时打卡会话 (startTrainSession)
+  const startTrainSession = () => {
+    // 动态生成 T1 实际组数
+    const t1TotalSets = getT1TotalSets(t1PlannedReps);
 
-    if (isNaN(t1RepsVal) || t1RepsVal < 0) {
-      setToast({ type: 'error', message: '请输入有效的 T1 最后一组完成次数' });
-      return;
+    const t1Sets = Array.from({ length: t1TotalSets }, (_, idx) => ({
+      set_number: idx + 1,
+      planned_reps: t1PlannedReps,
+      actual_reps: '', // 空表示默认使用 planned_reps
+      completed: false,
+      weight_kg: t1Weight
+    }));
+
+    // T2 固定为 3 组
+    const t2Sets = Array.from({ length: 3 }, (_, idx) => ({
+      set_number: idx + 1,
+      planned_reps: t2PlannedReps,
+      actual_reps: '',
+      completed: false,
+      weight_kg: t2Weight
+    }));
+
+    // T3 固定为 3 组
+    const t3Sets = Array.from({ length: 3 }, (_, idx) => ({
+      set_number: idx + 1,
+      planned_reps: t3PlannedReps,
+      actual_reps: '',
+      completed: false,
+      weight_kg: t3Weight
+    }));
+
+    setSessionState({
+      isActive: true,
+      isMinimized: false,
+      setsData: {
+        T1: t1Sets,
+        T2: t2Sets,
+        T3: t3Sets
+      }
+    });
+  };
+
+  // 恢复或者开始训练
+  const handleStartOrRestoreTrain = () => {
+    if (sessionState.isActive) {
+      setSessionState(prev => ({ ...prev, isMinimized: false }));
+    } else {
+      startTrainSession();
     }
-    if (isNaN(t2RepsVal) || t2RepsVal < 0) {
-      setToast({ type: 'error', message: '请输入有效的 T2 最后一组完成次数' });
-      return;
-    }
-    if (isNaN(t3RepsVal) || t3RepsVal < 0) {
-      setToast({ type: 'error', message: '请输入有效的 T3 最后一组完成次数' });
+  };
+
+  // 放弃/销毁打卡会话
+  const handleCancelSession = () => {
+    setSessionState({
+      isActive: false,
+      isMinimized: false,
+      setsData: { T1: [], T2: [], T3: [] }
+    });
+    setToast({ type: 'success', message: '已放弃本次训练数据。' });
+  };
+
+  // 5. 双写并行保存 (workouts & workout_sets)
+  const handleSaveSession = async () => {
+    const { T1: t1Sets, T2: t2Sets, T3: t3Sets } = sessionState.setsData;
+
+    // 校验每个动作的最后一组实际次数 (必填校验)
+    const t1Last = t1Sets[t1Sets.length - 1];
+    const t2Last = t2Sets[t2Sets.length - 1];
+    const t3Last = t3Sets[t3Sets.length - 1];
+
+    const getFinalReps = (setObj) => {
+      if (setObj.actual_reps === '' || setObj.actual_reps === undefined) {
+        return setObj.planned_reps;
+      }
+      return parseInt(setObj.actual_reps, 10);
+    };
+
+    const t1LastReps = getFinalReps(t1Last);
+    const t2LastReps = getFinalReps(t2Last);
+    const t3LastReps = getFinalReps(t3Last);
+
+    if (isNaN(t1LastReps) || t1LastReps < 0 ||
+        isNaN(t2LastReps) || t2LastReps < 0 ||
+        isNaN(t3LastReps) || t3LastReps < 0) {
+      setToast({ type: 'error', message: '打卡保存失败：最后一组的实际次数必须是有效的正数' });
       return;
     }
 
     setSaving(true);
     try {
+      // A. 组装 workouts 日级汇总表记录 (actual_last_set_reps 从对应动作的最后一组中提取)
       const t1Record = {
         training_day: currentDay,
         tier: 'T1',
         exercise: t1Exercise,
         weight_kg: t1Weight,
         planned_reps: t1PlannedReps,
-        actual_last_set_reps: t1RepsVal
+        actual_last_set_reps: t1LastReps
       };
 
       const t2Record = {
@@ -293,7 +358,7 @@ function App() {
         exercise: t2Exercise,
         weight_kg: t2Weight,
         planned_reps: t2PlannedReps,
-        actual_last_set_reps: t2RepsVal
+        actual_last_set_reps: t2LastReps
       };
 
       const t3Record = {
@@ -302,53 +367,80 @@ function App() {
         exercise: t3Exercise,
         weight_kg: t3Weight,
         planned_reps: t3PlannedReps,
-        actual_last_set_reps: t3RepsVal
+        actual_last_set_reps: t3LastReps
       };
 
-      // 批量插入数据库 T1 / T2 / T3 三条记录
-      const { error: insertError } = await supabase
-        .from('workouts')
-        .insert([t1Record, t2Record, t3Record]);
+      // B. 组装 workout_sets 单组明细记录
+      const setsToInsert = [];
 
-      if (insertError) throw insertError;
+      const mapSets = (sets, exerciseName, tierName) => {
+        return sets.map(s => ({
+          exercise: exerciseName,
+          tier: tierName,
+          set_number: s.set_number,
+          weight_kg: s.weight_kg,
+          planned_reps: s.planned_reps,
+          actual_reps: getFinalReps(s),
+          completed: s.completed,
+          notes: null
+        }));
+      };
 
+      setsToInsert.push(...mapSets(t1Sets, t1Exercise, 'T1'));
+      setsToInsert.push(...mapSets(t2Sets, t2Exercise, 'T2'));
+      setsToInsert.push(...mapSets(t3Sets, t3Exercise, 'T3'));
+
+      // C. 并行保存写入 Supabase 两张表
+      const [insertWorkoutsRes, insertSetsRes] = await Promise.all([
+        supabase
+          .from('workouts')
+          .insert([t1Record, t2Record, t3Record]),
+        supabase
+          .from('workout_sets')
+          .insert(setsToInsert)
+      ]);
+
+      if (insertWorkoutsRes.error) throw insertWorkoutsRes.error;
+      if (insertSetsRes.error) throw insertSetsRes.error;
+
+      // 保存成功后提示并刷新数据
       const nextDay = getNextDay(currentDay);
       setToast({ 
         type: 'success', 
         message: `保存成功！下次训练为 ${nextDay}` 
       });
 
-      setT1InputReps('');
-      setT2InputReps('');
-      setT3InputReps('');
+      // 重置打卡状态
+      setSessionState({
+        isActive: false,
+        isMinimized: false,
+        setsData: { T1: [], T2: [], T3: [] }
+      });
 
+      // 重载当前数据计算新建议
       await loadWorkoutData();
 
     } catch (err) {
-      console.error(err);
+      console.error('双写保存训练记录失败：', err);
       setToast({ type: 'error', message: '保存记录失败：' + err.message });
     } finally {
       setSaving(false);
     }
   };
 
-  // 微调次数
-  const adjustReps = (type, action) => {
-    const isT1 = type === 'T1';
-    const isT2 = type === 'T2';
-    const currentVal = isT1 ? t1InputReps : isT2 ? t2InputReps : t3InputReps;
-    const setVal = isT1 ? setT1InputReps : isT2 ? setT2InputReps : setT3InputReps;
-    
-    let num = parseInt(currentVal, 10);
-    if (isNaN(num)) {
-      num = isT1 ? t1PlannedReps : isT2 ? t2PlannedReps : t3PlannedReps;
+  // 计算当前最小化悬浮球的打卡进度文案
+  const getSessionProgress = (setsData) => {
+    if (!setsData) return '';
+    const tiers = ['T1', 'T2', 'T3'];
+    for (const tier of tiers) {
+      const sets = setsData[tier] || [];
+      const completedCount = sets.filter(s => s.completed).length;
+      if (completedCount < sets.length) {
+        return `${tier} ${completedCount}/${sets.length}`;
+      }
     }
-
-    if (action === 'increment') {
-      setVal((num + 1).toString());
-    } else if (action === 'decrement' && num > 0) {
-      setVal((num - 1).toString());
-    }
+    const t3Sets = setsData.T3 || [];
+    return `T3 ${t3Sets.length}/${t3Sets.length}`;
   };
 
   // 获取步长 (展示卡片右上角增重用)
@@ -385,12 +477,12 @@ function App() {
             <Dumbbell size={24} />
             <span>GZCLP Power</span>
           </div>
-          {/* 齿轮配置按钮 */}
+          {/* 点击设置按钮跳转到计划设定 Tab */}
           <button 
             type="button" 
             className="settings-btn"
-            onClick={() => setIsSettingsOpen(true)}
-            aria-label="设置配置信息"
+            onClick={() => setActiveTab('plan')}
+            aria-label="切换到计划设定"
           >
             <Settings size={22} />
           </button>
@@ -438,28 +530,25 @@ function App() {
               t1SchemeText={t1SchemeText}
               t2SchemeText={t2SchemeText}
               t3SchemeText={t3SchemeText}
-              t1LastRecord={t1LastRecord}
-              t2LastRecord={t2LastRecord}
-              t3LastRecord={t3LastRecord}
-              t1InputReps={t1InputReps}
-              t2InputReps={t2InputReps}
-              t3InputReps={t3InputReps}
-              setT1InputReps={setT1InputReps}
-              setT2InputReps={setT2InputReps}
-              setT3InputReps={setT3InputReps}
-              recentLogs={recentLogs}
-              showRecentLogs={showRecentLogs}
-              setShowRecentLogs={setShowRecentLogs}
-              saving={saving}
-              handleSaveWorkout={handleSaveWorkout}
-              adjustReps={adjustReps}
+              sessionState={sessionState}
+              onStartTrain={handleStartOrRestoreTrain}
               getIncrementStep={getIncrementStep}
               getExerciseCNName={getExerciseCNName}
             />
           )}
         </div>
 
-        {/* TAB 2: 训练日历页面 */}
+        {/* TAB 2: 计划页面 */}
+        <div style={{ display: activeTab === 'plan' ? 'block' : 'none' }}>
+          <PlanScreen 
+            onSettingsSaved={() => {
+              setToast({ type: 'success', message: '初始重量与进阶步长保存成功！今日建议重量已同步更新。' });
+              loadWorkoutData();
+            }}
+          />
+        </div>
+
+        {/* TAB 3: 训练日历页面 */}
         <div style={{ display: activeTab === 'calendar' ? 'block' : 'none' }}>
           <CalendarScreen 
             getExerciseCNName={getExerciseCNName}
@@ -476,7 +565,15 @@ function App() {
           onClick={() => setActiveTab('today')}
         >
           <span className="tab-icon">🏋️</span>
-          <span>训练</span>
+          <span>今日</span>
+        </button>
+        <button 
+          type="button" 
+          className={`tab-item ${activeTab === 'plan' ? 'active' : ''}`}
+          onClick={() => setActiveTab('plan')}
+        >
+          <span className="tab-icon">📋</span>
+          <span>计划</span>
         </button>
         <button 
           type="button" 
@@ -488,16 +585,37 @@ function App() {
         </button>
       </nav>
 
-      {/* 初始配置及步长设置弹窗 */}
-      {isSettingsOpen && (
-        <SettingsModal 
-          onClose={(shouldRefresh) => {
-            setIsSettingsOpen(false);
-            if (shouldRefresh) {
-              setToast({ type: 'success', message: '初始重量与进阶步长保存成功！今日建议重量已同步更新。' });
-              loadWorkoutData();
-            }
+      {/* 实时训练遮罩层 */}
+      {sessionState.isActive && (
+        <div style={{ display: sessionState.isMinimized ? 'none' : 'block' }}>
+          <TrainSession
+            currentDay={currentDay}
+            sessionState={sessionState}
+            setSessionState={setSessionState}
+            t1Exercise={t1Exercise}
+            t2Exercise={t2Exercise}
+            t3Exercise={t3Exercise}
+            t1Weight={t1Weight}
+            t2Weight={t2Weight}
+            t3Weight={t3Weight}
+            getExerciseCNName={getExerciseCNName}
+            onMinimize={() => {
+              setSessionState(prev => ({ ...prev, isMinimized: true }));
+            }}
+            onSave={handleSaveSession}
+            onCancel={handleCancelSession}
+          />
+        </div>
+      )}
+
+      {/* 缩小打卡后的拖拽悬浮球 */}
+      {sessionState.isActive && sessionState.isMinimized && (
+        <FloatingBall
+          progress={getSessionProgress(sessionState.setsData)}
+          onRestore={() => {
+            setSessionState(prev => ({ ...prev, isMinimized: false }));
           }}
+          onCancel={handleCancelSession}
         />
       )}
     </>
