@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import { INITIAL_WEIGHTS } from './progression';
 import { Loader2, Save, ShieldAlert, Award, Compass, CheckCircle, Scale, Zap, Dumbbell } from 'lucide-react';
+import ExerciseLibrary from './ExerciseLibrary';
 
 /**
  * 计划设定页面组件 - 用于配置四大动作的初始重量、进阶加重步长、以及 T3 辅助动作达标门槛总次数
@@ -742,12 +743,7 @@ function PlanScreen({ onSettingsSaved }) {
             )}
           </div>
         ) : (
-          /* 动作库占位 */
-          <div className="card flex flex-col items-center justify-center text-center gap-3 min-h-[300px] animate-fadeIn opacity-70">
-            <Compass size={40} className="text-text-secondary/40 dark:text-text-secondary-dark/40" />
-            <p className="text-base font-bold text-text-main dark:text-text-main-dark">动作图表与教学库</p>
-            <p className="text-xs text-text-secondary dark:text-text-secondary-dark">即将推出，敬请期待！</p>
-          </div>
+          <ExerciseLibrary />
         )}
       </div>
 

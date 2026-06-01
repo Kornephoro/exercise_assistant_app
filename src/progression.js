@@ -17,22 +17,7 @@ export const INITIAL_WEIGHTS = {
   face_pull: 10.0
 };
 
-// 2. 动作中文名称映射
-export const EXERCISE_NAMES_CN = {
-  // 核心动作
-  squat: '深蹲 (Squat)',
-  bench: '卧推 (Bench Press)',
-  deadlift: '硬拉 (Deadlift)',
-  press: '推举 (Overhead Press)',
-  
-  // T3 辅助动作
-  pullup: '引体向上 (Pull-up)',
-  abdominal: '悬垂举腿/腹部 (Abdominal)',
-  bicep_curl: '二头肌弯举 (Bicep Curl)',
-  face_pull: '面拉 (Face Pull)'
-};
-
-// 3. GZCLP 四天循环动作映射 (T1 / T2)
+// 2. GZCLP 四天循环动作映射 (T1 / T2)
 export const DAY_WORKOUT_MAP = {
   Day1: { T1: 'squat', T2: 'bench' },
   Day2: { T1: 'deadlift', T2: 'press' },

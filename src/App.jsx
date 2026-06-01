@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { 
-  EXERCISE_NAMES_CN, 
-  DAY_WORKOUT_MAP, 
+import {
+  DAY_WORKOUT_MAP,
   DAY_T3_MAP,
-  getNextDay, 
-  getT1Progression, 
+  getNextDay,
+  getT1Progression,
   getT2Progression,
   getT3Progression
 } from './progression';
@@ -98,8 +97,8 @@ function App() {
   const [customIncrements, setCustomIncrements] = useState({});
   const [customT3Targets, setCustomT3Targets] = useState({});
 
-  // 动作中文名映射状态
-  const [exercisesCnMap, setExercisesCnMap] = useState({});
+  // 动作库全量数据（key: exercise name → full row object）
+  const [exercisesMap, setExercisesMap] = useState({});
 
   // 今日 T1/T2/T3 动作代号
   const [t1Exercise, setT1Exercise] = useState('squat');
@@ -265,17 +264,13 @@ function App() {
       setCustomIncrements(incrementsMap);
       setCustomT3Targets(t3TargetsMap);
 
-      // 解析 exercises 动作表的中文名映射
-      const cnNames = {};
+      // 解析 exercises 动作表 → 全量 map（name → row object）
+      const exMap = {};
       const dbExercises = exercisesRes.data || [];
       dbExercises.forEach(row => {
-        const key = row.name || row.exercise || '';
-        const cnName = row.name_cn || row.title || row.chinese_name || '';
-        if (key && cnName) {
-          cnNames[key] = cnName;
-        }
+        if (row.name) exMap[row.name] = row;
       });
-      setExercisesCnMap(cnNames);
+      setExercisesMap(exMap);
 
       // 根据训练日确定今日/下一次动作组合
       const t1t2Exercises = DAY_WORKOUT_MAP[determinedDay];
@@ -373,36 +368,37 @@ function App() {
     loadWorkoutData();
   }, []);
 
+  // 根据 recording_method 生成 set 的额外初始字段
+  const getSetExtraFields = (recordingMethod) => {
+    switch (recordingMethod) {
+      case 'duration_only':
+        return { duration_seconds: 0 };
+      case 'distance_only':
+        return { distance_meters: 0 };
+      case 'loaded_carry':
+        return { distance_meters: 0 };
+      default:
+        return {};
+    }
+  };
+
   // 4. 开启实时打卡会话 (startTrainSession)
   const startTrainSession = () => {
-    // 动态生成 T1 实际组数
-    const t1TotalSets = getT1TotalSets(t1PlannedReps);
-
-    const t1Sets = Array.from({ length: t1TotalSets }, (_, idx) => ({
-      set_number: idx + 1,
-      planned_reps: t1PlannedReps,
-      actual_reps: '', // 空表示默认使用 planned_reps
-      completed: false,
-      weight_kg: t1Weight
-    }));
-
-    // T2 固定为 3 组
-    const t2Sets = Array.from({ length: 3 }, (_, idx) => ({
-      set_number: idx + 1,
-      planned_reps: t2PlannedReps,
-      actual_reps: '',
-      completed: false,
-      weight_kg: t2Weight
-    }));
-
-    // T3 固定为 3 组
-    const t3Sets = Array.from({ length: 3 }, (_, idx) => ({
-      set_number: idx + 1,
-      planned_reps: t3PlannedReps,
-      actual_reps: '',
-      completed: false,
-      weight_kg: t3Weight
-    }));
+    const makeSets = (count, plannedReps, weight, exerciseKey) => {
+      const method = exercisesMap[exerciseKey]?.recording_method || 'standard';
+      const extra = getSetExtraFields(method);
+      return Array.from({ length: count }, (_, idx) => ({
+        set_number: idx + 1,
+        planned_reps: plannedReps,
+        actual_reps: '',
+        completed: false,
+        weight_kg: weight,
+        ...extra
+      }));
+    };
+    const t1Sets = makeSets(getT1TotalSets(t1PlannedReps), t1PlannedReps, t1Weight, t1Exercise);
+    const t2Sets = makeSets(3, t2PlannedReps, t2Weight, t2Exercise);
+    const t3Sets = makeSets(3, t3PlannedReps, t3Weight, t3Exercise);
 
     setSessionState({
       isActive: true,
@@ -450,61 +446,92 @@ function App() {
       return parseInt(setObj.actual_reps, 10);
     };
 
-    const t1LastReps = getFinalReps(t1Last);
-    const t2LastReps = getFinalReps(t2Last);
-    const t3LastReps = getFinalReps(t3Last);
+    const getRecordingMethod = (exerciseKey) => exercisesMap[exerciseKey]?.recording_method || 'standard';
 
-    if (isNaN(t1LastReps) || t1LastReps < 0 ||
-        isNaN(t2LastReps) || t2LastReps < 0 ||
-        isNaN(t3LastReps) || t3LastReps < 0) {
-      setToast({ type: 'error', message: '打卡保存失败：最后一组的实际次数必须是有效的正数' });
+    const t1Method = getRecordingMethod(t1Exercise);
+    const t2Method = getRecordingMethod(t2Exercise);
+    const t3Method = getRecordingMethod(t3Exercise);
+
+    const validateLastSet = (lastSet, method) => {
+      if (['standard', 'reps_only', 'bodyweight_added', 'bodyweight_assisted'].includes(method)) {
+        const reps = getFinalReps(lastSet);
+        return !isNaN(reps) && reps >= 0;
+      }
+      if (method === 'duration_only') {
+        return lastSet.duration_seconds > 0;
+      }
+      if (['distance_only', 'loaded_carry'].includes(method)) {
+        return lastSet.distance_meters > 0;
+      }
+      return true;
+    };
+
+    if (!validateLastSet(t1Last, t1Method) ||
+        !validateLastSet(t2Last, t2Method) ||
+        !validateLastSet(t3Last, t3Method)) {
+      setToast({ type: 'error', message: '打卡保存失败：最后一组必须填写有效数据' });
       return;
     }
 
     setSaving(true);
     try {
-      // A. 组装 workouts 日级汇总表记录 (actual_last_set_reps 从对应动作的最后一组中提取)
-      const t1Record = {
-        training_day: currentDay,
-        tier: 'T1',
-        exercise: t1Exercise,
-        weight_kg: t1Weight,
-        planned_reps: t1PlannedReps,
-        actual_last_set_reps: t1LastReps
+      // A. 组装 workouts 日级汇总表记录
+      const buildWorkoutRecord = (exercise, tier, weight, plannedReps, lastSet, method) => {
+        const record = {
+          training_day: currentDay,
+          tier,
+          exercise,
+          weight_kg: weight,
+        };
+        if (['standard', 'reps_only', 'bodyweight_added', 'bodyweight_assisted'].includes(method)) {
+          record.planned_reps = plannedReps;
+          record.actual_last_set_reps = getFinalReps(lastSet);
+        } else if (method === 'duration_only') {
+          record.actual_last_set_reps = lastSet.duration_seconds || 0;
+        } else if (['distance_only', 'loaded_carry'].includes(method)) {
+          record.actual_last_set_reps = lastSet.distance_meters || 0;
+        }
+        return record;
       };
 
-      const t2Record = {
-        training_day: currentDay,
-        tier: 'T2',
-        exercise: t2Exercise,
-        weight_kg: t2Weight,
-        planned_reps: t2PlannedReps,
-        actual_last_set_reps: t2LastReps
-      };
-
-      const t3Record = {
-        training_day: currentDay,
-        tier: 'T3',
-        exercise: t3Exercise,
-        weight_kg: t3Weight,
-        planned_reps: t3PlannedReps,
-        actual_last_set_reps: t3LastReps
-      };
+      const t1Record = buildWorkoutRecord(t1Exercise, 'T1', t1Weight, t1PlannedReps, t1Last, t1Method);
+      const t2Record = buildWorkoutRecord(t2Exercise, 'T2', t2Weight, t2PlannedReps, t2Last, t2Method);
+      const t3Record = buildWorkoutRecord(t3Exercise, 'T3', t3Weight, t3PlannedReps, t3Last, t3Method);
 
       // B. 组装 workout_sets 单组明细记录
       const setsToInsert = [];
 
       const mapSets = (sets, exerciseName, tierName) => {
-        return sets.map(s => ({
-          exercise: exerciseName,
-          tier: tierName,
-          set_number: s.set_number,
-          weight_kg: s.weight_kg,
-          planned_reps: s.planned_reps,
-          actual_reps: getFinalReps(s),
-          completed: s.completed,
-          notes: null
-        }));
+        const method = exercisesMap[exerciseName]?.recording_method || 'standard';
+        return sets.map(s => {
+          const base = {
+            exercise: exerciseName,
+            tier: tierName,
+            set_number: s.set_number,
+            completed: s.completed,
+            notes: null,
+          };
+          if (['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(method)) {
+            base.weight_kg = s.weight_kg;
+            base.planned_reps = s.planned_reps;
+            base.actual_reps = getFinalReps(s);
+          } else if (method === 'reps_only') {
+            base.planned_reps = s.planned_reps;
+            base.actual_reps = getFinalReps(s);
+          } else if (method === 'duration_only') {
+            base.duration_seconds = s.duration_seconds || 0;
+          } else if (method === 'distance_only') {
+            base.distance_meters = s.distance_meters || 0;
+          } else if (method === 'loaded_carry') {
+            base.weight_kg = s.weight_kg;
+            base.distance_meters = s.distance_meters || 0;
+          } else {
+            base.weight_kg = s.weight_kg;
+            base.planned_reps = s.planned_reps;
+            base.actual_reps = getFinalReps(s);
+          }
+          return base;
+        });
       };
 
       setsToInsert.push(...mapSets(t1Sets, t1Exercise, 'T1'));
@@ -581,7 +608,7 @@ function App() {
 
   // 获取中文名翻译
   const getExerciseCNName = (exercise) => {
-    return exercisesCnMap[exercise] || EXERCISE_NAMES_CN[exercise] || exercise;
+    return exercisesMap[exercise]?.name_cn || exercise;
   };
 
   const getNextTrainingDateFormatted = () => {
@@ -782,6 +809,7 @@ function App() {
             t2Weight={t2Weight}
             t3Weight={t3Weight}
             getExerciseCNName={getExerciseCNName}
+            exercisesMap={exercisesMap}
             onMinimize={() => {
               setSessionState(prev => ({ ...prev, isMinimized: true }));
             }}

@@ -3,8 +3,8 @@ import { Minimize2, X, ChevronDown, ChevronUp, Check, Sparkles } from 'lucide-re
 
 /**
  * 实时训练会话记录屏幕组件 (全屏覆盖层)
- * 完全采用 Tailwind CSS + DaisyUI 组件进行重构，并遵循系统高级设计规范
- * 
+ * 根据动作的 recording_method 动态渲染不同输入项
+ *
  * @param {Object} props
  * @param {string} props.currentDay 当前训练日 (如 'Day1')
  * @param {Object} props.sessionState 实时训练会话全局状态
@@ -16,6 +16,7 @@ import { Minimize2, X, ChevronDown, ChevronUp, Check, Sparkles } from 'lucide-re
  * @param {number} props.t2Weight T2今日重量
  * @param {number} props.t3Weight T3今日重量
  * @param {Function} props.getExerciseCNName 获取中文名翻译
+ * @param {Object} props.exercisesMap 动作库全量数据 map
  * @param {Function} props.onMinimize 缩小隐藏训练层回调
  * @param {Function} props.onSave 保存训练数据回调
  * @param {Function} props.onCancel 终止并销毁训练回调
@@ -31,43 +32,43 @@ function TrainSession({
   t2Weight,
   t3Weight,
   getExerciseCNName,
+  exercisesMap,
   onMinimize,
   onSave,
   onCancel
 }) {
-  // 控制折叠手风琴状态 (0: T1, 1: T2, 2: T3)
   const [expandedIndex, setExpandedIndex] = useState(0);
-  
-  // 用于平滑滚动的 DOM Ref
+
   const t1CardRef = useRef(null);
   const t2CardRef = useRef(null);
   const t3CardRef = useRef(null);
 
-  // 1. 手动切换手风琴展开
+  const getRecordingMethod = (exerciseKey) => {
+    return exercisesMap?.[exerciseKey]?.recording_method || 'standard';
+  };
+
   const toggleAccordion = (index) => {
     setExpandedIndex(expandedIndex === index ? -1 : index);
   };
 
-  // 2. 检查某 Tier 是否所有组都已完成勾选
   const isTierFinished = (tier) => {
     const sets = sessionState.setsData[tier] || [];
     return sets.length > 0 && sets.every(s => s.completed);
   };
 
-  // 3. 检查所有三个动作的所有组是否全部完成
   const isSessionFinished = () => {
     return isTierFinished('T1') && isTierFinished('T2') && isTierFinished('T3');
   };
 
-  // 4. 用户勾选某组
   const handleToggleSet = (tier, setIndex) => {
     const updatedSetsData = { ...sessionState.setsData };
     const targetSet = updatedSetsData[tier][setIndex];
     targetSet.completed = !targetSet.completed;
 
-    // 勾选后，若实际次数为空，设为计划预定次数作为默认值
-    if (targetSet.completed && (targetSet.actual_reps === '' || targetSet.actual_reps === undefined)) {
-      targetSet.actual_reps = targetSet.planned_reps;
+    if (targetSet.completed) {
+      if (targetSet.actual_reps === '' || targetSet.actual_reps === undefined) {
+        targetSet.actual_reps = targetSet.planned_reps;
+      }
     }
 
     setSessionState(prev => ({
@@ -76,23 +77,32 @@ function TrainSession({
     }));
   };
 
-  // 5. 用户修改单组实际次数
   const handleRepsChange = (tier, setIndex, value) => {
     const updatedSetsData = { ...sessionState.setsData };
-    // 强制转换为数字或保留为空白字符串
     updatedSetsData[tier][setIndex].actual_reps = value === '' ? '' : parseInt(value, 10);
-    
-    setSessionState(prev => ({
-      ...prev,
-      setsData: updatedSetsData
-    }));
+    setSessionState(prev => ({ ...prev, setsData: updatedSetsData }));
   };
 
-  // 6. 流转到下一个动作并平滑滚动
+  const handleWeightChange = (tier, setIndex, value) => {
+    const updatedSetsData = { ...sessionState.setsData };
+    updatedSetsData[tier][setIndex].weight_kg = value === '' ? 0 : parseFloat(value);
+    setSessionState(prev => ({ ...prev, setsData: updatedSetsData }));
+  };
+
+  const handleDurationChange = (tier, setIndex, value) => {
+    const updatedSetsData = { ...sessionState.setsData };
+    updatedSetsData[tier][setIndex].duration_seconds = value === '' ? 0 : parseInt(value, 10);
+    setSessionState(prev => ({ ...prev, setsData: updatedSetsData }));
+  };
+
+  const handleDistanceChange = (tier, setIndex, value) => {
+    const updatedSetsData = { ...sessionState.setsData };
+    updatedSetsData[tier][setIndex].distance_meters = value === '' ? 0 : parseFloat(value);
+    setSessionState(prev => ({ ...prev, setsData: updatedSetsData }));
+  };
+
   const handleGoToNext = (nextIndex) => {
     setExpandedIndex(nextIndex);
-    
-    // 短暂延迟等卡片展开后执行平滑滚动
     setTimeout(() => {
       const targetRef = nextIndex === 1 ? t2CardRef : t3CardRef;
       if (targetRef.current) {
@@ -101,39 +111,223 @@ function TrainSession({
     }, 150);
   };
 
-  // 7. 取消/终止并丢弃数据
   const handleAbort = () => {
     if (window.confirm("确定结束本次训练？所有当前已记录的组进度将被丢弃且无法找回。")) {
       onCancel();
     }
   };
 
-  const t1Sets = sessionState.setsData.T1 || [];
-  const t2Sets = sessionState.setsData.T2 || [];
-  const t3Sets = sessionState.setsData.T3 || [];
+  const renderSetInputs = (tier, set, idx, setsLength, exerciseKey) => {
+    const method = getRecordingMethod(exerciseKey);
+    const isLastSet = idx === setsLength - 1;
+    const completedClass = set.completed ? 'line-through opacity-50' : '';
+
+    const inputBaseClass = `input input-bordered input-md h-9 text-center font-mono text-base font-bold bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+      isLastSet ? 'ring-2 ring-primary ring-offset-2 dark:ring-offset-bg-card' : ''
+    }`;
+
+    if (method === 'duration_only') {
+      return (
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number"
+            className={`${inputBaseClass} w-[80px]`}
+            value={set.duration_seconds || ''}
+            placeholder="秒"
+            onChange={(e) => handleDurationChange(tier, idx, e.target.value)}
+          />
+          <span className="text-sm font-bold text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">秒</span>
+        </div>
+      );
+    }
+
+    if (method === 'distance_only') {
+      return (
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number"
+            className={`${inputBaseClass} w-[80px]`}
+            value={set.distance_meters || ''}
+            placeholder="米"
+            step="0.1"
+            onChange={(e) => handleDistanceChange(tier, idx, e.target.value)}
+          />
+          <span className="text-sm font-bold text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">米</span>
+        </div>
+      );
+    }
+
+    if (method === 'loaded_carry') {
+      return (
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number"
+            className={`${inputBaseClass} w-[70px]`}
+            value={set.distance_meters || ''}
+            placeholder="米"
+            step="0.1"
+            onChange={(e) => handleDistanceChange(tier, idx, e.target.value)}
+          />
+          <span className="text-sm font-bold text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">米</span>
+          <input
+            type="number"
+            className={`${inputBaseClass} w-[65px]`}
+            value={set.weight_kg || ''}
+            placeholder="kg"
+            step="0.5"
+            onChange={(e) => handleWeightChange(tier, idx, e.target.value)}
+          />
+          <span className="text-sm font-bold text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
+        </div>
+      );
+    }
+
+    // standard, reps_only, bodyweight_added, bodyweight_assisted
+    const showWeight = ['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(method);
+    const weightLabel = method === 'bodyweight_added' ? '附加' : method === 'bodyweight_assisted' ? '辅助' : null;
+
+    return (
+      <div className="flex items-center gap-1.5">
+        {showWeight && (
+          <>
+            <input
+              type="number"
+              className={`${inputBaseClass} w-[70px]`}
+              value={set.weight_kg}
+              placeholder="kg"
+              step="0.5"
+              onChange={(e) => handleWeightChange(tier, idx, e.target.value)}
+            />
+            <span className="text-sm font-bold text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">
+              {weightLabel || 'kg'}
+            </span>
+          </>
+        )}
+        <input
+          type="number"
+          className={`${inputBaseClass} w-[70px]`}
+          value={set.actual_reps}
+          placeholder={isLastSet ? 'AMRAP' : set.planned_reps.toString()}
+          onChange={(e) => handleRepsChange(tier, idx, e.target.value)}
+        />
+        <span className="text-sm font-bold text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">次</span>
+      </div>
+    );
+  };
+
+  const renderTargetInfo = (set, exerciseKey) => {
+    const method = getRecordingMethod(exerciseKey);
+    if (method === 'duration_only') {
+      return <span className="text-sm text-text-secondary dark:text-text-secondary-dark font-bold select-none">时长</span>;
+    }
+    if (method === 'distance_only') {
+      return <span className="text-sm text-text-secondary dark:text-text-secondary-dark font-bold select-none">距离</span>;
+    }
+    if (method === 'loaded_carry') {
+      return <span className="text-sm text-text-secondary dark:text-text-secondary-dark font-bold select-none">距离+重量</span>;
+    }
+    return (
+      <span className={`text-sm text-text-secondary dark:text-text-secondary-dark font-bold select-none ${set.completed ? 'opacity-50' : ''}`}>
+        目标: {set.planned_reps}次
+      </span>
+    );
+  };
+
+  const renderTierCard = (tier, exerciseKey, weight, tierIndex, cardRef, tierColor) => {
+    const sets = sessionState.setsData[tier] || [];
+    const isExpanded = expandedIndex === tierIndex;
+
+    return (
+      <div
+        ref={cardRef}
+        className={`card bg-bg-card dark:bg-bg-card-dark border border-border-card dark:border-border-card-dark border-l-4 border-l-tier-${tierColor} dark:border-l-tier-${tierColor}-dark transition-all duration-300 shadow-sm`}
+      >
+        <div
+          className="flex items-center justify-between p-4 cursor-pointer select-none"
+          onClick={() => toggleAccordion(tierIndex)}
+        >
+          <div className="flex items-center gap-2">
+            <span className={`badge bg-tier-${tierColor}/10 text-tier-${tierColor} dark:text-tier-${tierColor}-dark border-tier-${tierColor}/20 dark:border-tier-${tierColor}-dark/20 font-bold text-xs w-7 h-5 flex items-center justify-center rounded`}>
+              {tier}
+            </span>
+            <span className="text-lg font-bold text-text-main dark:text-text-main-dark truncate max-w-[160px]">
+              {getExerciseCNName(exerciseKey)}
+            </span>
+            <span className="text-sm font-mono font-bold bg-bg-main/30 dark:bg-bg-main-dark/30 border border-border-card/45 dark:border-border-card-dark/45 px-2.5 py-0.5 rounded text-text-secondary dark:text-text-secondary-dark">
+              {weight.toFixed(1)}kg
+            </span>
+          </div>
+          <div className="text-text-secondary dark:text-text-secondary-dark">
+            {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </div>
+        </div>
+
+        {isExpanded && (
+          <div className="p-4 pt-0 animate-fadeIn flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
+              {sets.map((set, idx) => (
+                <div
+                  key={idx}
+                  className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-150 ${
+                    set.completed
+                      ? 'bg-primary/5 border-primary/20 opacity-70'
+                      : 'bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card/40 dark:border-border-card-dark/40'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={set.completed}
+                    onChange={() => handleToggleSet(tier, idx)}
+                    className="checkbox checkbox-primary checkbox-md cursor-pointer select-none"
+                  />
+
+                  <span className={`text-sm font-bold text-text-main dark:text-text-main-dark select-none ${set.completed ? 'line-through opacity-50' : ''}`}>
+                    第 {set.set_number} 组
+                  </span>
+
+                  {renderTargetInfo(set, exerciseKey)}
+
+                  {renderSetInputs(tier, set, idx, sets.length, exerciseKey)}
+                </div>
+              ))}
+            </div>
+
+            {isTierFinished(tier) && tierIndex < 2 && (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm btn-block mt-1 font-semibold text-xs select-none shadow-md transition-transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+                onClick={() => handleGoToNext(tierIndex + 1)}
+              >
+                完成 {tier}，进入下一个动作 {tierIndex === 0 ? 'T2' : 'T3'}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-bg-main/98 dark:bg-bg-main-dark/98 backdrop-blur-lg p-4 max-w-[480px] w-full mx-auto overflow-hidden animate-fadeIn">
-      
-      {/* 顶部操作条 */}
+
       <div className="flex items-center justify-between border-b border-border-card dark:border-border-card-dark pb-3 mb-4 select-none">
-        <button 
-          type="button" 
-          className="btn btn-ghost btn-sm text-text-secondary hover:text-text-main dark:text-text-secondary-dark dark:hover:text-text-main-dark flex items-center gap-1 cursor-pointer" 
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm text-text-secondary hover:text-text-main dark:text-text-secondary-dark dark:hover:text-text-main-dark flex items-center gap-1 cursor-pointer"
           onClick={onMinimize}
           title="缩小为悬浮球"
         >
           <Minimize2 size={16} />
           <span className="text-xs font-medium">缩小</span>
         </button>
-        
+
         <div className="text-sm font-bold text-text-main dark:text-text-main-dark">
           实时训练中 ({currentDay})
         </div>
-        
-        <button 
-          type="button" 
-          className="btn btn-ghost btn-sm text-alert dark:text-alert-dark flex items-center gap-1 cursor-pointer" 
+
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm text-alert dark:text-alert-dark flex items-center gap-1 cursor-pointer"
           onClick={handleAbort}
           title="终止本次训练"
         >
@@ -142,242 +336,16 @@ function TrainSession({
         </button>
       </div>
 
-      {/* 动作折叠组滚动区 */}
       <div className="flex-1 overflow-y-auto pr-0.5 flex flex-col gap-4 pb-24">
+        {renderTierCard('T1', t1Exercise, t1Weight, 0, t1CardRef, 't1')}
+        {renderTierCard('T2', t2Exercise, t2Weight, 1, t2CardRef, 't2')}
+        {renderTierCard('T3', t3Exercise, t3Weight, 2, t3CardRef, 't3')}
 
-        {/* T1 动作手风琴卡片 */}
-        <div 
-          ref={t1CardRef} 
-          className={`card bg-bg-card dark:bg-bg-card-dark border border-border-card dark:border-border-card-dark border-l-4 border-l-tier-t1 dark:border-l-tier-t1-dark transition-all duration-300 shadow-sm`}
-        >
-          {/* 头部导航区域 */}
-          <div 
-            className="flex items-center justify-between p-4 cursor-pointer select-none" 
-            onClick={() => toggleAccordion(0)}
-          >
-            <div className="flex items-center gap-2">
-              <span className="badge bg-tier-t1/10 text-tier-t1 dark:text-tier-t1-dark border-tier-t1/20 dark:border-tier-t1-dark/20 font-bold text-xs w-7 h-5 flex items-center justify-center rounded">T1</span>
-              <span className="text-lg font-bold text-text-main dark:text-text-main-dark truncate max-w-[160px]">{getExerciseCNName(t1Exercise)}</span>
-              <span className="text-sm font-mono font-bold bg-bg-main/30 dark:bg-bg-main-dark/30 border border-border-card/45 dark:border-border-card-dark/45 px-2.5 py-0.5 rounded text-text-secondary dark:text-text-secondary-dark">{t1Weight.toFixed(1)}kg</span>
-            </div>
-            <div className="text-text-secondary dark:text-text-secondary-dark">
-              {expandedIndex === 0 ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-            </div>
-          </div>
-
-          {/* 手风琴主体 */}
-          {expandedIndex === 0 && (
-            <div className="p-4 pt-0 animate-fadeIn flex flex-col gap-3">
-              <div className="flex flex-col gap-2">
-                {t1Sets.map((set, idx) => {
-                  const isLastSet = idx === t1Sets.length - 1;
-                  return (
-                    <div 
-                      key={idx} 
-                      className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-150 ${
-                        set.completed 
-                          ? 'bg-primary/5 border-primary/20 opacity-70' 
-                          : 'bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card/40 dark:border-border-card-dark/40'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={set.completed}
-                        onChange={() => handleToggleSet('T1', idx)}
-                        className="checkbox checkbox-primary checkbox-md cursor-pointer select-none"
-                      />
-                      
-                      <span className={`text-sm font-bold text-text-main dark:text-text-main-dark select-none ${set.completed ? 'line-through opacity-50' : ''}`}>
-                        第 {set.set_number} 组
-                      </span>
-                      
-                      <span className={`text-sm text-text-secondary dark:text-text-secondary-dark font-bold select-none ${set.completed ? 'opacity-50' : ''}`}>
-                        目标: {set.planned_reps}次
-                      </span>
-                      
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="number"
-                          className={`input input-bordered input-md h-9 w-[70px] text-center font-mono text-base font-bold bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                            isLastSet ? 'ring-2 ring-primary ring-offset-2 dark:ring-offset-bg-card' : ''
-                          }`}
-                          value={set.actual_reps}
-                          placeholder={isLastSet ? 'AMRAP' : set.planned_reps.toString()}
-                          onChange={(e) => handleRepsChange('T1', idx, e.target.value)}
-                        />
-                        <span className="text-sm font-bold text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">次</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* T1 所有组均勾选，但还没进入 T2，显示流转按钮 */}
-              {isTierFinished('T1') && (
-                <button
-                  type="button"
-                  className="btn btn-primary btn-sm btn-block mt-1 font-semibold text-xs select-none shadow-md transition-transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
-                  onClick={() => handleGoToNext(1)}
-                >
-                  完成 T1，进入下一个动作 T2
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* T2 动作手风琴卡片 */}
-        <div 
-          ref={t2CardRef} 
-          className={`card bg-bg-card dark:bg-bg-card-dark border border-border-card dark:border-border-card-dark border-l-4 border-l-tier-t2 dark:border-l-tier-t2-dark transition-all duration-300 shadow-sm`}
-        >
-          <div 
-            className="flex items-center justify-between p-4 cursor-pointer select-none" 
-            onClick={() => toggleAccordion(1)}
-          >
-            <div className="flex items-center gap-2">
-              <span className="badge bg-tier-t2/10 text-tier-t2 dark:text-tier-t2-dark border-tier-t2/20 dark:border-tier-t2-dark/20 font-bold text-xs w-7 h-5 flex items-center justify-center rounded">T2</span>
-              <span className="text-lg font-bold text-text-main dark:text-text-main-dark truncate max-w-[160px]">{getExerciseCNName(t2Exercise)}</span>
-              <span className="text-sm font-mono font-bold bg-bg-main/30 dark:bg-bg-main-dark/30 border border-border-card/45 dark:border-border-card-dark/45 px-2.5 py-0.5 rounded text-text-secondary dark:text-text-secondary-dark">{t2Weight.toFixed(1)}kg</span>
-            </div>
-            <div className="text-text-secondary dark:text-text-secondary-dark">
-              {expandedIndex === 1 ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-            </div>
-          </div>
-
-          {expandedIndex === 1 && (
-            <div className="p-4 pt-0 animate-fadeIn flex flex-col gap-3">
-              <div className="flex flex-col gap-2">
-                {t2Sets.map((set, idx) => {
-                  const isLastSet = idx === t2Sets.length - 1;
-                  return (
-                    <div 
-                      key={idx} 
-                      className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-150 ${
-                        set.completed 
-                          ? 'bg-primary/5 border-primary/20 opacity-70' 
-                          : 'bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card/40 dark:border-border-card-dark/40'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={set.completed}
-                        onChange={() => handleToggleSet('T2', idx)}
-                        className="checkbox checkbox-primary checkbox-md cursor-pointer select-none"
-                      />
-                      
-                      <span className={`text-sm font-bold text-text-main dark:text-text-main-dark select-none ${set.completed ? 'line-through opacity-50' : ''}`}>
-                        第 {set.set_number} 组
-                      </span>
-                      
-                      <span className={`text-sm text-text-secondary dark:text-text-secondary-dark font-bold select-none ${set.completed ? 'opacity-50' : ''}`}>
-                        目标: {set.planned_reps}次
-                      </span>
-                      
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="number"
-                          className={`input input-bordered input-md h-9 w-[70px] text-center font-mono text-base font-bold bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                            isLastSet ? 'ring-2 ring-primary ring-offset-2 dark:ring-offset-bg-card' : ''
-                          }`}
-                          value={set.actual_reps}
-                          placeholder={isLastSet ? 'AMRAP' : set.planned_reps.toString()}
-                          onChange={(e) => handleRepsChange('T2', idx, e.target.value)}
-                        />
-                        <span className="text-sm font-bold text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">次</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {isTierFinished('T2') && (
-                <button
-                  type="button"
-                  className="btn btn-primary btn-sm btn-block mt-1 font-semibold text-xs select-none shadow-md transition-transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
-                  onClick={() => handleGoToNext(2)}
-                >
-                  完成 T2，进入下一个动作 T3
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* T3 动作手风琴卡片 */}
-        <div 
-          ref={t3CardRef} 
-          className={`card bg-bg-card dark:bg-bg-card-dark border border-border-card dark:border-border-card-dark border-l-4 border-l-tier-t3 dark:border-l-tier-t3-dark transition-all duration-300 shadow-sm`}
-        >
-          <div 
-            className="flex items-center justify-between p-4 cursor-pointer select-none" 
-            onClick={() => toggleAccordion(2)}
-          >
-            <div className="flex items-center gap-2">
-              <span className="badge bg-tier-t3/10 text-tier-t3 dark:text-tier-t3-dark border-tier-t3/20 dark:border-tier-t3-dark/20 font-bold text-xs w-7 h-5 flex items-center justify-center rounded">T3</span>
-              <span className="text-lg font-bold text-text-main dark:text-text-main-dark truncate max-w-[160px]">{getExerciseCNName(t3Exercise)}</span>
-              <span className="text-sm font-mono font-bold bg-bg-main/30 dark:bg-bg-main-dark/30 border border-border-card/45 dark:border-border-card-dark/45 px-2.5 py-0.5 rounded text-text-secondary dark:text-text-secondary-dark">{t3Weight.toFixed(1)}kg</span>
-            </div>
-            <div className="text-text-secondary dark:text-text-secondary-dark">
-              {expandedIndex === 2 ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-            </div>
-          </div>
-
-          {expandedIndex === 2 && (
-            <div className="p-4 pt-0 animate-fadeIn flex flex-col gap-3">
-              <div className="flex flex-col gap-2">
-                {t3Sets.map((set, idx) => {
-                  const isLastSet = idx === t3Sets.length - 1;
-                  return (
-                    <div 
-                      key={idx} 
-                      className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-150 ${
-                        set.completed 
-                          ? 'bg-primary/5 border-primary/20 opacity-70' 
-                          : 'bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card/40 dark:border-border-card-dark/40'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={set.completed}
-                        onChange={() => handleToggleSet('T3', idx)}
-                        className="checkbox checkbox-primary checkbox-md cursor-pointer select-none"
-                      />
-                      
-                      <span className={`text-sm font-bold text-text-main dark:text-text-main-dark select-none ${set.completed ? 'line-through opacity-50' : ''}`}>
-                        第 {set.set_number} 组
-                      </span>
-                      
-                      <span className={`text-sm text-text-secondary dark:text-text-secondary-dark font-bold select-none ${set.completed ? 'opacity-50' : ''}`}>
-                        目标: {set.planned_reps}次
-                      </span>
-                      
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="number"
-                          className={`input input-bordered input-md h-9 w-[70px] text-center font-mono text-base font-bold bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                            isLastSet ? 'ring-2 ring-primary ring-offset-2 dark:ring-offset-bg-card' : ''
-                          }`}
-                          value={set.actual_reps}
-                          placeholder={isLastSet ? 'AMRAP' : set.planned_reps.toString()}
-                          onChange={(e) => handleRepsChange('T3', idx, e.target.value)}
-                        />
-                        <span className="text-sm font-bold text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">次</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* 底部保存大按钮 - 当全部动作的所有组均勾选后渲染 */}
         {isSessionFinished() && (
           <div className="mt-4 px-1 pb-8 animate-fadeIn">
-            <button 
-              type="button" 
-              className="btn btn-success btn-lg btn-block text-white font-semibold flex items-center justify-center gap-2 shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0 select-none cursor-pointer" 
+            <button
+              type="button"
+              className="btn btn-success btn-lg btn-block text-white font-semibold flex items-center justify-center gap-2 shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0 select-none cursor-pointer"
               onClick={onSave}
             >
               <Sparkles size={18} />
@@ -385,7 +353,6 @@ function TrainSession({
             </button>
           </div>
         )}
-
       </div>
     </div>
   );
