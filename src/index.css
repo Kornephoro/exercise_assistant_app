@@ -22,7 +22,6 @@
   --color-t3-glow: rgba(191, 90, 242, 0.15);
   --color-t3-border: rgba(191, 90, 242, 0.35);
 
-  
   --color-success: #30d158;
   --color-error: #ff453a;
   
@@ -36,6 +35,30 @@
   
   --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   --shadow-premium: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
+  --border-soft: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="light"] {
+  --bg-primary: #fafaf9;
+  --bg-secondary: #f4f4f5;
+  --bg-card: #ffffff;
+  --bg-input: #e4e4e7;
+  
+  --text-main: #18181b;
+  --text-secondary: #52525b;
+  --text-muted: #a1a1aa;
+  
+  --shadow-premium: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
+  --border-soft: rgba(0, 0, 0, 0.06);
+  
+  --color-t1-glow: rgba(255, 69, 58, 0.08);
+  --color-t1-border: rgba(255, 69, 58, 0.25);
+  
+  --color-t2-glow: rgba(10, 132, 255, 0.08);
+  --color-t2-border: rgba(10, 132, 255, 0.25);
+  
+  --color-t3-glow: rgba(191, 90, 242, 0.08);
+  --color-t3-border: rgba(191, 90, 242, 0.25);
 }
 
 * {
@@ -1611,6 +1634,403 @@ body {
   0%, 100% { transform: rotate(0deg) scale(1); }
   50% { transform: rotate(15deg) scale(1.08); }
 }
+
+/* ==========================================
+   MVP 体验补齐新样式
+   ========================================== */
+
+/* A. 顶栏操作区 */
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.header-icon-btn {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background-color 0.2s, transform 0.2s;
+  outline: none;
+}
+
+.header-icon-btn:hover {
+  background-color: rgba(128, 128, 128, 0.12);
+}
+
+.header-icon-btn:active {
+  transform: scale(0.95);
+}
+
+/* B. PlanScreen T3 双字段输入框布局 */
+.T3-inputs {
+  display: flex;
+  gap: 12px;
+}
+
+.T3-inputs .step-field {
+  flex: 1;
+}
+
+/* C. 今日页卡片式布局样式 */
+.today-screen-header {
+  margin-bottom: 24px;
+  text-align: left;
+}
+
+.today-day-title {
+  font-family: var(--font-sans);
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+
+.today-date-subtitle {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+}
+
+.today-card-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 100px; /* 避开底部 Tab */
+}
+
+.today-item-card {
+  background-color: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-premium);
+  border: 1px solid var(--border-soft);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s, box-shadow 0.25s;
+}
+
+/* 计划大纲卡片 hover 状态 */
+.today-item-card.plan-summary-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(168, 85, 247, 0.25);
+  box-shadow: 0 12px 30px rgba(168, 85, 247, 0.08), var(--shadow-premium);
+  cursor: pointer;
+}
+
+.card-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.badge-outline {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  color: #bf5af2;
+  border: 1px solid rgba(191, 90, 242, 0.3);
+  background: rgba(191, 90, 242, 0.06);
+  padding: 2px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.start-btn-inline {
+  font-size: 12px;
+  font-weight: 700;
+  color: #bf5af2;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.start-btn-inline:hover {
+  opacity: 0.8;
+}
+
+.plan-title {
+  font-family: var(--font-sans);
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-top: 8px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.plan-summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-secondary);
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-soft);
+}
+
+.plan-row-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-left: 12px;
+  text-align: left;
+}
+
+.plan-exercise-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.plan-scheme {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.plan-weight {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.tier-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.tier-dot.t1 {
+  background: var(--color-t1-glow);
+  color: var(--color-t1);
+  border: 1px solid var(--color-t1-border);
+}
+.tier-dot.t2 {
+  background: var(--color-t2-glow);
+  color: var(--color-t2);
+  border: 1px solid var(--color-t2-border);
+}
+.tier-dot.t3 {
+  background: var(--color-t3-glow);
+  color: var(--color-t3);
+  border: 1px solid var(--color-t3-border);
+}
+
+/* 占位卡片样式 */
+.placeholder-card {
+  opacity: 0.85;
+  border: 1px dashed var(--border-soft) !important;
+  background: linear-gradient(135deg, var(--bg-card) 0%, rgba(128, 128, 128, 0.02) 100%) !important;
+}
+
+.placeholder-icon-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.placeholder-badge {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-muted);
+  border: 1px solid var(--border-soft);
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(128, 128, 128, 0.05);
+}
+
+.placeholder-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-top: 8px;
+  text-align: left;
+}
+
+.heart-icon { color: #ff2d55; }
+.utensils-icon { color: #ff9500; }
+
+/* 今日已完成摘要卡片样式 */
+.completed-summary-card {
+  border-top: 4px solid var(--color-success) !important;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.completed-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.completed-check-icon {
+  color: var(--color-success);
+  filter: drop-shadow(0 4px 10px rgba(48, 209, 88, 0.25));
+}
+
+.completed-message {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.completed-workout-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.completed-log-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-secondary);
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-soft);
+}
+
+.completed-log-row.t1-border { border-left: 3.5px solid var(--color-t1); }
+.completed-log-row.t2-border { border-left: 3.5px solid var(--color-t2); }
+.completed-log-row.t3-border { border-left: 3.5px solid var(--color-t3); }
+
+.log-row-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tier-badge-small {
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.tier-badge-small.t1 { background: var(--color-t1-glow); color: var(--color-t1); }
+.tier-badge-small.t2 { background: var(--color-t2-glow); color: var(--color-t2); }
+.tier-badge-small.t3 { background: var(--color-t3-glow); color: var(--color-t3); }
+
+.log-exercise-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.log-row-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.log-weight {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  color: var(--text-main);
+  background: rgba(128, 128, 128, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* 置灰禁用打卡按钮 */
+.disabled-completed-btn {
+  background: rgba(48, 209, 88, 0.12) !important;
+  color: var(--color-success) !important;
+  border: 1px solid rgba(48, 209, 88, 0.25) !important;
+  box-shadow: none !important;
+  cursor: not-allowed;
+  opacity: 0.9;
+}
+
+/* D. 日间模式的组件微调覆盖 */
+[data-theme="light"] .floating-ball {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1), 0 0 15px rgba(99, 102, 241, 0.08);
+}
+
+[data-theme="light"] .floating-ball-progress {
+  color: var(--text-main);
+  background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .train-session-overlay {
+  background: rgba(245, 245, 247, 0.85);
+}
+
+[data-theme="light"] .train-session-header {
+  background: rgba(255, 255, 255, 0.8);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .set-row {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .checkmark {
+  background-color: #f4f4f5;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .set-input-wrapper {
+  background-color: #fafaf9;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .actual-reps-input {
+  color: var(--text-main);
+}
+
+[data-theme="light"] .settings-tip {
+  background-color: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.06);
+  color: var(--text-secondary);
+}
+
+[data-theme="light"] .settings-form .section-title {
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
 
 
 

@@ -301,12 +301,33 @@ export function getT2Progression(exercise, history, customInitialWeight, increme
  * @param {number} [increment=2.5] 用户自定义的进阶加重步长
  * @returns {Object} { weight_kg: number, planned_reps: number, scheme_text: string }
  */
-export function getT3Progression(exercise, history, customInitialWeight, increment = 2.5) {
+/**
+ * 计算 T3 动作的今日训练建议
+ * 
+ * T3 规则：
+ * - 无历史记录：
+ *     - 采用 3×15 方案 (planned_reps = 15)
+ *     - 重量优先采用用户自定义初始重量，若无则采用默认初始重量 (10.0kg)
+ * - 有历史记录（取最后一条）：
+ *     - 首先计算上次总次数：total_reps = 2 * planned_reps + actual_last_set_reps = 30 + actual_last_set_reps
+ *     - 若总次数 >= targetReps (成功)：重量增加 increment，方案保持 3x15 (planned_reps = 15)
+ *     - 若总次数 < targetReps (失败)：重量不变，方案保持 3x15 (planned_reps = 15)
+ *     - 无降级，方案永远为 3×15
+ * 
+ * @param {string} exercise 动作名
+ * @param {Array} history 该动作在该 Tier 的全部历史记录
+ * @param {number} [customInitialWeight] 用户自定义初始重量
+ * @param {number} [increment=2.5] 用户自定义的进阶加重步长
+ * @param {number} [targetReps=25] 用户自定义的进阶达标门槛总次数
+ * @returns {Object} { weight_kg: number, planned_reps: number, scheme_text: string }
+ */
+export function getT3Progression(exercise, history, customInitialWeight, increment = 2.5, targetReps = 25) {
   const defaultWeight = (customInitialWeight !== undefined && customInitialWeight !== null)
     ? Number(customInitialWeight)
     : (INITIAL_WEIGHTS[exercise] || 10.0);
 
   const step = Number(increment);
+  const targetThreshold = Number(targetReps);
 
   // 1. 无历史记录，使用初始设置：3x15 @ 初始重量
   if (!history || history.length === 0) {
@@ -329,8 +350,8 @@ export function getT3Progression(exercise, history, customInitialWeight, increme
   let nextWeight = lastWeight;
 
   // 2. 根据总次数达标情况计算增重 (T3 无降级，方案恒定 3x15)
-  if (totalReps >= 25) {
-    // 成功：总次数 >= 25 ➔ 增加进阶步长重量
+  if (totalReps >= targetThreshold) {
+    // 成功：总次数 >= targetThreshold ➔ 增加进阶步长重量
     nextWeight = lastWeight + step;
   } else {
     // 失败：重量保持不变

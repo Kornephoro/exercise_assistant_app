@@ -4,7 +4,7 @@ import { INITIAL_WEIGHTS } from './progression';
 import { Loader2, Save, ShieldAlert, Award, Compass } from 'lucide-react';
 
 /**
- * 计划设定页面组件 - 用于直接配置四大动作的初始重量和 T1/T2/T3 进阶加重步长
+ * 计划设定页面组件 - 用于配置四大动作的初始重量、进阶加重步长、以及 T3 辅助动作达标门槛总次数
  * 
  * @param {Object} props
  * @param {Function} props.onSettingsSaved 保存配置成功后通知父组件重新计算建议重量的回调
@@ -35,11 +35,17 @@ function PlanScreen({ onSettingsSaved }) {
   const [pressT1Step, setPressT1Step] = useState('2.5');
   const [pressT2Step, setPressT2Step] = useState('2.5');
 
-  // T3 辅助动作步长
+  // T3 辅助动作步长 (increment)
   const [pullupT3Step, setPullupT3Step] = useState('2.5');
   const [abdominalT3Step, setAbdominalT3Step] = useState('2.5');
   const [bicepCurlT3Step, setBicepCurlT3Step] = useState('2.5');
   const [facePullT3Step, setFacePullT3Step] = useState('2.5');
+
+  // T3 辅助动作达标总次数门槛 (target_reps)
+  const [pullupT3Target, setPullupT3Target] = useState('25');
+  const [abdominalT3Target, setAbdominalT3Target] = useState('25');
+  const [bicepCurlT3Target, setBicepCurlT3Target] = useState('25');
+  const [facePullT3Target, setFacePullT3Target] = useState('25');
 
   // 已有行 ID 映射，供防错 UPSERT
   const [existingIds, setExistingIds] = useState({});
@@ -52,6 +58,7 @@ function PlanScreen({ onSettingsSaved }) {
     }
   }, [activeSubTab]);
 
+  // 从 Supabase 加载所有的初始重量和步长/门槛设置
   const fetchSettings = async () => {
     setLoading(true);
     setError(null);
@@ -80,14 +87,18 @@ function PlanScreen({ onSettingsSaved }) {
       setDeadliftWeight(weights.deadlift !== undefined ? weights.deadlift.toString() : INITIAL_WEIGHTS.deadlift.toString());
       setPressWeight(weights.press !== undefined ? weights.press.toString() : INITIAL_WEIGHTS.press.toString());
 
-      // B. 解析步长
+      // B. 解析步长和门槛次数
       const progIds = {};
       const steps = {};
+      const targets = {};
       const progressionData = progressionRes.data || [];
       progressionData.forEach(row => {
         const key = `${row.exercise}_${row.tier}`;
         progIds[key] = row.id;
         steps[key] = row.increment;
+        if (row.tier === 'T3') {
+          targets[row.exercise] = row.target_reps;
+        }
       });
       setExistingProgressionIds(progIds);
 
@@ -107,6 +118,12 @@ function PlanScreen({ onSettingsSaved }) {
       setBicepCurlT3Step(steps.bicep_curl_T3 !== undefined ? steps.bicep_curl_T3.toString() : '2.5');
       setFacePullT3Step(steps.face_pull_T3 !== undefined ? steps.face_pull_T3.toString() : '2.5');
 
+      // T3 门槛次数
+      setPullupT3Target(targets.pullup !== undefined && targets.pullup !== null ? targets.pullup.toString() : '25');
+      setAbdominalT3Target(targets.abdominal !== undefined && targets.abdominal !== null ? targets.abdominal.toString() : '25');
+      setBicepCurlT3Target(targets.bicep_curl !== undefined && targets.bicep_curl !== null ? targets.bicep_curl.toString() : '25');
+      setFacePullT3Target(targets.face_pull !== undefined && targets.face_pull !== null ? targets.face_pull.toString() : '25');
+
     } catch (err) {
       console.error('加载动作配置失败：', err);
       setError('加载初始配置失败：' + err.message);
@@ -115,7 +132,7 @@ function PlanScreen({ onSettingsSaved }) {
     }
   };
 
-  // 4. 保存设置并执行 UPSERT
+  // 保存设置并执行云端 UPSERT
   const handleSaveSettings = async () => {
     const squatW = parseFloat(squatWeight);
     const benchW = parseFloat(benchWeight);
@@ -149,7 +166,22 @@ function PlanScreen({ onSettingsSaved }) {
 
     const stepsList = [sqT1, sqT2, beT1, beT2, deT1, deT2, prT1, prT2, plT3, abT3, bcT3, fpT3];
     if (stepsList.some(val => isNaN(val) || val < 0.5)) {
-      setError('进阶加重步长不能低于最小阀值 0.5kg，防止负数或零');
+      setError('进阶加重步长不能低于最小阀值 0.5kg');
+      setSuccessMsg(null);
+      return;
+    }
+
+    // T3 门槛次数校验 (限制最小值 5 次)
+    const plT3T = parseInt(pullupT3Target, 10);
+    const abT3T = parseInt(abdominalT3Target, 10);
+    const bcT3T = parseInt(bicepCurlT3Target, 10);
+    const fpT3T = parseInt(facePullT3Target, 10);
+
+    if (isNaN(plT3T) || plT3T < 5 ||
+        isNaN(abT3T) || abT3T < 5 ||
+        isNaN(bcT3T) || bcT3T < 5 ||
+        isNaN(fpT3T) || fpT3T < 5) {
+      setError('T3 动作进阶达标门槛总次数不能低于 5 次');
       setSuccessMsg(null);
       return;
     }
@@ -158,7 +190,7 @@ function PlanScreen({ onSettingsSaved }) {
     setError(null);
     setSuccessMsg(null);
     try {
-      //重量 UPSERT 数组
+      // 重量 UPSERT 数组
       const upsertWeights = [
         { exercise: 'squat', initial_weight: squatW },
         { exercise: 'bench', initial_weight: benchW },
@@ -171,7 +203,8 @@ function PlanScreen({ onSettingsSaved }) {
         return item;
       });
 
-      // 步长 UPSERT 数组
+      // 步长及门槛 UPSERT 数组
+      // 注意：T1/T2 对象绝对不能包含 target_reps，只有 T3 包含，以防止覆盖默认值
       const upsertProgressions = [
         { exercise: 'squat', tier: 'T1', increment: sqT1 },
         { exercise: 'bench', tier: 'T1', increment: beT1 },
@@ -183,10 +216,10 @@ function PlanScreen({ onSettingsSaved }) {
         { exercise: 'deadlift', tier: 'T2', increment: deT2 },
         { exercise: 'press', tier: 'T2', increment: prT2 },
 
-        { exercise: 'pullup', tier: 'T3', increment: plT3 },
-        { exercise: 'abdominal', tier: 'T3', increment: abT3 },
-        { exercise: 'bicep_curl', tier: 'T3', increment: bcT3 },
-        { exercise: 'face_pull', tier: 'T3', increment: fpT3 }
+        { exercise: 'pullup', tier: 'T3', increment: plT3, target_reps: plT3T },
+        { exercise: 'abdominal', tier: 'T3', increment: abT3, target_reps: abT3T },
+        { exercise: 'bicep_curl', tier: 'T3', increment: bcT3, target_reps: bcT3T },
+        { exercise: 'face_pull', tier: 'T3', increment: fpT3, target_reps: fpT3T }
       ].map(item => {
         const key = `${item.exercise}_${item.tier}`;
         if (existingProgressionIds[key]) {
@@ -252,7 +285,8 @@ function PlanScreen({ onSettingsSaved }) {
           <>
             <p className="settings-tip" style={{ marginTop: '0', marginBottom: '16px' }}>
               1. <b>默认重量</b>：仅在无训练历史的首次打卡时作为基准。<br />
-              2. <b>增重步长</b>：单次打卡成功（T1/T2完成、T3满25次）时增重的幅度。
+              2. <b>增重步长</b>：打卡成功时下一次加重的幅度。<br />
+              3. <b>T3 达标门槛</b>：三组实际次数累加满足该目标时方可晋级加重。
             </p>
 
             {/* 提示/错误展示 */}
@@ -264,7 +298,7 @@ function PlanScreen({ onSettingsSaved }) {
             )}
             
             {successMsg && (
-              <div className="settings-error success" style={{ marginBottom: '16px', backgroundColor: '#1c2e21', borderColor: '#30d158', color: '#30d158' }}>
+              <div className="settings-error success" style={{ marginBottom: '16px' }}>
                 <span>{successMsg}</span>
               </div>
             )}
@@ -445,15 +479,15 @@ function PlanScreen({ onSettingsSaved }) {
                   </div>
                 </div>
 
-                {/* 3. 辅助动作步长 */}
+                {/* 3. 辅助动作步长与达标门槛 */}
                 <div className="settings-section">
-                  <h3 className="section-title">3. 辅助动作加重步长 (T3)</h3>
+                  <h3 className="section-title">3. 辅助动作加重步长及达标门槛 (T3)</h3>
                   
                   <div className="exercise-step-row">
                     <span className="exercise-step-name">引体向上 (Pull-up)</span>
-                    <div className="steps-inputs">
+                    <div className="steps-inputs T3-inputs">
                       <div className="step-field">
-                        <span>T3</span>
+                        <span>步长 (kg)</span>
                         <input
                           type="number"
                           step="0.5"
@@ -462,14 +496,24 @@ function PlanScreen({ onSettingsSaved }) {
                           onChange={(e) => setPullupT3Step(e.target.value)}
                         />
                       </div>
+                      <div className="step-field">
+                        <span>达标 (次)</span>
+                        <input
+                          type="number"
+                          step="1"
+                          min="5"
+                          value={pullupT3Target}
+                          onChange={(e) => setPullupT3Target(e.target.value)}
+                        />
+                      </div>
                     </div>
                   </div>
 
                   <div className="exercise-step-row">
                     <span className="exercise-step-name">悬垂举腿/腹部 (Abdominal)</span>
-                    <div className="steps-inputs">
+                    <div className="steps-inputs T3-inputs">
                       <div className="step-field">
-                        <span>T3</span>
+                        <span>步长 (kg)</span>
                         <input
                           type="number"
                           step="0.5"
@@ -478,14 +522,24 @@ function PlanScreen({ onSettingsSaved }) {
                           onChange={(e) => setAbdominalT3Step(e.target.value)}
                         />
                       </div>
+                      <div className="step-field">
+                        <span>达标 (次)</span>
+                        <input
+                          type="number"
+                          step="1"
+                          min="5"
+                          value={abdominalT3Target}
+                          onChange={(e) => setAbdominalT3Target(e.target.value)}
+                        />
+                      </div>
                     </div>
                   </div>
 
                   <div className="exercise-step-row">
                     <span className="exercise-step-name">二头肌弯举 (Bicep Curl)</span>
-                    <div className="steps-inputs">
+                    <div className="steps-inputs T3-inputs">
                       <div className="step-field">
-                        <span>T3</span>
+                        <span>步长 (kg)</span>
                         <input
                           type="number"
                           step="0.5"
@@ -494,20 +548,40 @@ function PlanScreen({ onSettingsSaved }) {
                           onChange={(e) => setBicepCurlT3Step(e.target.value)}
                         />
                       </div>
+                      <div className="step-field">
+                        <span>达标 (次)</span>
+                        <input
+                          type="number"
+                          step="1"
+                          min="5"
+                          value={bicepCurlT3Target}
+                          onChange={(e) => setBicepCurlT3Target(e.target.value)}
+                        />
+                      </div>
                     </div>
                   </div>
 
                   <div className="exercise-step-row">
                     <span className="exercise-step-name">面拉 (Face Pull)</span>
-                    <div className="steps-inputs">
+                    <div className="steps-inputs T3-inputs">
                       <div className="step-field">
-                        <span>T3</span>
+                        <span>步长 (kg)</span>
                         <input
                           type="number"
                           step="0.5"
                           min="0.5"
                           value={facePullT3Step}
                           onChange={(e) => setFacePullT3Step(e.target.value)}
+                        />
+                      </div>
+                      <div className="step-field">
+                        <span>达标 (次)</span>
+                        <input
+                          type="number"
+                          step="1"
+                          min="5"
+                          value={facePullT3Target}
+                          onChange={(e) => setFacePullT3Target(e.target.value)}
                         />
                       </div>
                     </div>

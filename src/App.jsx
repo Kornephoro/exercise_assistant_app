@@ -18,14 +18,22 @@ import {
   Dumbbell, 
   CheckCircle, 
   AlertTriangle, 
-  Settings
+  Settings,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 function App() {
   // 1. 选项卡 Tab 状态 ('today' | 'plan' | 'calendar')
   const [activeTab, setActiveTab] = useState('today');
 
-  // 2. 全局数据加载及保存状态
+  // 2. 全局主题状态 (日间/夜间模式，默认夜间)
+  const [theme, setTheme] = useState(() => {
+    const savedTheme = localStorage.getItem('theme');
+    return savedTheme || 'dark';
+  });
+
+  // 3. 全局数据加载及保存状态
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -33,9 +41,10 @@ function App() {
   
   const [currentDay, setCurrentDay] = useState('Day1');
   
-  // 自定义重量与动作进阶步长状态
+  // 自定义重量、进阶步长与 T3 达标门槛状态
   const [customWeights, setCustomWeights] = useState({});
   const [customIncrements, setCustomIncrements] = useState({});
+  const [customT3Targets, setCustomT3Targets] = useState({});
 
   // 动作中文名映射状态
   const [exercisesCnMap, setExercisesCnMap] = useState({});
@@ -65,7 +74,11 @@ function App() {
   const [t2LastRecord, setT2LastRecord] = useState(null);
   const [t3LastRecord, setT3LastRecord] = useState(null);
 
-  // 3. 实时打卡会话状态 (sessionState)
+  // 今日是否已完成训练打卡及摘要
+  const [isTodayCompleted, setIsTodayCompleted] = useState(false);
+  const [todayWorkoutSummary, setTodayWorkoutSummary] = useState([]);
+
+  // 4. 实时打卡会话状态 (sessionState)
   const [sessionState, setSessionState] = useState({
     isActive: false,
     isMinimized: false,
@@ -75,6 +88,12 @@ function App() {
       T3: []
     }
   });
+
+  // 挂载/切换时设定 HTML 节点的主题属性
+  useEffect(() => {
+    localStorage.setItem('theme', theme);
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   // Toast 计时器
   useEffect(() => {
@@ -99,7 +118,11 @@ function App() {
     setLoading(true);
     setError(null);
     try {
-      const [lastWorkoutRes, settingsRes, progressionRes, exercisesRes] = await Promise.all([
+      // 检查今天本地是否已打卡完成训练 (按本地时区判定 00:00:00 起的数据)
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+
+      const [lastWorkoutRes, settingsRes, progressionRes, exercisesRes, todayWorkoutsRes] = await Promise.all([
         supabase
           .from('workouts')
           .select('*')
@@ -113,18 +136,31 @@ function App() {
           .select('*'),
         supabase
           .from('exercises')
+          .select('*'),
+        supabase
+          .from('workouts')
           .select('*')
+          .gte('created_at', todayStart.toISOString())
+          .order('created_at', { ascending: true })
       ]);
 
       if (lastWorkoutRes.error) throw lastWorkoutRes.error;
       if (settingsRes.error) throw settingsRes.error;
       if (progressionRes.error) throw progressionRes.error;
       if (exercisesRes.error) throw exercisesRes.error;
+      if (todayWorkoutsRes.error) throw todayWorkoutsRes.error;
 
-      // 解析当前训练日
+      // 解析今日打卡状态
+      const todayWorkouts = todayWorkoutsRes.data || [];
+      const hasTodayWorkout = todayWorkouts.length > 0;
+      setIsTodayCompleted(hasTodayWorkout);
+      setTodayWorkoutSummary(todayWorkouts);
+
+      // 解析当前/下一次训练日
       let determinedDay = 'Day1';
       const lastWorkoutData = lastWorkoutRes.data || [];
       if (lastWorkoutData.length > 0) {
+        // 如果今天已经练完了，展示的 currentDay 依然是下一个训练日（供界面暗示及后续逻辑）
         determinedDay = getNextDay(lastWorkoutData[0].training_day);
       }
       setCurrentDay(determinedDay);
@@ -137,16 +173,21 @@ function App() {
       });
       setCustomWeights(weightsMap);
 
-      // 解析用户自定义进阶步长映射
+      // 解析用户自定义进阶步长映射与 T3 门槛次数
       const incrementsMap = {};
+      const t3TargetsMap = {};
       const progressionData = progressionRes.data || [];
       progressionData.forEach(row => {
         if (!incrementsMap[row.exercise]) {
           incrementsMap[row.exercise] = {};
         }
         incrementsMap[row.exercise][row.tier] = row.increment;
+        if (row.tier === 'T3') {
+          t3TargetsMap[row.exercise] = row.target_reps || 25;
+        }
       });
       setCustomIncrements(incrementsMap);
+      setCustomT3Targets(t3TargetsMap);
 
       // 解析 exercises 动作表的中文名映射
       const cnNames = {};
@@ -160,7 +201,7 @@ function App() {
       });
       setExercisesCnMap(cnNames);
 
-      // 根据训练日确定三个动作
+      // 根据训练日确定今日/下一次动作组合
       const t1t2Exercises = DAY_WORKOUT_MAP[determinedDay];
       const activeT1 = t1t2Exercises.T1;
       const activeT2 = t1t2Exercises.T2;
@@ -170,7 +211,7 @@ function App() {
       setT2Exercise(activeT2);
       setT3Exercise(activeT3);
 
-      // 分别查询三个动作在其对应 Tier 的所有历史记录（按 created_at 升序）
+      // 分别查询三个动作在其对应 Tier 的所有历史记录（按 created_at 升序，用于 progression 计算）
       const [t1HistoryRes, t2HistoryRes, t3HistoryRes] = await Promise.all([
         supabase
           .from('workouts')
@@ -222,10 +263,14 @@ function App() {
         ? incrementsMap[activeT3]['T3']
         : 2.5;
 
+      const t3TargetReps = (t3TargetsMap[activeT3] !== undefined)
+        ? t3TargetsMap[activeT3]
+        : 25;
+
       // 运行 GZCLP 核心进步算法
       const t1Result = getT1Progression(activeT1, t1History, t1CustomWeight, t1Increment);
       const t2Result = getT2Progression(activeT2, t2History, t2CustomWeight, t2Increment);
-      const t3Result = getT3Progression(activeT3, t3History, t3CustomWeight, t3Increment);
+      const t3Result = getT3Progression(activeT3, t3History, t3CustomWeight, t3Increment, t3TargetReps);
 
       setT1Weight(t1Result.weight_kg);
       setT1PlannedReps(t1Result.planned_reps);
@@ -477,15 +522,29 @@ function App() {
             <Dumbbell size={24} />
             <span>GZCLP Power</span>
           </div>
-          {/* 点击设置按钮跳转到计划设定 Tab */}
-          <button 
-            type="button" 
-            className="settings-btn"
-            onClick={() => setActiveTab('plan')}
-            aria-label="切换到计划设定"
-          >
-            <Settings size={22} />
-          </button>
+          
+          {/* 右侧动作按钮区 (日夜模式 + 计划配置跳转) */}
+          <div className="header-actions">
+            {/* 主题切换按钮，拥有至少 44px 独立触控区域 */}
+            <button 
+              type="button" 
+              className="header-icon-btn theme-toggle-btn"
+              onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+              aria-label="切换配色模式"
+            >
+              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+            
+            {/* 齿轮配置按钮 */}
+            <button 
+              type="button" 
+              className="header-icon-btn settings-btn"
+              onClick={() => setActiveTab('plan')}
+              aria-label="切换到计划设定"
+            >
+              <Settings size={20} />
+            </button>
+          </div>
         </div>
         <h1>力量训练记录</h1>
         <div className="day-badge">
@@ -534,6 +593,8 @@ function App() {
               onStartTrain={handleStartOrRestoreTrain}
               getIncrementStep={getIncrementStep}
               getExerciseCNName={getExerciseCNName}
+              isTodayCompleted={isTodayCompleted && !sessionState.isActive}
+              todayWorkoutSummary={todayWorkoutSummary}
             />
           )}
         </div>
