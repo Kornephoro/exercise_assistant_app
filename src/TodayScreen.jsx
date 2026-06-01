@@ -24,6 +24,8 @@ import { Play, RotateCcw, CheckCircle, Heart, Utensils, Calendar } from 'lucide-
  * @param {Function} props.getExerciseCNName 获取中文翻译动作名称的辅助函数
  * @param {boolean} props.isTodayCompleted 今日训练是否已完成
  * @param {Array} props.todayWorkoutSummary 今日打卡完成后的详细汇总明细
+ * @param {boolean} props.isRestDay 今天是否为预设的休息日
+ * @param {string} props.nextTrainingDate 下一次训练日的日期描述
  */
 function TodayScreen({
   currentDay,
@@ -44,7 +46,9 @@ function TodayScreen({
   getIncrementStep,
   getExerciseCNName,
   isTodayCompleted,
-  todayWorkoutSummary
+  todayWorkoutSummary,
+  isRestDay = false,
+  nextTrainingDate = ''
 }) {
   const isSessionActive = sessionState && sessionState.isActive;
 
@@ -72,15 +76,23 @@ function TodayScreen({
     });
   };
 
+  // 获取页面标题
+  const getHeaderTitle = () => {
+    if (isTodayCompleted) {
+      return `${todayWorkoutSummary[0]?.training_day || currentDay} · 训练完成`;
+    }
+    if (isRestDay) {
+      return '今日休息 · 恢复与滋养';
+    }
+    return `${currentDay} · ${getExerciseShortName(t1Exercise)}日`;
+  };
+
   return (
     <div className="today-screen animate-fadeIn">
       {/* 头部区：包含训练日及日期副标题 */}
       <div className="today-screen-header">
         <h2 className="today-day-title">
-          {isTodayCompleted 
-            ? `${todayWorkoutSummary[0]?.training_day || currentDay} · 训练完成`
-            : `${currentDay} · ${getExerciseShortName(t1Exercise)}日`
-          }
+          {getHeaderTitle()}
         </h2>
         <p className="today-date-subtitle">
           <Calendar size={14} style={{ marginRight: '4px', display: 'inline-block', verticalAlign: 'text-bottom' }} />
@@ -114,6 +126,27 @@ function TodayScreen({
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        ) : isRestDay ? (
+          /* 情况 C：今日为休息日，显示休息提示与下次日程 */
+          <div className="today-item-card rest-day-card animate-fadeIn">
+            <div className="card-header-row">
+              <span className="badge-outline success-badge">今日休息</span>
+              <span className="rest-status-tag">Rest & Recover</span>
+            </div>
+            
+            <h3 className="plan-title">让肌肉充分修复 😴</h3>
+            
+            <div className="rest-day-body">
+              <p className="rest-desc">
+                合理的修整是超量恢复（Supercompensation）的基石。给肌肉充足的时间重整肌纤维、修复微细损伤，你将在下一次训练中爆发出更强大的爆发力与力量！
+              </p>
+              
+              <div className="next-schedule-box">
+                <span className="next-lbl">🗓️ 下次训练日程安排</span>
+                <strong className="next-val">{nextTrainingDate || '未设定训练日程'}</strong>
+              </div>
             </div>
           </div>
         ) : (
@@ -201,6 +234,14 @@ function TodayScreen({
             <CheckCircle size={20} />
             <span>今日训练已完成 ✅</span>
           </button>
+        ) : isRestDay && !isSessionActive ? (
+          <button 
+            type="button" 
+            className="btn-primary start-session-btn rest-day-btn"
+            disabled
+          >
+            <span>🛋️ 今日休息中，合理恢复</span>
+          </button>
         ) : (
           <button 
             type="button" 
@@ -226,3 +267,4 @@ function TodayScreen({
 }
 
 export default TodayScreen;
+

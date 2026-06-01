@@ -14,6 +14,7 @@ import PlanScreen from './PlanScreen';
 import CalendarScreen from './CalendarScreen';
 import TrainSession from './TrainSession';
 import FloatingBall from './FloatingBall';
+import OnboardingScreen from './OnboardingScreen';
 import { 
   Dumbbell, 
   CheckCircle, 
@@ -21,6 +22,45 @@ import {
   Sun,
   Moon
 } from 'lucide-react';
+
+// 获取星期的英文名称
+const getWeekdayEnglish = (date) => {
+  const weekdaysEng = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  return weekdaysEng[date.getDay()];
+};
+
+// 获取星期的中文名称
+const getWeekdayCN = (date) => {
+  const weekdaysCN = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+  return weekdaysCN[date.getDay()];
+};
+
+// 计算下一个训练日程日期
+const calculateNextTrainingDate = (trainingDaysArr, baseDate = new Date()) => {
+  if (!trainingDaysArr || trainingDaysArr.length === 0) return null;
+  
+  const weekdaysEng = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const targetIndices = trainingDaysArr.map(day => weekdaysEng.indexOf(day)).filter(idx => idx !== -1);
+  if (targetIndices.length === 0) return null;
+
+  const baseDayIdx = baseDate.getDay();
+  
+  // 寻找大于 baseDayIdx 的最小索引
+  let nextDayIdx = targetIndices.find(idx => idx > baseDayIdx);
+  let daysDiff = 0;
+  
+  if (nextDayIdx !== undefined) {
+    daysDiff = nextDayIdx - baseDayIdx;
+  } else {
+    // 没找到，说明要回绕到下一周的最小索引
+    const minIdx = Math.min(...targetIndices);
+    daysDiff = 7 - baseDayIdx + minIdx;
+  }
+  
+  const nextDate = new Date(baseDate.getTime());
+  nextDate.setDate(baseDate.getDate() + daysDiff);
+  return nextDate;
+};
 
 function App() {
   // 1. 选项卡 Tab 状态 ('today' | 'plan' | 'calendar')
@@ -39,6 +79,19 @@ function App() {
   const [toast, setToast] = useState(null); // { type: 'success'|'error', message: '' }
   
   const [currentDay, setCurrentDay] = useState('Day1');
+
+  // Onboarding 引导状态
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [trainingDays, setTrainingDays] = useState(null);
+  const [userNickname, setUserNickname] = useState(() => localStorage.getItem('user_nickname') || '');
+
+  // 挂载时检查是否已完成引导
+  useEffect(() => {
+    const completed = localStorage.getItem('onboarding_completed') === 'true';
+    if (!completed) {
+      setShowOnboarding(true);
+    }
+  }, []);
   
   // 自定义重量、进阶步长与 T3 达标门槛状态
   const [customWeights, setCustomWeights] = useState({});
@@ -121,7 +174,7 @@ function App() {
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
-      const [lastWorkoutRes, settingsRes, progressionRes, exercisesRes, todayWorkoutsRes] = await Promise.all([
+      const [lastWorkoutRes, settingsRes, progressionRes, exercisesRes, todayWorkoutsRes, profileRes] = await Promise.all([
         supabase
           .from('workouts')
           .select('*')
@@ -140,7 +193,11 @@ function App() {
           .from('workouts')
           .select('*')
           .gte('created_at', todayStart.toISOString())
-          .order('created_at', { ascending: true })
+          .order('created_at', { ascending: true }),
+        supabase
+          .from('user_profiles')
+          .select('*')
+          .limit(1)
       ]);
 
       if (lastWorkoutRes.error) throw lastWorkoutRes.error;
@@ -148,12 +205,26 @@ function App() {
       if (progressionRes.error) throw progressionRes.error;
       if (exercisesRes.error) throw exercisesRes.error;
       if (todayWorkoutsRes.error) throw todayWorkoutsRes.error;
+      if (profileRes.error) throw profileRes.error;
 
       // 解析今日打卡状态
       const todayWorkouts = todayWorkoutsRes.data || [];
       const hasTodayWorkout = todayWorkouts.length > 0;
       setIsTodayCompleted(hasTodayWorkout);
       setTodayWorkoutSummary(todayWorkouts);
+
+      // 解析用户画像日程
+      const profileData = profileRes.data || [];
+      let trainingDaysArray = null;
+      if (profileData.length > 0 && profileData[0].training_days) {
+        try {
+          trainingDaysArray = JSON.parse(profileData[0].training_days);
+        } catch (e) {
+          console.error('Failed to parse training_days json:', e);
+        }
+      }
+      setTrainingDays(trainingDaysArray);
+      setUserNickname(localStorage.getItem('user_nickname') || '');
 
       // 解析当前/下一次训练日
       let determinedDay = 'Day1';
@@ -449,9 +520,16 @@ function App() {
 
       // 保存成功后提示并刷新数据
       const nextDay = getNextDay(currentDay);
+      let toastMsg = `保存成功！下次训练动作方案为 ${nextDay}`;
+      if (trainingDays && trainingDays.length > 0) {
+        const nextDate = calculateNextTrainingDate(trainingDays, new Date());
+        if (nextDate) {
+          toastMsg = `保存成功！下次训练日为 ${nextDate.getMonth() + 1}月${nextDate.getDate()}日 (${getWeekdayCN(nextDate)})`;
+        }
+      }
       setToast({ 
         type: 'success', 
-        message: `保存成功！下次训练为 ${nextDay}` 
+        message: toastMsg 
       });
 
       // 重置打卡状态
@@ -500,6 +578,31 @@ function App() {
     return exercisesCnMap[exercise] || EXERCISE_NAMES_CN[exercise] || exercise;
   };
 
+  const getNextTrainingDateFormatted = () => {
+    if (!trainingDays || trainingDays.length === 0) return '';
+    const todayEnglish = getWeekdayEnglish(new Date());
+    const isTodayScheduled = trainingDays.includes(todayEnglish);
+    
+    let baseDate = new Date();
+    if (isTodayScheduled && !isTodayCompleted) {
+      return baseDate.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long'
+      });
+    } else {
+      const nextDate = calculateNextTrainingDate(trainingDays, baseDate);
+      if (!nextDate) return '';
+      return nextDate.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long'
+      });
+    }
+  };
+
   return (
     <>
       {/* Toast 提示 */}
@@ -535,7 +638,7 @@ function App() {
             </button>
           </div>
         </div>
-        <h1>力量训练记录</h1>
+        <h1>{userNickname ? `${userNickname}的训练记录` : '力量训练记录'}</h1>
         <div className="day-badge">
           今天：{currentDay}
         </div>
@@ -584,6 +687,12 @@ function App() {
               getExerciseCNName={getExerciseCNName}
               isTodayCompleted={isTodayCompleted && !sessionState.isActive}
               todayWorkoutSummary={todayWorkoutSummary}
+              isRestDay={
+                trainingDays && trainingDays.length > 0 
+                  ? !trainingDays.includes(getWeekdayEnglish(new Date()))
+                  : false
+              }
+              nextTrainingDate={getNextTrainingDateFormatted()}
             />
           )}
         </div>
@@ -666,6 +775,31 @@ function App() {
             setSessionState(prev => ({ ...prev, isMinimized: false }));
           }}
           onCancel={handleCancelSession}
+        />
+      )}
+
+      {/* 新用户画像引导 */}
+      {showOnboarding && (
+        <OnboardingScreen
+          onComplete={(tabToGoTo) => {
+            setShowOnboarding(false);
+            if (tabToGoTo) {
+              setActiveTab(tabToGoTo);
+            }
+            setToast({
+              type: 'success',
+              message: '画像保存成功！请在此配置各个动作的初始重量和进阶步长。'
+            });
+            loadWorkoutData();
+          }}
+          onSkip={() => {
+            setShowOnboarding(false);
+            setToast({
+              type: 'success',
+              message: '已跳过引导，您可随时在今日面板开始训练。'
+            });
+            loadWorkoutData();
+          }}
         />
       )}
     </>
