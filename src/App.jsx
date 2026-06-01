@@ -7,6 +7,7 @@ import {
   getT1Progression, 
   getT2Progression 
 } from './progression';
+import SettingsModal from './SettingsModal';
 import { 
   Dumbbell, 
   Calendar, 
@@ -16,7 +17,8 @@ import {
   CheckCircle, 
   AlertTriangle, 
   History, 
-  Sparkles 
+  Sparkles,
+  Settings
 } from 'lucide-react';
 
 function App() {
@@ -29,6 +31,11 @@ function App() {
   const [currentDay, setCurrentDay] = useState('Day1');
   const [recentLogs, setRecentLogs] = useState([]);
   
+  // 自定义重量与动作进阶步长状态
+  const [customWeights, setCustomWeights] = useState({});
+  const [customIncrements, setCustomIncrements] = useState({});
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   // 今日动作数据
   const [t1Exercise, setT1Exercise] = useState('squat');
   const [t2Exercise, setT2Exercise] = useState('bench');
@@ -68,21 +75,51 @@ function App() {
     setLoading(true);
     setError(null);
     try {
-      // Step A: 查询 workouts 表中最后一条记录，以确定当前训练日
-      const { data: lastWorkoutData, error: lastWorkoutError } = await supabase
-        .from('workouts')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1);
+      // Step A: 并行查询: 1.workouts最后记录 / 2.user_settings重量设置 / 3.exercise_progression_settings步长设置
+      const [lastWorkoutRes, settingsRes, progressionRes] = await Promise.all([
+        supabase
+          .from('workouts')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(1),
+        supabase
+          .from('user_settings')
+          .select('*'),
+        supabase
+          .from('exercise_progression_settings')
+          .select('*')
+      ]);
 
-      if (lastWorkoutError) throw lastWorkoutError;
+      if (lastWorkoutRes.error) throw lastWorkoutRes.error;
+      if (settingsRes.error) throw settingsRes.error;
+      if (progressionRes.error) throw progressionRes.error;
 
+      // 解析当前训练日
       let determinedDay = 'Day1';
-      if (lastWorkoutData && lastWorkoutData.length > 0) {
+      const lastWorkoutData = lastWorkoutRes.data || [];
+      if (lastWorkoutData.length > 0) {
         determinedDay = getNextDay(lastWorkoutData[0].training_day);
       }
-      
       setCurrentDay(determinedDay);
+
+      // 解析用户自定义初始重量
+      const weightsMap = {};
+      const settingsData = settingsRes.data || [];
+      settingsData.forEach(row => {
+        weightsMap[row.exercise] = row.initial_weight;
+      });
+      setCustomWeights(weightsMap);
+
+      // 解析用户自定义进阶步长映射
+      const incrementsMap = {};
+      const progressionData = progressionRes.data || [];
+      progressionData.forEach(row => {
+        if (!incrementsMap[row.exercise]) {
+          incrementsMap[row.exercise] = {};
+        }
+        incrementsMap[row.exercise][row.tier] = row.increment;
+      });
+      setCustomIncrements(incrementsMap);
 
       // 根据训练日确定两个动作
       const exercises = DAY_WORKOUT_MAP[determinedDay];
@@ -92,7 +129,7 @@ function App() {
       setT1Exercise(activeT1);
       setT2Exercise(activeT2);
 
-      // Step B: 分别查询两个动作在其对应 Tier 的所有历史（按 created_at 升序）
+      // Step B: 分别查询两个动作在对应 Tier 的所有历史（按 created_at 升序）
       const [t1HistoryRes, t2HistoryRes] = await Promise.all([
         supabase
           .from('workouts')
@@ -114,15 +151,26 @@ function App() {
       const t1History = t1HistoryRes.data || [];
       const t2History = t2HistoryRes.data || [];
 
-      // 保存最后一次历史记录用于 UI 展示
+      // 保存最后一组实际历史
       setT1LastRecord(t1History.length > 0 ? t1History[t1History.length - 1] : null);
       setT2LastRecord(t2History.length > 0 ? t2History[t2History.length - 1] : null);
 
-      // Step C: 用 GZCLP 算法计算今日建议
-      const t1Result = getT1Progression(activeT1, t1History);
-      const t2Result = getT2Progression(activeT2, t2History);
+      // 提取初始重量设置与增重步长
+      const t1CustomWeight = weightsMap[activeT1];
+      const t2CustomWeight = weightsMap[activeT2];
+      
+      const t1Increment = (incrementsMap[activeT1] && incrementsMap[activeT1]['T1'] !== undefined)
+        ? incrementsMap[activeT1]['T1']
+        : 2.5;
+      
+      const t2Increment = (incrementsMap[activeT2] && incrementsMap[activeT2]['T2'] !== undefined)
+        ? incrementsMap[activeT2]['T2']
+        : 2.5;
 
-      // 更新状态
+      // Step C: 运行带有增重步长的 GZCLP 核心进步算法
+      const t1Result = getT1Progression(activeT1, t1History, t1CustomWeight, t1Increment);
+      const t2Result = getT2Progression(activeT2, t2History, t2CustomWeight, t2Increment);
+
       setT1Weight(t1Result.weight_kg);
       setT1PlannedReps(t1Result.planned_reps);
       setT1SchemeText(t1Result.scheme_text);
@@ -131,11 +179,11 @@ function App() {
       setT2PlannedReps(t2Result.planned_reps);
       setT2SchemeText(t2Result.scheme_text);
 
-      // 初始化输入框的默认计划次数
+      // 初始输入框默认计划值
       setT1InputReps(t1Result.planned_reps.toString());
       setT2InputReps(t2Result.planned_reps.toString());
 
-      // Step D: 获取最近 5 条历史日志用于显示
+      // Step D: 获取最近 10 条日志以呈现在底部面板
       const { data: logsData, error: logsError } = await supabase
         .from('workouts')
         .select('*')
@@ -147,21 +195,20 @@ function App() {
 
     } catch (err) {
       console.error(err);
-      setError('无法从 Supabase 获取数据，请检查网络或配置：' + err.message);
+      setError('无法加载配置或训练记录，请检查连接：' + err.message);
       setToast({ type: 'error', message: '数据加载失败！' });
     } finally {
       setLoading(false);
     }
   };
 
-  // 4. 初次挂载及刷新时加载
+  // 4. 挂载加载
   useEffect(() => {
     loadWorkoutData();
   }, []);
 
-  // 5. 保存训练记录逻辑
+  // 5. 保存动作记录
   const handleSaveWorkout = async () => {
-    // 校验输入
     const t1RepsVal = parseInt(t1InputReps, 10);
     const t2RepsVal = parseInt(t2InputReps, 10);
 
@@ -176,7 +223,6 @@ function App() {
 
     setSaving(true);
     try {
-      // 构造要插入的数据
       const t1Record = {
         training_day: currentDay,
         tier: 'T1',
@@ -195,25 +241,21 @@ function App() {
         actual_last_set_reps: t2RepsVal
       };
 
-      // 插入 workouts 表
       const { error: insertError } = await supabase
         .from('workouts')
         .insert([t1Record, t2Record]);
 
       if (insertError) throw insertError;
 
-      // 提示成功，计算下次训练日
       const nextDay = getNextDay(currentDay);
       setToast({ 
         type: 'success', 
         message: `保存成功！下次训练为 ${nextDay}` 
       });
 
-      // 清空当前输入
       setT1InputReps('');
       setT2InputReps('');
 
-      // 重新加载数据，自动切换到下一个训练日并重新计算建议
       await loadWorkoutData();
 
     } catch (err) {
@@ -224,7 +266,7 @@ function App() {
     }
   };
 
-  // 6. 次数加减辅助函数
+  // 6. 微调次数
   const adjustReps = (type, action) => {
     const isT1 = type === 'T1';
     const currentVal = isT1 ? t1InputReps : t2InputReps;
@@ -242,7 +284,14 @@ function App() {
     }
   };
 
-  // 渲染
+  // 获取当前的步长值（供 UI 展示）
+  const getIncrementStep = (exercise, tier) => {
+    if (customIncrements[exercise] && customIncrements[exercise][tier] !== undefined) {
+      return customIncrements[exercise][tier];
+    }
+    return 2.5;
+  };
+
   return (
     <>
       {/* Toast Alert */}
@@ -259,9 +308,19 @@ function App() {
 
       {/* Header */}
       <header className="header">
-        <div className="app-logo">
-          <Dumbbell size={24} />
-          <span>GZCLP Power</span>
+        <div className="header-top">
+          <div className="app-logo">
+            <Dumbbell size={24} />
+            <span>GZCLP Power</span>
+          </div>
+          <button 
+            type="button" 
+            className="settings-btn"
+            onClick={() => setIsSettingsOpen(true)}
+            aria-label="设置配置信息"
+          >
+            <Settings size={22} />
+          </button>
         </div>
         <h1>力量训练记录</h1>
         <div className="day-badge">
@@ -269,7 +328,7 @@ function App() {
         </div>
       </header>
 
-      {/* Loading state */}
+      {/* 加载/出错 处理 */}
       {loading ? (
         <div className="loading-container">
           <div className="spinner"></div>
@@ -293,7 +352,12 @@ function App() {
           <section className="exercise-card t1-style" style={{ animationDelay: '0.1s' }}>
             <div className="card-header">
               <span className="exercise-title">{EXERCISE_NAMES_CN[t1Exercise]}</span>
-              <span className="tier-badge t1">Tier T1</span>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', color: 'var(--color-t1)', fontWeight: 700 }}>
+                  ⚡️成功 +{getIncrementStep(t1Exercise, 'T1')}kg
+                </span>
+                <span className="tier-badge t1">Tier T1</span>
+              </div>
             </div>
             
             <div className="scheme-box">
@@ -345,7 +409,12 @@ function App() {
           <section className="exercise-card t2-style" style={{ animationDelay: '0.2s' }}>
             <div className="card-header">
               <span className="exercise-title">{EXERCISE_NAMES_CN[t2Exercise]}</span>
-              <span className="tier-badge t2">Tier T2</span>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', color: 'var(--color-t2)', fontWeight: 700 }}>
+                  ⚡️升级 +{getIncrementStep(t2Exercise, 'T2')}kg
+                </span>
+                <span className="tier-badge t2">Tier T2</span>
+              </div>
             </div>
 
             <div className="scheme-box">
@@ -393,7 +462,7 @@ function App() {
             )}
           </section>
 
-          {/* Save Action Button */}
+          {/* 保存按钮 */}
           <div className="action-section">
             <button 
               type="button" 
@@ -415,7 +484,7 @@ function App() {
             </button>
           </div>
 
-          {/* 历史记录折叠面板 */}
+          {/* 历史日志面板 */}
           <button 
             type="button" 
             className="history-toggle"
@@ -446,6 +515,19 @@ function App() {
             </div>
           )}
         </>
+      )}
+
+      {/* 初始配置及步长设置弹窗 */}
+      {isSettingsOpen && (
+        <SettingsModal 
+          onClose={(shouldRefresh) => {
+            setIsSettingsOpen(false);
+            if (shouldRefresh) {
+              setToast({ type: 'success', message: '初始重量与进阶步长保存成功！今日建议重量已同步更新。' });
+              loadWorkoutData();
+            }
+          }}
+        />
       )}
     </>
   );
