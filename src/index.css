@@ -872,5 +872,310 @@ body {
   color: var(--color-t3);
 }
 
+/* 页面主框架 padding 调整，防止内容被固定底栏遮挡 */
+.app-container-pad {
+  padding-bottom: 70px;
+}
+
+/* 底部导航栏 Tab Navigation */
+.tab-nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  height: 60px;
+  background-color: rgba(20, 22, 29, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  z-index: 1000;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.tab-item {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  width: 45%;
+  height: 100%;
+  transition: var(--transition-smooth);
+}
+
+.tab-item.active {
+  color: #a855f7;
+  text-shadow: 0 0 10px rgba(168, 85, 247, 0.2);
+}
+
+.tab-icon {
+  font-size: 20px;
+  transition: var(--transition-smooth);
+}
+
+.tab-item.active .tab-icon {
+  transform: translateY(-2px) scale(1.1);
+}
+
+/* 日历页面 Calendar Screen */
+.calendar-screen {
+  animation: fadeIn 0.4s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--bg-card);
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow: var(--shadow-premium);
+}
+
+.current-month-label {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.5px;
+}
+
+.month-nav-btn {
+  background: var(--bg-input);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.month-nav-btn:hover {
+  color: var(--text-main);
+  background-color: var(--bg-card);
+}
+
+.month-nav-btn:active {
+  transform: scale(0.9);
+}
+
+/* 日历主体 */
+.calendar-body {
+  background-color: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  box-shadow: var(--shadow-premium);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.week-header-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  padding-bottom: 8px;
+}
+
+.week-day-label {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  row-gap: 8px;
+  column-gap: 4px;
+}
+
+/* 单元格 Cell */
+.calendar-cell {
+  background: none;
+  border: none;
+  aspect-ratio: 1; /* 正方形 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  position: relative;
+  transition: var(--transition-smooth);
+}
+
+.calendar-cell.inactive {
+  opacity: 0.15;
+  cursor: default;
+}
+
+.calendar-cell:not(.inactive):hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.calendar-cell.today {
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  background-color: rgba(168, 85, 247, 0.03);
+}
+
+.calendar-cell.selected {
+  background-color: #a855f7 !important;
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.5);
+}
+
+.calendar-cell.selected .cell-num {
+  color: white !important;
+  font-weight: 800;
+}
+
+.calendar-cell .cell-num {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: var(--transition-smooth);
+}
+
+.calendar-cell.selected .cell-indicator {
+  filter: drop-shadow(0 0 4px white);
+}
+
+.cell-indicator {
+  position: absolute;
+  bottom: 2px;
+  font-size: 9px;
+  line-height: 1;
+}
+
+/* 详情卡片 detail section */
+.calendar-detail-section {
+  background-color: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  box-shadow: var(--shadow-premium);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  margin-bottom: 20px;
+  animation: fadeInUp 0.4s ease;
+}
+
+.detail-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100px;
+  color: var(--text-muted);
+  text-align: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.detail-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detail-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-left: 3px solid #bf5af2;
+  padding-left: 8px;
+  margin-bottom: 4px;
+}
+
+.detail-card {
+  background-color: rgba(0, 0, 0, 0.15);
+  border-left: 4px solid var(--text-muted);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.02);
+  border-right: 1px solid rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.detail-card.t1-border {
+  border-left-color: var(--color-t1);
+}
+
+.detail-card.t2-border {
+  border-left-color: var(--color-t2);
+}
+
+.detail-card.t3-border {
+  border-left-color: var(--color-t3);
+}
+
+.detail-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.detail-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.detail-card-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detail-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.detail-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.detail-value small {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.detail-value.highlight {
+  color: var(--color-success);
+}
+
+
 
 

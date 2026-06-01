@@ -9,22 +9,22 @@ import {
   getT2Progression,
   getT3Progression
 } from './progression';
+import TodayScreen from './TodayScreen';
+import CalendarScreen from './CalendarScreen';
 import SettingsModal from './SettingsModal';
 import { 
   Dumbbell, 
-  Calendar, 
-  Plus, 
-  Minus, 
   Loader2, 
   CheckCircle, 
   AlertTriangle, 
-  History, 
-  Sparkles,
   Settings
 } from 'lucide-react';
 
 function App() {
-  // 1. 全局状态
+  // 1. 选项卡 Tab 状态 ('today' | 'calendar')
+  const [activeTab, setActiveTab] = useState('today');
+
+  // 2. 全局数据加载及保存状态
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -38,7 +38,7 @@ function App() {
   const [customIncrements, setCustomIncrements] = useState({});
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // 动作中文名映射状态 (主要是从 Supabase exercises 表获取)
+  // 动作中文名映射状态
   const [exercisesCnMap, setExercisesCnMap] = useState({});
 
   // 今日 T1/T2/T3 动作代号
@@ -74,7 +74,7 @@ function App() {
   // 历史展开折叠状态
   const [showRecentLogs, setShowRecentLogs] = useState(false);
 
-  // 2. 加载 Toast 计时器
+  // Toast 计时器
   useEffect(() => {
     if (toast) {
       const timer = setTimeout(() => {
@@ -84,12 +84,11 @@ function App() {
     }
   }, [toast]);
 
-  // 3. 核心数据获取与计算逻辑
+  // 核心数据获取与计算逻辑
   const loadWorkoutData = async () => {
     setLoading(true);
     setError(null);
     try {
-      // Step A: 并行查询: 1.workouts最后记录 / 2.user_settings / 3.步长表 / 4.exercises表(用于获取T3动作中文名)
       const [lastWorkoutRes, settingsRes, progressionRes, exercisesRes] = await Promise.all([
         supabase
           .from('workouts')
@@ -161,7 +160,7 @@ function App() {
       setT2Exercise(activeT2);
       setT3Exercise(activeT3);
 
-      // Step B: 分别查询三个动作在其对应 Tier 的所有历史记录（按 created_at 升序）
+      // 分别查询三个动作在其对应 Tier 的所有历史记录（按 created_at 升序）
       const [t1HistoryRes, t2HistoryRes, t3HistoryRes] = await Promise.all([
         supabase
           .from('workouts')
@@ -213,7 +212,7 @@ function App() {
         ? incrementsMap[activeT3]['T3']
         : 2.5;
 
-      // Step C: 运行 GZCLP 核心进步算法
+      // 运行 GZCLP 核心进步算法
       const t1Result = getT1Progression(activeT1, t1History, t1CustomWeight, t1Increment);
       const t2Result = getT2Progression(activeT2, t2History, t2CustomWeight, t2Increment);
       const t3Result = getT3Progression(activeT3, t3History, t3CustomWeight, t3Increment);
@@ -235,7 +234,7 @@ function App() {
       setT2InputReps(t2Result.planned_reps.toString());
       setT3InputReps(t3Result.planned_reps.toString());
 
-      // Step D: 获取最近 10 条日志以呈现在底部面板
+      // 获取最近 10 条日志以呈现在底部面板
       const { data: logsData, error: logsError } = await supabase
         .from('workouts')
         .select('*')
@@ -254,12 +253,11 @@ function App() {
     }
   };
 
-  // 4. 挂载加载
   useEffect(() => {
     loadWorkoutData();
   }, []);
 
-  // 5. 保存动作记录
+  // 保存今日训练记录逻辑
   const handleSaveWorkout = async () => {
     const t1RepsVal = parseInt(t1InputReps, 10);
     const t2RepsVal = parseInt(t2InputReps, 10);
@@ -334,7 +332,7 @@ function App() {
     }
   };
 
-  // 6. 微调次数
+  // 微调次数
   const adjustReps = (type, action) => {
     const isT1 = type === 'T1';
     const isT2 = type === 'T2';
@@ -353,7 +351,7 @@ function App() {
     }
   };
 
-  // 获取当前的步长值（供 UI 展示）
+  // 获取步长 (展示卡片右上角增重用)
   const getIncrementStep = (exercise, tier) => {
     if (customIncrements[exercise] && customIncrements[exercise][tier] !== undefined) {
       return customIncrements[exercise][tier];
@@ -361,14 +359,14 @@ function App() {
     return 2.5;
   };
 
-  // 获取动作中文名，优先从 exercises 表拉取，其次回退使用本地映射
+  // 获取中文名翻译
   const getExerciseCNName = (exercise) => {
     return exercisesCnMap[exercise] || EXERCISE_NAMES_CN[exercise] || exercise;
   };
 
   return (
     <>
-      {/* Toast Alert */}
+      {/* Toast 提示 */}
       {toast && (
         <div className={`message-toast ${toast.type}`}>
           {toast.type === 'success' ? (
@@ -380,13 +378,14 @@ function App() {
         </div>
       )}
 
-      {/* Header */}
+      {/* 头部区 */}
       <header className="header">
         <div className="header-top">
           <div className="app-logo">
             <Dumbbell size={24} />
             <span>GZCLP Power</span>
           </div>
+          {/* 齿轮配置按钮 */}
           <button 
             type="button" 
             className="settings-btn"
@@ -402,251 +401,92 @@ function App() {
         </div>
       </header>
 
-      {/* 加载/出错 处理 */}
-      {loading ? (
-        <div className="loading-container">
-          <div className="spinner"></div>
-          <p>正在计算今日训练建议...</p>
-        </div>
-      ) : error ? (
-        <div className="loading-container" style={{ color: 'var(--color-error)' }}>
-          <AlertTriangle size={48} />
-          <p style={{ textAlign: 'center', padding: '0 20px' }}>{error}</p>
-          <button 
-            className="btn-primary" 
-            style={{ width: 'auto', marginTop: '20px', padding: '12px 24px' }}
-            onClick={loadWorkoutData}
-          >
-            重新尝试
-          </button>
-        </div>
-      ) : (
-        <>
-          {/* T1 动作卡片 */}
-          <section className="exercise-card t1-style" style={{ animationDelay: '0.1s' }}>
-            <div className="card-header">
-              <span className="exercise-title">{getExerciseCNName(t1Exercise)}</span>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <span style={{ fontSize: '11px', color: 'var(--color-t1)', fontWeight: 700 }}>
-                  ⚡️成功 +{getIncrementStep(t1Exercise, 'T1')}kg
-                </span>
-                <span className="tier-badge t1">Tier T1</span>
-              </div>
+      {/* 主屏幕区域 - 使用 display: none/block 保留 Tab 状态 */}
+      <main className="app-container-pad">
+        
+        {/* TAB 1: 今日训练页面 */}
+        <div style={{ display: activeTab === 'today' ? 'block' : 'none' }}>
+          {loading ? (
+            <div className="loading-container">
+              <div className="spinner"></div>
+              <p>正在计算今日训练建议...</p>
             </div>
-            
-            <div className="scheme-box">
-              <span className="scheme-desc">{t1SchemeText}</span>
-              <div className="weight-display">
-                <span className="weight-number">{t1Weight.toFixed(1)}</span>
-                <span className="weight-unit">kg</span>
-              </div>
+          ) : error ? (
+            <div className="loading-container" style={{ color: 'var(--color-error)' }}>
+              <AlertTriangle size={48} />
+              <p style={{ textAlign: 'center', padding: '0 20px' }}>{error}</p>
+              <button 
+                className="btn-primary" 
+                style={{ width: 'auto', marginTop: '20px', padding: '12px 24px' }}
+                onClick={loadWorkoutData}
+              >
+                重新尝试
+              </button>
             </div>
-
-            <div className="input-section">
-              <span className="input-label">最后一组完成次数</span>
-              <div className="reps-input-wrapper">
-                <button 
-                  type="button" 
-                  className="reps-btn" 
-                  onClick={() => adjustReps('T1', 'decrement')}
-                >
-                  <Minus size={16} />
-                </button>
-                <input 
-                  type="number" 
-                  className="reps-input"
-                  value={t1InputReps}
-                  onChange={(e) => setT1InputReps(e.target.value)}
-                  placeholder={t1PlannedReps.toString()}
-                />
-                <button 
-                  type="button" 
-                  className="reps-btn" 
-                  onClick={() => adjustReps('T1', 'increment')}
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
-            </div>
-
-            {t1LastRecord && (
-              <div className="card-history-preview">
-                <span className="history-text">上次记录 ({t1LastRecord.training_day})</span>
-                <span className="history-val">
-                  {t1LastRecord.weight_kg.toFixed(1)}kg × 最后一组 {t1LastRecord.actual_last_set_reps}次
-                </span>
-              </div>
-            )}
-          </section>
-
-          {/* T2 动作卡片 */}
-          <section className="exercise-card t2-style" style={{ animationDelay: '0.2s' }}>
-            <div className="card-header">
-              <span className="exercise-title">{getExerciseCNName(t2Exercise)}</span>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <span style={{ fontSize: '11px', color: 'var(--color-t2)', fontWeight: 700 }}>
-                  ⚡️升级 +{getIncrementStep(t2Exercise, 'T2')}kg
-                </span>
-                <span className="tier-badge t2">Tier T2</span>
-              </div>
-            </div>
-
-            <div className="scheme-box">
-              <span className="scheme-desc">{t2SchemeText}</span>
-              <div className="weight-display">
-                <span className="weight-number">{t2Weight.toFixed(1)}</span>
-                <span className="weight-unit">kg</span>
-              </div>
-            </div>
-
-            <div className="input-section">
-              <span className="input-label">最后一组完成次数</span>
-              <div className="reps-input-wrapper">
-                <button 
-                  type="button" 
-                  className="reps-btn" 
-                  onClick={() => adjustReps('T2', 'decrement')}
-                >
-                  <Minus size={16} />
-                </button>
-                <input 
-                  type="number" 
-                  className="reps-input"
-                  value={t2InputReps}
-                  onChange={(e) => setT2InputReps(e.target.value)}
-                  placeholder={t2PlannedReps.toString()}
-                />
-                <button 
-                  type="button" 
-                  className="reps-btn" 
-                  onClick={() => adjustReps('T2', 'increment')}
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
-            </div>
-
-            {t2LastRecord && (
-              <div className="card-history-preview">
-                <span className="history-text">上次记录 ({t2LastRecord.training_day})</span>
-                <span className="history-val">
-                  {t2LastRecord.weight_kg.toFixed(1)}kg × 最后一组 {t2LastRecord.actual_last_set_reps}次
-                </span>
-              </div>
-            )}
-          </section>
-
-          {/* T3 动作卡片 */}
-          <section className="exercise-card t3-style" style={{ animationDelay: '0.3s' }}>
-            <div className="card-header">
-              <span className="exercise-title">{getExerciseCNName(t3Exercise)}</span>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <span style={{ fontSize: '11px', color: 'var(--color-t3)', fontWeight: 700 }}>
-                  ⚡️成功 +{getIncrementStep(t3Exercise, 'T3')}kg
-                </span>
-                <span className="tier-badge t3">Tier T3</span>
-              </div>
-            </div>
-
-            <div className="scheme-box">
-              <span className="scheme-desc">{t3SchemeText}</span>
-              <div className="weight-display">
-                <span className="weight-number">{t3Weight.toFixed(1)}</span>
-                <span className="weight-unit">kg</span>
-              </div>
-            </div>
-
-            <div className="input-section">
-              <span className="input-label">最后一组完成次数</span>
-              <div className="reps-input-wrapper">
-                <button 
-                  type="button" 
-                  className="reps-btn" 
-                  onClick={() => adjustReps('T3', 'decrement')}
-                >
-                  <Minus size={16} />
-                </button>
-                <input 
-                  type="number" 
-                  className="reps-input"
-                  value={t3InputReps}
-                  onChange={(e) => setT3InputReps(e.target.value)}
-                  placeholder={t3PlannedReps.toString()}
-                />
-                <button 
-                  type="button" 
-                  className="reps-btn" 
-                  onClick={() => adjustReps('T3', 'increment')}
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
-            </div>
-
-            {t3LastRecord && (
-              <div className="card-history-preview">
-                <span className="history-text">上次记录 ({t3LastRecord.training_day})</span>
-                <span className="history-val">
-                  {t3LastRecord.weight_kg.toFixed(1)}kg × 最后一组 {t3LastRecord.actual_last_set_reps}次
-                </span>
-              </div>
-            )}
-          </section>
-
-          {/* 保存按钮 */}
-          <div className="action-section">
-            <button 
-              type="button" 
-              className="btn-primary" 
-              onClick={handleSaveWorkout}
-              disabled={saving}
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="spinner" style={{ width: 18, height: 18 }} />
-                  <span>正在保存训练记录...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles size={20} />
-                  <span>保存今日训练</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* 历史日志面板 */}
-          <button 
-            type="button" 
-            className="history-toggle"
-            onClick={() => setShowRecentLogs(!showRecentLogs)}
-          >
-            <History size={16} />
-            <span>{showRecentLogs ? '收起历史训练日志' : '展开最近历史记录'}</span>
-          </button>
-
-          {showRecentLogs && (
-            <div className="recent-logs">
-              <h3>最近 10 条单项记录</h3>
-              {recentLogs.length === 0 ? (
-                <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>暂无训练记录</p>
-              ) : (
-                recentLogs.map((log) => (
-                  <div key={log.id} className="log-item">
-                    <div>
-                      <span className="log-name">{getExerciseCNName(log.exercise).split(' ')[0]}</span>
-                      <span className={`log-tier ${log.tier.toLowerCase()}`}>{log.tier}</span>
-                    </div>
-                    <span className="log-detail">
-                      {new Date(log.created_at).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })} • {log.weight_kg.toFixed(1)}kg • {log.planned_reps * 2 + log.actual_last_set_reps}次({log.training_day})
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
+          ) : (
+            <TodayScreen
+              currentDay={currentDay}
+              t1Exercise={t1Exercise}
+              t2Exercise={t2Exercise}
+              t3Exercise={t3Exercise}
+              t1Weight={t1Weight}
+              t2Weight={t2Weight}
+              t3Weight={t3Weight}
+              t1PlannedReps={t1PlannedReps}
+              t2PlannedReps={t2PlannedReps}
+              t3PlannedReps={t3PlannedReps}
+              t1SchemeText={t1SchemeText}
+              t2SchemeText={t2SchemeText}
+              t3SchemeText={t3SchemeText}
+              t1LastRecord={t1LastRecord}
+              t2LastRecord={t2LastRecord}
+              t3LastRecord={t3LastRecord}
+              t1InputReps={t1InputReps}
+              t2InputReps={t2InputReps}
+              t3InputReps={t3InputReps}
+              setT1InputReps={setT1InputReps}
+              setT2InputReps={setT2InputReps}
+              setT3InputReps={setT3InputReps}
+              recentLogs={recentLogs}
+              showRecentLogs={showRecentLogs}
+              setShowRecentLogs={setShowRecentLogs}
+              saving={saving}
+              handleSaveWorkout={handleSaveWorkout}
+              adjustReps={adjustReps}
+              getIncrementStep={getIncrementStep}
+              getExerciseCNName={getExerciseCNName}
+            />
           )}
-        </>
-      )}
+        </div>
+
+        {/* TAB 2: 训练日历页面 */}
+        <div style={{ display: activeTab === 'calendar' ? 'block' : 'none' }}>
+          <CalendarScreen 
+            getExerciseCNName={getExerciseCNName}
+          />
+        </div>
+
+      </main>
+
+      {/* 底部固定导航栏 */}
+      <nav className="tab-nav">
+        <button 
+          type="button" 
+          className={`tab-item ${activeTab === 'today' ? 'active' : ''}`}
+          onClick={() => setActiveTab('today')}
+        >
+          <span className="tab-icon">🏋️</span>
+          <span>训练</span>
+        </button>
+        <button 
+          type="button" 
+          className={`tab-item ${activeTab === 'calendar' ? 'active' : ''}`}
+          onClick={() => setActiveTab('calendar')}
+        >
+          <span className="tab-icon">📅</span>
+          <span>日历</span>
+        </button>
+      </nav>
 
       {/* 初始配置及步长设置弹窗 */}
       {isSettingsOpen && (
