@@ -18,6 +18,11 @@
   --color-t2-glow: rgba(10, 132, 255, 0.15);
   --color-t2-border: rgba(10, 132, 255, 0.35);
   
+  --color-t3: #bf5af2;
+  --color-t3-glow: rgba(191, 90, 242, 0.15);
+  --color-t3-border: rgba(191, 90, 242, 0.35);
+
+  
   --color-success: #30d158;
   --color-error: #ff453a;
   
@@ -845,5 +850,27 @@ body {
 .settings-content::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
+
+/* T3 卡片高亮与标签样式 */
+.exercise-card.t3-style {
+  background: linear-gradient(180deg, var(--bg-card) 0%, rgba(191, 90, 242, 0.02) 100%);
+}
+
+.tier-badge.t3 {
+  background-color: var(--color-t3-glow);
+  color: var(--color-t3);
+  border: 1px solid var(--color-t3-border);
+  box-shadow: 0 0 10px rgba(191, 90, 242, 0.2);
+}
+
+.t3-style .weight-number {
+  text-shadow: 0 0 30px rgba(191, 90, 242, 0.15);
+}
+
+.log-tier.t3 {
+  background-color: rgba(191, 90, 242, 0.1);
+  color: var(--color-t3);
+}
+
 
 
