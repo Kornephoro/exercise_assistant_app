@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import { INITIAL_WEIGHTS } from './progression';
-import { Loader2, Save, ShieldAlert, Award, Compass } from 'lucide-react';
+import { Loader2, Save, ShieldAlert, Award, Compass, CheckCircle, Scale, Zap, Dumbbell } from 'lucide-react';
 
 /**
  * 计划设定页面组件 - 用于配置四大动作的初始重量、进阶加重步长、以及 T3 辅助动作达标门槛总次数
+ * 完全采用 Tailwind CSS + DaisyUI 组件进行重构，并遵循系统高级设计规范
  * 
  * @param {Object} props
  * @param {Function} props.onSettingsSaved 保存配置成功后通知父组件重新计算建议重量的回调
@@ -257,332 +258,462 @@ function PlanScreen({ onSettingsSaved }) {
   };
 
   return (
-    <div className="plan-screen animate-fadeIn">
+    <div className="flex flex-col gap-6 animate-fadeIn">
       
-      {/* 顶部小标签 */}
-      <div className="sub-tab-header">
+      {/* 顶部标题 */}
+      <div className="mb-1">
+        <h2 className="text-2xl font-bold tracking-tight text-text-main dark:text-text-main-dark">
+          计划配置
+        </h2>
+      </div>
+
+      {/* 顶部小标签 tabs */}
+      <div className="tabs tabs-boxed bg-bg-card/80 dark:bg-bg-card-dark/80 backdrop-blur-md border border-border-card dark:border-border-card-dark p-1.5 mb-1">
         <button
           type="button"
-          className={`sub-tab-item ${activeSubTab === 'settings' ? 'active' : ''}`}
+          className={`tab flex-1 transition-all duration-200 py-2 text-sm flex items-center justify-center gap-1.5 cursor-pointer ${
+            activeSubTab === 'settings' 
+              ? 'tab-active !bg-primary !text-white font-bold rounded-xl shadow-md' 
+              : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark'
+          }`}
           onClick={() => setActiveSubTab('settings')}
         >
-          <Award size={16} />
+          <Award size={14} />
           <span>配置设置</span>
         </button>
         <button
           type="button"
-          className={`sub-tab-item ${activeSubTab === 'library' ? 'active' : ''}`}
+          className={`tab flex-1 transition-all duration-200 py-2 text-sm flex items-center justify-center gap-1.5 cursor-pointer ${
+            activeSubTab === 'library' 
+              ? 'tab-active !bg-primary !text-white font-bold rounded-xl shadow-md' 
+              : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark'
+          }`}
           onClick={() => setActiveSubTab('library')}
         >
-          <Compass size={16} />
+          <Compass size={14} />
           <span>动作库</span>
         </button>
       </div>
 
       {/* 选项卡内容区域 */}
-      <div className="sub-tab-content">
+      <div className="mt-1">
         {activeSubTab === 'settings' ? (
-          <>
-            <p className="settings-tip" style={{ marginTop: '0', marginBottom: '16px' }}>
+          <div className="flex flex-col gap-6">
+            {/* 提示栏 */}
+            <div className="alert-box text-sm leading-relaxed border-l-4 mb-4">
               1. <b>默认重量</b>：仅在无训练历史的首次打卡时作为基准。<br />
               2. <b>增重步长</b>：打卡成功时下一次加重的幅度。<br />
               3. <b>T3 达标门槛</b>：三组实际次数累加满足该目标时方可晋级加重。
-            </p>
+            </div>
 
-            {/* 提示/错误展示 */}
+            {/* 错误提示 */}
             {error && (
-              <div className="settings-error" style={{ marginBottom: '16px' }}>
-                <ShieldAlert size={16} />
+              <div className="alert-box !border-alert dark:!border-alert-dark !bg-bg-alert dark:!bg-bg-alert-dark !text-alert dark:!text-alert-dark flex items-center gap-2 text-sm border-l-4">
+                <ShieldAlert size={14} className="flex-shrink-0" />
                 <span>{error}</span>
               </div>
             )}
             
+            {/* 成功提示 */}
             {successMsg && (
-              <div className="settings-error success" style={{ marginBottom: '16px' }}>
+              <div className="alert-box !border-success dark:!border-success bg-green-500/10 dark:bg-green-500/5 !text-success dark:!text-success flex items-center gap-2 text-sm border-l-4">
+                <CheckCircle size={14} className="flex-shrink-0" />
                 <span>{successMsg}</span>
               </div>
             )}
 
             {loading ? (
-              <div className="settings-loading" style={{ minHeight: '300px' }}>
-                <Loader2 className="spinner" />
-                <p>读取云端配置中...</p>
+              <div className="flex flex-col items-center justify-center min-h-[300px] text-text-secondary dark:text-text-secondary-dark gap-3">
+                <Loader2 className="animate-spin text-primary" size={32} />
+                <p className="text-sm font-semibold">读取云端配置中...</p>
               </div>
             ) : (
-              <div className="settings-form">
+              <div className="flex flex-col gap-6">
                 
                 {/* 1. 重量设置 */}
-                <div className="settings-section">
-                  <h3 className="section-title">1. 首训默认重量 (kg)</h3>
-                  <div className="weights-grid">
-                    <div className="form-group">
-                      <label htmlFor="p-squat">深蹲 (Squat)</label>
-                      <div className="form-input-wrapper">
+                <div className="card">
+                  <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark mb-4 pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
+                    <Scale size={16} className="text-primary" />
+                    <span>1. 首训默认重量</span>
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-medium text-text-secondary dark:text-text-secondary-dark" htmlFor="p-squat">
+                        深蹲 (Squat)
+                      </label>
+                      <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary px-3 h-10 w-full transition-colors">
                         <input
                           id="p-squat"
                           type="number"
                           step="0.5"
+                          className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none text-right pr-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={squatWeight}
                           onChange={(e) => setSquatWeight(e.target.value)}
                         />
-                        <span className="unit-label">kg</span>
+                        <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
                       </div>
                     </div>
-                    <div className="form-group">
-                      <label htmlFor="p-bench">卧推 (Bench)</label>
-                      <div className="form-input-wrapper">
+                    
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-medium text-text-secondary dark:text-text-secondary-dark" htmlFor="p-bench">
+                        卧推 (Bench)
+                      </label>
+                      <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary px-3 h-10 w-full transition-colors">
                         <input
                           id="p-bench"
                           type="number"
                           step="0.5"
+                          className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none text-right pr-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={benchWeight}
                           onChange={(e) => setBenchWeight(e.target.value)}
                         />
-                        <span className="unit-label">kg</span>
+                        <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
                       </div>
                     </div>
-                    <div className="form-group">
-                      <label htmlFor="p-deadlift">硬拉 (Deadlift)</label>
-                      <div className="form-input-wrapper">
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-medium text-text-secondary dark:text-text-secondary-dark" htmlFor="p-deadlift">
+                        硬拉 (Deadlift)
+                      </label>
+                      <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary px-3 h-10 w-full transition-colors">
                         <input
                           id="p-deadlift"
                           type="number"
                           step="0.5"
+                          className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none text-right pr-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={deadliftWeight}
                           onChange={(e) => setDeadliftWeight(e.target.value)}
                         />
-                        <span className="unit-label">kg</span>
+                        <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
                       </div>
                     </div>
-                    <div className="form-group">
-                      <label htmlFor="p-press">推举 (Press)</label>
-                      <div className="form-input-wrapper">
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-medium text-text-secondary dark:text-text-secondary-dark" htmlFor="p-press">
+                        推举 (Press)
+                      </label>
+                      <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary px-3 h-10 w-full transition-colors">
                         <input
                           id="p-press"
                           type="number"
                           step="0.5"
+                          className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none text-right pr-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={pressWeight}
                           onChange={(e) => setPressWeight(e.target.value)}
                         />
-                        <span className="unit-label">kg</span>
+                        <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* 2. 核心加重步长 */}
-                <div className="settings-section">
-                  <h3 className="section-title">2. 核心动作加重步长 (T1 & T2)</h3>
+                <div className="card">
+                  <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark mb-4 pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
+                    <Zap size={16} className="text-primary" />
+                    <span>2. 核心动作加重步长 (T1 & T2)</span>
+                  </h3>
                   
-                  <div className="exercise-step-row">
-                    <span className="exercise-step-name">深蹲 (Squat)</span>
-                    <div className="steps-inputs">
-                      <div className="step-field">
-                        <span>T1</span>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          value={squatT1Step}
-                          onChange={(e) => setSquatT1Step(e.target.value)}
-                        />
-                      </div>
-                      <div className="step-field">
-                        <span>T2</span>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          value={squatT2Step}
-                          onChange={(e) => setSquatT2Step(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="exercise-step-row">
-                    <span className="exercise-step-name">卧推 (Bench)</span>
-                    <div className="steps-inputs">
-                      <div className="step-field">
-                        <span>T1</span>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          value={benchT1Step}
-                          onChange={(e) => setBenchT1Step(e.target.value)}
-                        />
-                      </div>
-                      <div className="step-field">
-                        <span>T2</span>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          value={benchT2Step}
-                          onChange={(e) => setBenchT2Step(e.target.value)}
-                        />
+                  <div className="flex flex-col gap-3">
+                    {/* 深蹲 */}
+                    <div className="flex flex-row items-center justify-between p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 gap-3">
+                      <span className="text-base font-bold text-text-main dark:text-text-main-dark">深蹲 (Squat)</span>
+                      <div className="flex gap-3">
+                        <div className="flex items-center gap-1.5">
+                          <span className="badge bg-tier-t1/10 text-tier-t1 dark:text-tier-t1-dark border-tier-t1/20 dark:border-tier-t1-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T1</span>
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[90px] h-9 transition-colors">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-right pr-0.5"
+                              value={squatT1Step}
+                              onChange={(e) => setSquatT1Step(e.target.value)}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="badge bg-tier-t2/10 text-tier-t2 dark:text-tier-t2-dark border-tier-t2/20 dark:border-tier-t2-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T2</span>
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[90px] h-9 transition-colors">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-right pr-0.5"
+                              value={squatT2Step}
+                              onChange={(e) => setSquatT2Step(e.target.value)}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="exercise-step-row">
-                    <span className="exercise-step-name">硬拉 (Deadlift)</span>
-                    <div className="steps-inputs">
-                      <div className="step-field">
-                        <span>T1</span>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          value={deadliftT1Step}
-                          onChange={(e) => setDeadliftT1Step(e.target.value)}
-                        />
-                      </div>
-                      <div className="step-field">
-                        <span>T2</span>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          value={deadliftT2Step}
-                          onChange={(e) => setDeadliftT2Step(e.target.value)}
-                        />
+                    {/* 卧推 */}
+                    <div className="flex flex-row items-center justify-between p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 gap-3">
+                      <span className="text-base font-bold text-text-main dark:text-text-main-dark">卧推 (Bench)</span>
+                      <div className="flex gap-3">
+                        <div className="flex items-center gap-1.5">
+                          <span className="badge bg-tier-t1/10 text-tier-t1 dark:text-tier-t1-dark border-tier-t1/20 dark:border-tier-t1-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T1</span>
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[90px] h-9 transition-colors">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-right pr-0.5"
+                              value={benchT1Step}
+                              onChange={(e) => setBenchT1Step(e.target.value)}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="badge bg-tier-t2/10 text-tier-t2 dark:text-tier-t2-dark border-tier-t2/20 dark:border-tier-t2-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T2</span>
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[90px] h-9 transition-colors">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-right pr-0.5"
+                              value={benchT2Step}
+                              onChange={(e) => setBenchT2Step(e.target.value)}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="exercise-step-row">
-                    <span className="exercise-step-name">推举 (Press)</span>
-                    <div className="steps-inputs">
-                      <div className="step-field">
-                        <span>T1</span>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          value={pressT1Step}
-                          onChange={(e) => setPressT1Step(e.target.value)}
-                        />
+                    {/* 硬拉 */}
+                    <div className="flex flex-row items-center justify-between p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 gap-3">
+                      <span className="text-base font-bold text-text-main dark:text-text-main-dark">硬拉 (Deadlift)</span>
+                      <div className="flex gap-3">
+                        <div className="flex items-center gap-1.5">
+                          <span className="badge bg-tier-t1/10 text-tier-t1 dark:text-tier-t1-dark border-tier-t1/20 dark:border-tier-t1-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T1</span>
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[90px] h-9 transition-colors">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-right pr-0.5"
+                              value={deadliftT1Step}
+                              onChange={(e) => setDeadliftT1Step(e.target.value)}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="badge bg-tier-t2/10 text-tier-t2 dark:text-tier-t2-dark border-tier-t2/20 dark:border-tier-t2-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T2</span>
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[90px] h-9 transition-colors">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-right pr-0.5"
+                              value={deadliftT2Step}
+                              onChange={(e) => setDeadliftT2Step(e.target.value)}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="step-field">
-                        <span>T2</span>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          value={pressT2Step}
-                          onChange={(e) => setPressT2Step(e.target.value)}
-                        />
+                    </div>
+
+                    {/* 推举 */}
+                    <div className="flex flex-row items-center justify-between p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 gap-3">
+                      <span className="text-base font-bold text-text-main dark:text-text-main-dark">推举 (Press)</span>
+                      <div className="flex gap-3">
+                        <div className="flex items-center gap-1.5">
+                          <span className="badge bg-tier-t1/10 text-tier-t1 dark:text-tier-t1-dark border-tier-t1/20 dark:border-tier-t1-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T1</span>
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[90px] h-9 transition-colors">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-right pr-0.5"
+                              value={pressT1Step}
+                              onChange={(e) => setPressT1Step(e.target.value)}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="badge bg-tier-t2/10 text-tier-t2 dark:text-tier-t2-dark border-tier-t2/20 dark:border-tier-t2-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T2</span>
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[90px] h-9 transition-colors">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-right pr-0.5"
+                              value={pressT2Step}
+                              onChange={(e) => setPressT2Step(e.target.value)}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* 3. 辅助动作步长与达标门槛 */}
-                <div className="settings-section">
-                  <h3 className="section-title">3. 辅助动作加重步长及达标门槛 (T3)</h3>
+                <div className="card">
+                  <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark mb-4 pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
+                    <Dumbbell size={16} className="text-primary" />
+                    <span>3. 辅助动作步长及达标门槛 (T3)</span>
+                  </h3>
                   
-                  <div className="exercise-step-row">
-                    <span className="exercise-step-name">引体向上 (Pull-up)</span>
-                    <div className="steps-inputs T3-inputs">
-                      <div className="step-field">
-                        <span>步长 (kg)</span>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          value={pullupT3Step}
-                          onChange={(e) => setPullupT3Step(e.target.value)}
-                        />
+                  <div className="flex flex-col gap-3">
+                    {/* 引体向上 */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="badge bg-tier-t3/10 text-tier-t3 dark:text-tier-t3-dark border border-tier-t3/20 dark:border-tier-t3-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T3</span>
+                        <span className="text-base font-bold text-text-main dark:text-text-main-dark">引体向上 (Pull-up)</span>
                       </div>
-                      <div className="step-field">
-                        <span>达标 (次)</span>
-                        <input
-                          type="number"
-                          step="1"
-                          min="5"
-                          value={pullupT3Target}
-                          onChange={(e) => setPullupT3Target(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="exercise-step-row">
-                    <span className="exercise-step-name">悬垂举腿/腹部 (Abdominal)</span>
-                    <div className="steps-inputs T3-inputs">
-                      <div className="step-field">
-                        <span>步长 (kg)</span>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          value={abdominalT3Step}
-                          onChange={(e) => setAbdominalT3Step(e.target.value)}
-                        />
-                      </div>
-                      <div className="step-field">
-                        <span>达标 (次)</span>
-                        <input
-                          type="number"
-                          step="1"
-                          min="5"
-                          value={abdominalT3Target}
-                          onChange={(e) => setAbdominalT3Target(e.target.value)}
-                        />
+                      <div className="flex gap-2 justify-end">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-medium whitespace-nowrap select-none">步长</span>
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[85px] h-9 transition-colors">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-right pr-0.5"
+                              value={pullupT3Step}
+                              onChange={(e) => setPullupT3Step(e.target.value)}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-medium whitespace-nowrap select-none">达标</span>
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[85px] h-9 transition-colors">
+                            <input
+                              type="number"
+                              step="1"
+                              min="5"
+                              className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-right pr-0.5"
+                              value={pullupT3Target}
+                              onChange={(e) => setPullupT3Target(e.target.value)}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">次</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="exercise-step-row">
-                    <span className="exercise-step-name">二头肌弯举 (Bicep Curl)</span>
-                    <div className="steps-inputs T3-inputs">
-                      <div className="step-field">
-                        <span>步长 (kg)</span>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          value={bicepCurlT3Step}
-                          onChange={(e) => setBicepCurlT3Step(e.target.value)}
-                        />
+                    {/* 悬垂举腿 */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="badge bg-tier-t3/10 text-tier-t3 dark:text-tier-t3-dark border border-tier-t3/20 dark:border-tier-t3-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T3</span>
+                        <span className="text-base font-bold text-text-main dark:text-text-main-dark">悬垂举腿/腹 (Abdominal)</span>
                       </div>
-                      <div className="step-field">
-                        <span>达标 (次)</span>
-                        <input
-                          type="number"
-                          step="1"
-                          min="5"
-                          value={bicepCurlT3Target}
-                          onChange={(e) => setBicepCurlT3Target(e.target.value)}
-                        />
+                      <div className="flex gap-2 justify-end">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-medium whitespace-nowrap select-none">步长</span>
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[85px] h-9 transition-colors">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-right pr-0.5"
+                              value={abdominalT3Step}
+                              onChange={(e) => setAbdominalT3Step(e.target.value)}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-medium whitespace-nowrap select-none">达标</span>
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[85px] h-9 transition-colors">
+                            <input
+                              type="number"
+                              step="1"
+                              min="5"
+                              className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-right pr-0.5"
+                              value={abdominalT3Target}
+                              onChange={(e) => setAbdominalT3Target(e.target.value)}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">次</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="exercise-step-row">
-                    <span className="exercise-step-name">面拉 (Face Pull)</span>
-                    <div className="steps-inputs T3-inputs">
-                      <div className="step-field">
-                        <span>步长 (kg)</span>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          value={facePullT3Step}
-                          onChange={(e) => setFacePullT3Step(e.target.value)}
-                        />
+                    {/* 二头肌弯举 */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="badge bg-tier-t3/10 text-tier-t3 dark:text-tier-t3-dark border border-tier-t3/20 dark:border-tier-t3-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T3</span>
+                        <span className="text-base font-bold text-text-main dark:text-text-main-dark">二头肌弯举 (Bicep)</span>
                       </div>
-                      <div className="step-field">
-                        <span>达标 (次)</span>
-                        <input
-                          type="number"
-                          step="1"
-                          min="5"
-                          value={facePullT3Target}
-                          onChange={(e) => setFacePullT3Target(e.target.value)}
-                        />
+                      <div className="flex gap-2 justify-end">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-medium whitespace-nowrap select-none">步长</span>
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[85px] h-9 transition-colors">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-right pr-0.5"
+                              value={bicepCurlT3Step}
+                              onChange={(e) => setBicepCurlT3Step(e.target.value)}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-medium whitespace-nowrap select-none">达标</span>
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[85px] h-9 transition-colors">
+                            <input
+                              type="number"
+                              step="1"
+                              min="5"
+                              className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-right pr-0.5"
+                              value={bicepCurlT3Target}
+                              onChange={(e) => setBicepCurlT3Target(e.target.value)}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">次</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 面拉 */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="badge bg-tier-t3/10 text-tier-t3 dark:text-tier-t3-dark border border-tier-t3/20 dark:border-tier-t3-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T3</span>
+                        <span className="text-base font-bold text-text-main dark:text-text-main-dark">面拉 (Face Pull)</span>
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-medium whitespace-nowrap select-none">步长</span>
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[85px] h-9 transition-colors">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-right pr-0.5"
+                              value={facePullT3Step}
+                              onChange={(e) => setFacePullT3Step(e.target.value)}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-medium whitespace-nowrap select-none">达标</span>
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[85px] h-9 transition-colors">
+                            <input
+                              type="number"
+                              step="1"
+                              min="5"
+                              className="w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-right pr-0.5"
+                              value={facePullT3Target}
+                              onChange={(e) => setFacePullT3Target(e.target.value)}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">次</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -591,15 +722,14 @@ function PlanScreen({ onSettingsSaved }) {
                 {/* 保存设置按钮 */}
                 <button
                   type="button"
-                  className="btn-primary"
-                  style={{ marginTop: '10px', marginBottom: '30px' }}
+                  className="btn btn-primary btn-block btn-lg mt-2 mb-8 flex items-center justify-center gap-2 shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0 select-none font-bold"
                   onClick={handleSaveSettings}
                   disabled={saving}
                 >
                   {saving ? (
                     <>
-                      <Loader2 className="spinner" style={{ width: 18, height: 18 }} />
-                      <span>保存中...</span>
+                      <Loader2 className="animate-spin" size={18} />
+                      <span>正在保存设定...</span>
                     </>
                   ) : (
                     <>
@@ -610,13 +740,13 @@ function PlanScreen({ onSettingsSaved }) {
                 </button>
               </div>
             )}
-          </>
+          </div>
         ) : (
           /* 动作库占位 */
-          <div className="detail-empty" style={{ minHeight: '300px', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-lg)' }}>
-            <Compass size={40} style={{ color: 'var(--text-muted)' }} />
-            <p style={{ fontSize: '15px', fontWeight: 600 }}>动作图表与教学库</p>
-            <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>即将推出，敬请期待！</p>
+          <div className="card flex flex-col items-center justify-center text-center gap-3 min-h-[300px] animate-fadeIn opacity-70">
+            <Compass size={40} className="text-text-secondary/40 dark:text-text-secondary-dark/40" />
+            <p className="text-base font-bold text-text-main dark:text-text-main-dark">动作图表与教学库</p>
+            <p className="text-xs text-text-secondary dark:text-text-secondary-dark">即将推出，敬请期待！</p>
           </div>
         )}
       </div>

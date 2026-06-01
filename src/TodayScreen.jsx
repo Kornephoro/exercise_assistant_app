@@ -3,6 +3,7 @@ import { Play, RotateCcw, CheckCircle, Heart, Utensils, Calendar } from 'lucide-
 
 /**
  * 今日概览页面组件 - 展示今日训练卡片式流布局、即将推出功能占位、以及完成训练后的打卡摘要
+ * 完全采用 Tailwind CSS + DaisyUI 组件进行重构
  * 
  * @param {Object} props
  * @param {string} props.currentDay 当前训练日 (如 'Day1')
@@ -88,40 +89,57 @@ function TodayScreen({
   };
 
   return (
-    <div className="today-screen animate-fadeIn">
+    <div className="flex flex-col gap-8 animate-fadeIn">
       {/* 头部区：包含训练日及日期副标题 */}
-      <div className="today-screen-header">
-        <h2 className="today-day-title">
+      <div className="mb-2">
+        <h2 className="text-2xl font-bold tracking-tight text-text-main dark:text-text-main-dark">
           {getHeaderTitle()}
         </h2>
-        <p className="today-date-subtitle">
-          <Calendar size={14} style={{ marginRight: '4px', display: 'inline-block', verticalAlign: 'text-bottom' }} />
-          {getFormattedDate()}
+        <p className="text-base text-text-secondary dark:text-text-secondary-dark flex items-center gap-2 mt-2 select-none">
+          <Calendar size={16} className="opacity-70 text-primary" />
+          <span>{getFormattedDate()}</span>
         </p>
       </div>
 
-      <div className="today-card-flow">
+      <div className="flex flex-col gap-6">
         
         {/* 情况 A：今日已完成训练打卡 */}
         {isTodayCompleted ? (
-          <div className="today-item-card completed-summary-card animate-fadeIn">
-            <div className="completed-header">
-              <CheckCircle className="completed-check-icon" size={48} />
-              <h3>今日训练已完成 ✅</h3>
-              <p className="completed-message">你今天做得棒极了！以下是你的训练摘要：</p>
+          <div className="card !border-green-500/20 dark:!border-green-500/30">
+            <div className="flex flex-col items-center text-center gap-2.5 mb-5 select-none">
+              <CheckCircle className="text-green-500" size={48} />
+              <h3 className="text-xl font-bold text-text-main dark:text-text-main-dark">今日训练已完成 ✅</h3>
+              <p className="text-sm text-text-secondary dark:text-text-secondary-dark">你今天做得棒极了！以下是你的训练摘要：</p>
             </div>
             
-            <div className="completed-workout-details">
+            <div className="flex flex-col gap-3.5">
               {todayWorkoutSummary.map((log, idx) => (
-                <div key={log.id || idx} className={`completed-log-row ${log.tier.toLowerCase()}-border`}>
-                  <div className="log-row-info">
-                    <span className={`tier-badge-small ${log.tier.toLowerCase()}`}>{log.tier}</span>
-                    <span className="log-exercise-title">{getExerciseCNName(log.exercise)}</span>
+                <div 
+                  key={log.id || idx} 
+                  className={`flex justify-between items-center p-3 rounded-xl border bg-bg-main/20 dark:bg-bg-main-dark/20 ${
+                    log.tier === 'T1' ? 'border-tier-t1/10 dark:border-tier-t1-dark/10' : log.tier === 'T2' ? 'border-tier-t2/10 dark:border-tier-t2-dark/10' : 'border-tier-t3/10 dark:border-tier-t3-dark/10'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`badge font-bold text-xs px-2 py-0.5 rounded ${
+                      log.tier === 'T1' 
+                        ? 'bg-tier-t1/10 text-tier-t1 dark:text-tier-t1-dark border-tier-t1/20 dark:border-tier-t1-dark/20' 
+                        : log.tier === 'T2' 
+                        ? 'bg-tier-t2/10 text-tier-t2 dark:text-tier-t2-dark border-tier-t2/20 dark:border-tier-t2-dark/20' 
+                        : 'bg-tier-t3/10 text-tier-t3 dark:text-tier-t3-dark border-tier-t3/20 dark:border-tier-t3-dark/20'
+                    }`}>
+                      {log.tier}
+                    </span>
+                    <span className="text-base font-bold text-text-main dark:text-text-main-dark">
+                      {getExerciseCNName(log.exercise)}
+                    </span>
                   </div>
-                  <div className="log-row-result">
-                    <span className="log-weight">{log.weight_kg.toFixed(1)}kg</span>
-                    <span className="log-reps">
-                      最后一组 <strong>{log.actual_last_set_reps}</strong> 次
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold text-text-main dark:text-text-main-dark bg-bg-hover dark:bg-bg-hover-dark px-2 py-0.5 rounded">
+                      {log.weight_kg.toFixed(1)}kg
+                    </span>
+                    <span className="text-sm text-text-secondary dark:text-text-secondary-dark">
+                      末组 <span className="text-text-main dark:text-text-main-dark text-base font-bold">{log.actual_last_set_reps}</span> 次
                     </span>
                   </div>
                 </div>
@@ -130,141 +148,178 @@ function TodayScreen({
           </div>
         ) : isRestDay ? (
           /* 情况 C：今日为休息日，显示休息提示与下次日程 */
-          <div className="today-item-card rest-day-card animate-fadeIn">
-            <div className="card-header-row">
-              <span className="badge-outline success-badge">今日休息</span>
-              <span className="rest-status-tag">Rest & Recover</span>
+          <div className="card !border-green-500/10 dark:!border-green-500/20">
+            <div className="flex justify-between items-center mb-3 select-none">
+              <span className="badge badge-success badge-outline font-bold text-sm">今日休息</span>
+              <span className="text-xs font-extrabold tracking-wider text-text-secondary dark:text-text-secondary-dark uppercase opacity-70">
+                Rest & Recover
+              </span>
             </div>
             
-            <h3 className="plan-title">让肌肉充分修复 😴</h3>
+            <h3 className="text-xl font-bold text-text-main dark:text-text-main-dark mb-2">让肌肉充分修复 😴</h3>
             
-            <div className="rest-day-body">
-              <p className="rest-desc">
+            <div className="flex flex-col gap-4">
+              <p className="text-sm text-text-secondary dark:text-text-secondary-dark leading-relaxed">
                 合理的修整是超量恢复（Supercompensation）的基石。给肌肉充足的时间重整肌纤维、修复微细损伤，你将在下一次训练中爆发出更强大的爆发力与力量！
               </p>
               
-              <div className="next-schedule-box">
-                <span className="next-lbl">🗓️ 下次训练日程安排</span>
-                <strong className="next-val">{nextTrainingDate || '未设定训练日程'}</strong>
+              <div className="mt-4 p-4 bg-primary/5 rounded-xl border border-primary/10 flex flex-col gap-1 select-none">
+                <span className="text-sm font-medium text-text-secondary dark:text-text-secondary-dark flex items-center gap-1.5">
+                  🗓️ 下次训练日程安排
+                </span>
+                <strong className="text-lg font-extrabold text-primary mt-0.5">
+                  {nextTrainingDate || '未设定训练日程'}
+                </strong>
               </div>
             </div>
           </div>
         ) : (
           /* 情况 B：今日未完成训练，展示今日训练安排 */
-          <div className="today-item-card plan-summary-card animate-fadeIn" onClick={onStartTrain}>
-            <div className="card-header-row">
-              <span className="badge-outline">今日安排</span>
-              <span className="start-btn-inline">开始训练</span>
+          <div 
+            className="card hover:border-primary/30 transition-all duration-200 cursor-pointer" 
+            onClick={onStartTrain}
+          >
+            <div className="flex justify-between items-center mb-3 select-none">
+              <span className="badge badge-primary badge-outline font-bold text-sm">今日安排</span>
+              <span className="text-sm font-semibold text-primary flex items-center gap-1 hover:underline">
+                开始训练 &rarr;
+              </span>
             </div>
             
-            <h3 className="plan-title">{getExerciseShortName(t1Exercise)} / {getExerciseShortName(t2Exercise)} 训练日</h3>
+            <h3 className="text-xl font-extrabold text-text-main dark:text-text-main-dark mb-4">
+              {getExerciseShortName(t1Exercise)} / {getExerciseShortName(t2Exercise)} 训练日
+            </h3>
             
-            <div className="plan-summary-list">
+            <div className="flex flex-col gap-5">
               {/* T1 动作 */}
-              <div className="plan-row">
-                <span className="tier-dot t1">T1</span>
-                <div className="plan-row-body">
-                  <span className="plan-exercise-name">{getExerciseCNName(t1Exercise)}</span>
-                  <span className="plan-scheme">{getT1TotalSets(t1PlannedReps)}组 × {t1PlannedReps}次</span>
+              <div className="flex items-center justify-between p-2 rounded-xl hover:bg-bg-hover dark:hover:bg-bg-hover-dark transition-colors duration-150">
+                <div className="flex items-center gap-3">
+                  <span className="badge bg-tier-t1/10 text-tier-t1 dark:text-tier-t1-dark border-tier-t1/20 dark:border-tier-t1-dark/20 font-bold text-xs w-7 h-5 flex items-center justify-center rounded">
+                    T1
+                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-base font-bold text-text-main dark:text-text-main-dark">
+                      {getExerciseCNName(t1Exercise)}
+                    </span>
+                    <span className="text-sm text-text-secondary dark:text-text-secondary-dark mt-0.5">
+                      {getT1TotalSets(t1PlannedReps)}组 &times; {t1PlannedReps}次
+                    </span>
+                  </div>
                 </div>
-                <span className="plan-weight">{t1Weight.toFixed(1)}kg</span>
+                <span className="text-lg font-extrabold text-text-main dark:text-text-main-dark font-mono">
+                  {t1Weight.toFixed(1)}kg
+                </span>
               </div>
               
               {/* T2 动作 */}
-              <div className="plan-row">
-                <span className="tier-dot t2">T2</span>
-                <div className="plan-row-body">
-                  <span className="plan-exercise-name">{getExerciseCNName(t2Exercise)}</span>
-                  <span className="plan-scheme">3组 × {t2PlannedReps}次</span>
+              <div className="flex items-center justify-between p-2 rounded-xl hover:bg-bg-hover dark:hover:bg-bg-hover-dark transition-colors duration-150">
+                <div className="flex items-center gap-3">
+                  <span className="badge bg-tier-t2/10 text-tier-t2 dark:text-tier-t2-dark border-tier-t2/20 dark:border-tier-t2-dark/20 font-bold text-xs w-7 h-5 flex items-center justify-center rounded">
+                    T2
+                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-base font-bold text-text-main dark:text-text-main-dark">
+                      {getExerciseCNName(t2Exercise)}
+                    </span>
+                    <span className="text-sm text-text-secondary dark:text-text-secondary-dark mt-0.5">
+                      3组 &times; {t2PlannedReps}次
+                    </span>
+                  </div>
                 </div>
-                <span className="plan-weight">{t2Weight.toFixed(1)}kg</span>
+                <span className="text-lg font-extrabold text-text-main dark:text-text-main-dark font-mono">
+                  {t2Weight.toFixed(1)}kg
+                </span>
               </div>
               
               {/* T3 动作 */}
-              <div className="plan-row">
-                <span className="tier-dot t3">T3</span>
-                <div className="plan-row-body">
-                  <span className="plan-exercise-name">{getExerciseCNName(t3Exercise)}</span>
-                  <span className="plan-scheme">3组 × {t3PlannedReps}次</span>
+              <div className="flex items-center justify-between p-2 rounded-xl hover:bg-bg-hover dark:hover:bg-bg-hover-dark transition-colors duration-150">
+                <div className="flex items-center gap-3">
+                  <span className="badge bg-tier-t3/10 text-tier-t3 dark:text-tier-t3-dark border-tier-t3/20 dark:border-tier-t3-dark/20 font-bold text-xs w-7 h-5 flex items-center justify-center rounded">
+                    T3
+                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-base font-bold text-text-main dark:text-text-main-dark">
+                      {getExerciseCNName(t3Exercise)}
+                    </span>
+                    <span className="text-sm text-text-secondary dark:text-text-secondary-dark mt-0.5">
+                      3组 &times; {t3PlannedReps}次
+                    </span>
+                  </div>
                 </div>
-                <span className="plan-weight">{t3Weight.toFixed(1)}kg</span>
+                <span className="text-lg font-extrabold text-text-main dark:text-text-main-dark font-mono">
+                  {t3Weight.toFixed(1)}kg
+                </span>
               </div>
             </div>
           </div>
         )}
 
         {/* 占位卡片 2：身体状态 (Coming Soon) */}
-        <div className="today-item-card placeholder-card">
-          <div className="card-header-row">
-            <span className="placeholder-icon-text">
-              <Heart size={16} className="heart-icon" />
+        <div className="card flex flex-col gap-3 opacity-70 hover:opacity-100 transition-opacity">
+          <div className="flex justify-between items-center mb-1 select-none">
+            <span className="flex items-center gap-1.5 text-base font-bold text-text-secondary dark:text-text-secondary-dark">
+              <Heart size={16} className="text-red-500 opacity-80 animate-pulse" />
               <span>身体状态</span>
             </span>
-            <span className="placeholder-badge">即将推出</span>
+            <span className="badge badge-ghost badge-sm text-xs opacity-75 font-semibold">即将推出</span>
           </div>
-          <div className="placeholder-body">
-            <p className="placeholder-desc">记录每日晨重、体脂率，并追踪肌肉维度与恢复状态。</p>
-          </div>
+          <p className="text-sm text-text-secondary dark:text-text-secondary-dark leading-relaxed">
+            记录每日晨重、体脂率，并追踪肌肉维度与恢复状态。
+          </p>
         </div>
 
         {/* 占位卡片 3：今日饮食摘要 (Coming Soon) */}
-        <div className="today-item-card placeholder-card">
-          <div className="card-header-row">
-            <span className="placeholder-icon-text">
-              <Utensils size={16} className="utensils-icon" />
+        <div className="card flex flex-col gap-3 opacity-70 hover:opacity-100 transition-opacity">
+          <div className="flex justify-between items-center mb-1 select-none">
+            <span className="flex items-center gap-1.5 text-base font-bold text-text-secondary dark:text-text-secondary-dark">
+              <Utensils size={16} className="text-orange-500 opacity-80" />
               <span>今日饮食摘要</span>
             </span>
-            <span className="placeholder-badge">即将推出</span>
+            <span className="badge badge-ghost badge-sm text-xs opacity-75 font-semibold">即将推出</span>
           </div>
-          <div className="placeholder-body">
-            <p className="placeholder-desc">跟踪蛋白质、碳水及卡路里摄入，为力量进步提供坚实营养保障。</p>
-          </div>
+          <p className="text-sm text-text-secondary dark:text-text-secondary-dark leading-relaxed">
+            跟踪蛋白质、碳水及卡路里摄入，为力量进步提供坚实营养保障。
+          </p>
         </div>
 
       </div>
 
-      {/* 底部固定操作按钮区 */}
-      <div className="today-action-area">
-        {isTodayCompleted ? (
-          <button 
-            type="button" 
-            className="btn-primary start-session-btn disabled-completed-btn"
-            disabled
-          >
-            <CheckCircle size={20} />
-            <span>今日训练已完成 ✅</span>
-          </button>
-        ) : isRestDay && !isSessionActive ? (
-          <button 
-            type="button" 
-            className="btn-primary start-session-btn rest-day-btn"
-            disabled
-          >
-            <span>🛋️ 今日休息中，合理恢复</span>
-          </button>
-        ) : (
-          <button 
-            type="button" 
-            className={`btn-primary start-session-btn ${isSessionActive ? 'pulse-btn' : ''}`}
-            onClick={onStartTrain}
-          >
-            {isSessionActive ? (
-              <>
-                <RotateCcw size={20} />
-                <span>恢复进行中的训练</span>
-              </>
-            ) : (
-              <>
-                <Play size={20} fill="currentColor" />
-                <span>开始今日训练 ({currentDay})</span>
-              </>
-            )}
-          </button>
-        )}
-      </div>
+      {/* 底部固定操作按钮区 - 今日已打卡完成时直接彻底隐藏该区域以净化排版 */}
+      {!isTodayCompleted && (
+        <div className="mt-4 flex flex-col gap-2">
+          {isRestDay && !isSessionActive ? (
+            <button 
+              type="button" 
+              className="btn btn-neutral btn-block btn-lg flex items-center justify-center gap-2 border-border-card dark:border-border-card-dark cursor-not-allowed select-none"
+              disabled
+            >
+              <span>🛋️ 今日休息中，合理恢复</span>
+            </button>
+          ) : (
+            <button 
+              type="button" 
+              className={`btn btn-primary btn-block btn-lg shadow-md flex items-center justify-center gap-2 cursor-pointer select-none ${
+                isSessionActive ? 'animate-bounce' : ''
+              }`}
+              onClick={onStartTrain}
+            >
+              {isSessionActive ? (
+                <>
+                  <RotateCcw size={18} />
+                  <span>恢复进行中的训练</span>
+                </>
+              ) : (
+                <>
+                  <Play size={18} fill="currentColor" />
+                  <span>开始今日训练 ({currentDay})</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 export default TodayScreen;
-

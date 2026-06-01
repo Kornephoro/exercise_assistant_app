@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { ChevronLeft, ChevronRight, Loader2, Calendar as CalendarIcon, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, AlertCircle } from 'lucide-react';
 
 /**
  * 训练日历页面组件 - 月视图展示已练天数与追溯每日动作详情
+ * 完全采用 Tailwind CSS + DaisyUI 组件进行重构，并遵循系统高级设计规范
  * 
  * @param {Object} props
  * @param {Function} props.getExerciseCNName 动作中文翻译函数 (来自 App.jsx)
@@ -44,7 +45,6 @@ function CalendarScreen({ getExerciseCNName }) {
     try {
       // 核心时区处理：
       // 使用本地时间的当月第一天 00:00:00 与下月第一天 00:00:00，转换为 ISO UTC 格式传输。
-      // toISOString() 会自动将其转为相对于 UTC 的 ISO 字符串，但正好精确对应本地的时区界限！
       const startDate = new Date(year, month, 1, 0, 0, 0, 0).toISOString();
       const endDate = new Date(year, month + 1, 1, 0, 0, 0, 0).toISOString();
 
@@ -189,46 +189,68 @@ function CalendarScreen({ getExerciseCNName }) {
   const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
 
   return (
-    <div className="calendar-screen">
+    <div className="flex flex-col gap-6 animate-fadeIn">
       
-      {/* 头部月份切换 */}
-      <div className="calendar-header">
-        <button type="button" className="month-nav-btn" onClick={handlePrevMonth} aria-label="上个月">
-          <ChevronLeft size={20} />
-        </button>
-        <span className="current-month-label">
-          {currentYear}年 {monthNames[currentMonth]}
-        </span>
-        <button type="button" className="month-nav-btn" onClick={handleNextMonth} aria-label="下个月">
-          <ChevronRight size={20} />
-        </button>
+      {/* 顶部标题 */}
+      <div className="mb-1">
+        <h2 className="text-2xl font-bold tracking-tight text-text-main dark:text-text-main-dark">
+          训练日历
+        </h2>
       </div>
 
       {/* 错误提示 */}
       {error && (
-        <div className="settings-error" style={{ marginBottom: '16px' }}>
-          <AlertCircle size={16} />
+        <div className="alert-box !border-alert dark:!border-alert-dark !bg-bg-alert dark:!bg-bg-alert-dark !text-alert dark:!text-alert-dark flex items-center gap-2 text-xs border-l-4">
+          <AlertCircle size={14} className="flex-shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      {/* 日历网格组件 */}
-      <div className="calendar-body">
-        {/* 周几标识 */}
-        <div className="week-header-grid">
+      {/* 日历卡片容器 */}
+      <div className="card">
+        
+        {/* 月份导航切换 */}
+        <div className="flex items-center justify-between mb-4 select-none">
+          <button
+            type="button"
+            className="btn btn-circle btn-ghost btn-sm text-text-secondary hover:text-text-main dark:text-text-secondary-dark dark:hover:text-text-main-dark"
+            onClick={handlePrevMonth}
+            aria-label="上个月"
+          >
+            <ChevronLeft size={20} />
+          </button>
+          
+          <span className="text-base font-bold text-text-main dark:text-text-main-dark">
+            {currentYear}年 {monthNames[currentMonth]}
+          </span>
+          
+          <button
+            type="button"
+            className="btn btn-circle btn-ghost btn-sm text-text-secondary hover:text-text-main dark:text-text-secondary-dark dark:hover:text-text-main-dark"
+            onClick={handleNextMonth}
+            aria-label="下个月"
+          >
+            <ChevronRight size={20} />
+          </button>
+        </div>
+
+        {/* 星期标头 */}
+        <div className="grid grid-cols-7 gap-1 text-center mb-2 select-none">
           {weekDays.map(d => (
-            <span key={d} className="week-day-label">{d}</span>
+            <span key={d} className="text-sm font-bold text-text-secondary dark:text-text-secondary-dark py-1">
+              {d}
+            </span>
           ))}
         </div>
 
-        {/* 42个单元格 */}
+        {/* 42个单元格网格主体 */}
         {loadingMonth ? (
-          <div className="settings-loading" style={{ minHeight: '230px' }}>
-            <Loader2 className="spinner" />
-            <p>正在读取日历标记...</p>
+          <div className="flex flex-col items-center justify-center min-h-[230px] text-text-secondary dark:text-text-secondary-dark gap-3">
+            <span className="loading loading-spinner text-primary loading-md"></span>
+            <p className="text-xs font-semibold">读取日历标记...</p>
           </div>
         ) : (
-          <div className="calendar-grid">
+          <div className="grid grid-cols-7 gap-1">
             {calendarCells.map((cell, index) => {
               const hasWorkout = cell.isCurrentMonth && activeDates.has(cell.dateStr);
               const isSelected = cell.isCurrentMonth && selectedDate === cell.day;
@@ -244,12 +266,29 @@ function CalendarScreen({ getExerciseCNName }) {
                   key={index}
                   type="button"
                   disabled={!cell.isCurrentMonth}
-                  className={`calendar-cell ${!cell.isCurrentMonth ? 'inactive' : ''} ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}`}
                   onClick={() => cell.isCurrentMonth && fetchDayDetail(cell.day)}
+                  className={`aspect-square rounded-xl flex flex-col items-center justify-center relative transition-all duration-150 select-none ${
+                    !cell.isCurrentMonth
+                      ? 'opacity-10 cursor-not-allowed pointer-events-none'
+                      : 'cursor-pointer hover:bg-bg-hover dark:hover:bg-bg-hover-dark text-text-main dark:text-text-main-dark font-medium'
+                  } ${
+                    isSelected
+                      ? 'ring-2 ring-primary bg-primary/10 font-extrabold text-primary'
+                      : ''
+                  } ${
+                    isToday && !isSelected
+                      ? 'border border-primary/50 bg-primary/5 font-bold'
+                      : ''
+                  }`}
                 >
-                  <span className="cell-num">{cell.day}</span>
+                  <span className="text-base font-bold">{cell.day}</span>
                   {hasWorkout && (
-                    <span className="cell-indicator" aria-label="当天有训练">🏋️</span>
+                    <span
+                      className={`absolute bottom-1.5 w-1.5 h-1.5 rounded-full ${
+                        isSelected ? 'bg-primary' : 'bg-primary/80 animate-pulse'
+                      }`}
+                      aria-label="当天有训练"
+                    ></span>
                   )}
                 </button>
               );
@@ -259,56 +298,112 @@ function CalendarScreen({ getExerciseCNName }) {
       </div>
 
       {/* 选中日期训练详情区域 */}
-      <div className="calendar-detail-section" style={{ minHeight: '120px' }}>
+      <div className="min-h-[120px] transition-all duration-300">
         {selectedDate === null ? (
-          <div className="detail-empty">
-            <CalendarIcon size={28} />
-            <p>点击上方含有 🏋️ 标记的日期查看训练详情</p>
+          <div className="card flex flex-col items-center justify-center text-center gap-2 opacity-70">
+            <CalendarIcon size={28} className="text-text-secondary/40 dark:text-text-secondary-dark/40" />
+            <p className="text-xs text-text-secondary dark:text-text-secondary-dark font-medium">
+              点击上方含有圆点标记的日期，查看当日的训练详情总结
+            </p>
           </div>
         ) : loadingDetail ? (
-          <div className="settings-loading" style={{ minHeight: '100px' }}>
-            <Loader2 className="spinner" />
-            <p>正在拉取当日训练细节...</p>
+          <div className="card flex flex-col items-center justify-center min-h-[120px] text-text-secondary dark:text-text-secondary-dark gap-3">
+            <span className="loading loading-spinner text-primary loading-md"></span>
+            <p className="text-xs font-semibold">正在拉取当日训练细节...</p>
           </div>
         ) : dayDetail.length === 0 ? (
-          <div className="detail-empty">
-            <p>当天没有训练记录</p>
+          <div className="card text-center">
+            <p className="text-xs text-text-secondary dark:text-text-secondary-dark font-medium">
+              当天没有训练记录
+            </p>
           </div>
         ) : (
-          <div className="detail-card-list">
-            <h3 className="detail-title">
-              {currentYear}年{currentMonth + 1}月{selectedDate}日 训练总结
-            </h3>
-            {dayDetail.map((log) => (
-              <div key={log.id} className={`detail-card ${log.tier.toLowerCase()}-border`}>
-                <div className="detail-card-head">
-                  <span className="detail-card-title">{getExerciseCNName(log.exercise)}</span>
-                  <span className={`tier-badge ${log.tier.toLowerCase()}`}>{log.tier}</span>
-                </div>
-                <div className="detail-card-body">
-                  <div className="detail-item">
-                    <span className="detail-label">完成负重</span>
-                    <span className="detail-value">{log.weight_kg.toFixed(1)} <small>kg</small></span>
+          <div className="flex flex-col gap-4">
+            
+            {/* 训练详情头部 */}
+            <div className="px-1 flex items-center justify-between">
+              <h3 className="text-base font-bold text-text-main dark:text-text-main-dark flex items-center gap-1.5">
+                <span className="w-1 h-4 bg-primary rounded-full"></span>
+                <span>{currentYear}年{currentMonth + 1}月{selectedDate}日 训练总结</span>
+              </h3>
+              <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-bold">
+                共 {dayDetail.length} 个动作
+              </span>
+            </div>
+
+            {/* 训练详情卡片流 */}
+            <div className="flex flex-col gap-4">
+              {dayDetail.map((log) => {
+                let tierBadgeClass = '';
+                let cardBorderClass = '';
+                if (log.tier === 'T1') {
+                  tierBadgeClass = 'bg-tier-t1/10 text-tier-t1 dark:text-tier-t1-dark border-tier-t1/20 dark:border-tier-t1-dark/20';
+                  cardBorderClass = 'border-l-4 border-l-tier-t1 dark:border-l-tier-t1-dark';
+                } else if (log.tier === 'T2') {
+                  tierBadgeClass = 'bg-tier-t2/10 text-tier-t2 dark:text-tier-t2-dark border-tier-t2/20 dark:border-tier-t2-dark/20';
+                  cardBorderClass = 'border-l-4 border-l-tier-t2 dark:border-l-tier-t2-dark';
+                } else {
+                  tierBadgeClass = 'bg-tier-t3/10 text-tier-t3 dark:text-tier-t3-dark border-tier-t3/20 dark:border-tier-t3-dark/20';
+                  cardBorderClass = 'border-l-4 border-l-tier-t3 dark:border-l-tier-t3-dark';
+                }
+
+                return (
+                  <div
+                    key={log.id}
+                    className={`card !p-5 transition-all duration-200 hover:-translate-y-0.5 ${cardBorderClass}`}
+                  >
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-base font-bold text-text-main dark:text-text-main-dark">
+                        {getExerciseCNName(log.exercise)}
+                      </span>
+                      <span className={`badge badge-sm font-bold px-2 h-5 rounded select-none ${tierBadgeClass}`}>
+                        {log.tier}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      {/* 完成负重 */}
+                      <div className="flex flex-col gap-0.5 bg-bg-main/10 dark:bg-bg-main-dark/10 p-2 rounded-lg border border-border-card/45 dark:border-border-card-dark/45 text-center">
+                        <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-bold select-none">完成负重</span>
+                        <span className="font-mono font-bold text-base text-text-main dark:text-text-main-dark">
+                          {log.weight_kg.toFixed(1)} <small className="text-xs text-text-secondary font-bold select-none">kg</small>
+                        </span>
+                      </div>
+
+                      {/* 动作方案 */}
+                      <div className="flex flex-col gap-0.5 bg-bg-main/10 dark:bg-bg-main-dark/10 p-2 rounded-lg border border-border-card/45 dark:border-border-card-dark/45 text-center">
+                        <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-bold select-none">动作方案</span>
+                        <span className="font-bold text-sm text-text-main dark:text-text-main-dark py-0.5 truncate select-none" title={
+                          log.tier === 'T1' ? (
+                            log.planned_reps === 3 ? '5 组 × 3 次' :
+                            log.planned_reps === 2 ? '6 组 × 2 次' : '10 组 × 1 次'
+                          ) : log.tier === 'T2' ? (
+                            log.planned_reps === 10 ? '3 组 × 10 次' :
+                            log.planned_reps === 8 ? '3 组 × 8 次' : '3 组 × 6 次'
+                          ) : '3 组 × 15 次'
+                        }>
+                          {log.tier === 'T1' ? (
+                            log.planned_reps === 3 ? '5×3' :
+                            log.planned_reps === 2 ? '6×2' : '10×1'
+                          ) : log.tier === 'T2' ? (
+                            log.planned_reps === 10 ? '3×10' :
+                            log.planned_reps === 8 ? '3×8' : '3×6'
+                          ) : '3×15'}
+                        </span>
+                      </div>
+
+                      {/* 最后一组次数 */}
+                      <div className="flex flex-col gap-0.5 bg-bg-main/10 dark:bg-bg-main-dark/10 p-2 rounded-lg border border-border-card/45 dark:border-border-card-dark/45 text-center">
+                        <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-bold select-none">末组次数</span>
+                        <span className="font-mono font-bold text-base text-primary">
+                          {log.actual_last_set_reps} <small className="text-xs text-text-secondary font-bold select-none">次</small>
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="detail-item">
-                    <span className="detail-label">动作方案</span>
-                    <span className="detail-value">
-                      {log.tier === 'T1' ? (
-                        log.planned_reps === 3 ? '5 组 × 3 次' :
-                        log.planned_reps === 2 ? '6 组 × 2 次' : '10 组 × 1 次'
-                      ) : log.tier === 'T2' ? (
-                        log.planned_reps === 10 ? '3 组 × 10 次' :
-                        log.planned_reps === 8 ? '3 组 × 8 次' : '3 组 × 6 次'
-                      ) : '3 组 × 15 次'}
-                    </span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">最后一组次数</span>
-                    <span className="detail-value highlight">{log.actual_last_set_reps} <small>次</small></span>
-                  </div>
-                </div>
-              </div>
-            ))}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

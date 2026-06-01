@@ -12,11 +12,17 @@ import {
   HelpCircle,
   Sparkles,
   Calendar,
-  Settings
+  Settings,
+  Scale,
+  Award,
+  AlertTriangle,
+  Loader2
 } from 'lucide-react';
 
 /**
- * OnboardingScreen 引导流程组件
+ * OnboardingScreen 用户画像引导流程组件
+ * 使用 Tailwind CSS + DaisyUI 进行完全重构，适配浅色/深色模式
+ * 
  * @param {Object} props
  * @param {Function} props.onComplete 引导完成后的回调函数，参数为要跳转的 Tab
  * @param {Function} props.onSkip 跳过引导的回调函数
@@ -128,16 +134,12 @@ function OnboardingScreen({ onComplete, onSkip }) {
   const handleApplyPreset = (presetType) => {
     let days = [];
     if (presetType === '1-1') {
-      // 练1休1 -> 周一、周三、周五、周日
       days = ['Monday', 'Wednesday', 'Friday', 'Sunday'];
     } else if (presetType === '2-1') {
-      // 练2休1 -> 周一、周二、周四、周五、周日
       days = ['Monday', 'Tuesday', 'Thursday', 'Friday', 'Sunday'];
     } else if (presetType === '3-1') {
-      // 练3休1 -> 周一、周二、周三、周五、周六、周日
       days = ['Monday', 'Tuesday', 'Wednesday', 'Friday', 'Saturday', 'Sunday'];
     } else if (presetType === '5-2') {
-      // 练5休2 -> 周一、周二、周三、周四、周五
       days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     }
     setTrainingDays(days);
@@ -147,7 +149,6 @@ function OnboardingScreen({ onComplete, onSkip }) {
   // 表单步骤跳转验证
   const handleNextStep = () => {
     if (currentStep === 1) {
-      // 验证必填字段（昵称非必填）
       if (!gender || !age || !height || !weight) {
         setErrorMsg('请填写完整的性别、年龄、身高和体重信息');
         return;
@@ -177,7 +178,6 @@ function OnboardingScreen({ onComplete, onSkip }) {
     setErrorMsg(null);
 
     try {
-      // 整理画像数据
       const profileData = {
         gender,
         age: age ? parseInt(age, 10) : null,
@@ -198,7 +198,6 @@ function OnboardingScreen({ onComplete, onSkip }) {
         updated_at: new Date().toISOString()
       };
 
-      // 1. 查询 user_profiles 表是否存在记录
       const { data: existingProfiles, error: queryError } = await supabase
         .from('user_profiles')
         .select('id')
@@ -208,7 +207,6 @@ function OnboardingScreen({ onComplete, onSkip }) {
 
       let saveError;
       if (existingProfiles && existingProfiles.length > 0) {
-        // 更新现有记录
         const targetId = existingProfiles[0].id;
         const { error: updateError } = await supabase
           .from('user_profiles')
@@ -216,7 +214,6 @@ function OnboardingScreen({ onComplete, onSkip }) {
           .eq('id', targetId);
         saveError = updateError;
       } else {
-        // 新增新记录 (不带 id 让数据库自增)
         const { error: insertError } = await supabase
           .from('user_profiles')
           .insert([profileData]);
@@ -225,17 +222,13 @@ function OnboardingScreen({ onComplete, onSkip }) {
 
       if (saveError) throw saveError;
 
-      // 2. 将昵称存储在本地 localStorage
       if (nickname.trim()) {
         localStorage.setItem('user_nickname', nickname.trim());
       } else {
         localStorage.removeItem('user_nickname');
       }
 
-      // 3. 设置引导完成标记
       localStorage.setItem('onboarding_completed', 'true');
-
-      // 4. 调用完成回调并跳转到 Plan 页
       onComplete('plan');
 
     } catch (err) {
@@ -246,47 +239,40 @@ function OnboardingScreen({ onComplete, onSkip }) {
     }
   };
 
-  // 直接跳过引导
   const handleSkipOnboarding = () => {
     localStorage.setItem('onboarding_completed', 'true');
     onSkip();
   };
 
-  // 渲染步骤指示器
-  const renderProgress = () => {
-    const stepsCount = 5;
-    const progressPercent = (currentStep / stepsCount) * 100;
-    return (
-      <div className="onboarding-progress-bar-container">
-        <div className="onboarding-progress-track">
-          <div className="onboarding-progress-fill" style={{ width: `${progressPercent}%` }}></div>
-        </div>
-        <div className="onboarding-step-indicator">
-          <span>步骤 {currentStep} / {stepsCount}</span>
-          <span className="step-name">
-            {currentStep === 1 && '基本信息'}
-            {currentStep === 2 && '训练背景'}
-            {currentStep === 3 && '可用器械'}
-            {currentStep === 4 && '力量基准'}
-            {currentStep === 5 && '确认与日程'}
-          </span>
-        </div>
-      </div>
-    );
+  const stepsCount = 5;
+  const progressPercent = (currentStep / stepsCount) * 100;
+  
+  const getStepName = () => {
+    switch (currentStep) {
+      case 1: return '基本信息';
+      case 2: return '训练背景';
+      case 3: return '可用器械';
+      case 4: return '力量基准';
+      case 5: return '确认与日程';
+      default: return '';
+    }
   };
 
   return (
-    <div className="onboarding-overlay animate-fadeIn">
-      <div className="onboarding-container">
-        {/* 顶部标题区 */}
-        <div className="onboarding-header">
-          <div className="ob-logo">
-            <Dumbbell size={24} />
-            <span>训练画像引导</span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-bg-main/95 dark:bg-bg-main-dark/95 backdrop-blur-lg overflow-y-auto w-full max-w-[480px] mx-auto animate-fadeIn select-none">
+      <div className="w-full bg-bg-card dark:bg-bg-card-dark border border-border-card dark:border-border-card-dark rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
+        
+        {/* 顶部操作条 */}
+        <div className="flex items-center justify-between p-5 border-b border-border-card dark:border-border-card-dark shrink-0">
+          <div className="flex items-center gap-2 text-primary">
+            <Dumbbell size={20} className="filter drop-shadow-[0_0_6px_rgba(255,107,53,0.35)]" />
+            <span className="text-base font-extrabold tracking-wide">
+              训练画像引导
+            </span>
           </div>
           <button 
             type="button" 
-            className="ob-skip-btn" 
+            className="btn btn-ghost btn-xs text-text-secondary dark:text-text-secondary-dark font-bold hover:bg-bg-hover dark:hover:bg-bg-hover-dark rounded-lg cursor-pointer" 
             onClick={handleSkipOnboarding}
             aria-label="跳过引导"
           >
@@ -294,30 +280,46 @@ function OnboardingScreen({ onComplete, onSkip }) {
           </button>
         </div>
 
-        {/* 进度条 */}
-        {renderProgress()}
+        {/* 进度条与步骤指示 */}
+        <div className="px-5 pt-4 shrink-0 flex flex-col gap-2">
+          <progress className="progress progress-primary w-full h-1.5" value={progressPercent} max="100"></progress>
+          <div className="flex justify-between items-center text-xs font-bold text-text-secondary dark:text-text-secondary-dark select-none mt-1">
+            <span>步骤 {currentStep} / {stepsCount}</span>
+            <span className="text-primary">{getStepName()}</span>
+          </div>
+        </div>
 
-        {/* 错误提示 */}
+        {/* 错误提示框 */}
         {errorMsg && (
-          <div className="onboarding-error-box animate-fadeIn">
+          <div className="mx-5 mt-4 p-3 bg-bg-alert dark:bg-bg-alert-dark text-alert dark:text-alert-dark border-l-4 border-alert dark:border-alert-dark rounded-r-lg flex items-center gap-2 text-xs animate-fadeIn shrink-0">
+            <AlertTriangle size={14} className="shrink-0" />
             <span>{errorMsg}</span>
           </div>
         )}
 
-        {/* 表单视窗区 */}
-        <div className="onboarding-step-content-box">
+        {/* 核心内容区 */}
+        <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
           
           {/* STEP 1: 基本信息 */}
           {currentStep === 1 && (
-            <div className="ob-step-form animate-slideIn">
-              <h3 className="ob-step-title"><User size={20} /> 告诉我们你的基本信息</h3>
-              <p className="ob-step-subtitle">这些数据会作为本地参考存档，不影响系统推荐的建议重量。</p>
-              
-              <div className="ob-form-group">
-                <label htmlFor="ob-nickname">昵称 (选填)</label>
+            <div className="flex flex-col gap-4 animate-slideIn">
+              <div>
+                <h3 className="text-lg font-bold text-text-main dark:text-text-main-dark flex items-center gap-1.5">
+                  <User size={18} className="text-primary" />
+                  <span>基本信息设置</span>
+                </h3>
+                <p className="text-sm text-text-secondary dark:text-text-secondary-dark mt-1 leading-relaxed">这些数据会作为本地参考存档，不影响系统推荐的建议重量。</p>
+              </div>
+
+              {/* 昵称 */}
+              <div className="form-control w-full">
+                <label className="label py-1 text-sm font-bold text-text-secondary dark:text-text-secondary-dark" htmlFor="ob-nickname">
+                  昵称 (选填)
+                </label>
                 <input 
                   type="text" 
                   id="ob-nickname" 
+                  className="input input-bordered w-full h-11 text-base font-bold bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none"
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value)}
                   placeholder="怎么称呼你？"
@@ -325,39 +327,39 @@ function OnboardingScreen({ onComplete, onSkip }) {
                 />
               </div>
 
-              <div className="ob-form-group">
-                <label>性别</label>
-                <div className="ob-gender-select">
-                  <button 
-                    type="button" 
-                    className={`gender-btn ${gender === 'male' ? 'active' : ''}`}
-                    onClick={() => setGender('male')}
-                  >
-                    男 (Male)
-                  </button>
-                  <button 
-                    type="button" 
-                    className={`gender-btn ${gender === 'female' ? 'active' : ''}`}
-                    onClick={() => setGender('female')}
-                  >
-                    女 (Female)
-                  </button>
-                  <button 
-                    type="button" 
-                    className={`gender-btn ${gender === 'other' ? 'active' : ''}`}
-                    onClick={() => setGender('other')}
-                  >
-                    其他 (Other)
-                  </button>
+              {/* 性别选择 */}
+              <div className="form-control w-full">
+                <label className="label py-1 text-sm font-bold text-text-secondary dark:text-text-secondary-dark">
+                  性别
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {['male', 'female', 'other'].map(g => (
+                    <button 
+                      key={g}
+                      type="button" 
+                      className={`btn btn-md h-10 rounded-xl font-bold cursor-pointer transition-all text-sm ${
+                        gender === g 
+                          ? 'btn-primary text-white shadow-md' 
+                          : 'btn-outline border-border-card dark:border-border-card-dark text-text-secondary hover:bg-bg-hover dark:hover:bg-bg-hover-dark'
+                      }`}
+                      onClick={() => setGender(g)}
+                    >
+                      {g === 'male' ? '男' : g === 'female' ? '女' : '其他'}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              <div className="ob-form-row">
-                <div className="ob-form-group half-width">
-                  <label htmlFor="ob-age">年龄 (岁)</label>
+              {/* 年龄身高 */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="form-control">
+                  <label className="label py-1 text-sm font-bold text-text-secondary dark:text-text-secondary-dark" htmlFor="ob-age">
+                    年龄 (岁)
+                  </label>
                   <input 
                     type="number" 
                     id="ob-age" 
+                    className="input input-bordered w-full h-11 text-base font-mono font-bold bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none"
                     value={age}
                     onChange={(e) => setAge(e.target.value)}
                     placeholder="25"
@@ -366,11 +368,14 @@ function OnboardingScreen({ onComplete, onSkip }) {
                     required
                   />
                 </div>
-                <div className="ob-form-group half-width">
-                  <label htmlFor="ob-height">身高 (cm)</label>
+                <div className="form-control">
+                  <label className="label py-1 text-sm font-bold text-text-secondary dark:text-text-secondary-dark" htmlFor="ob-height">
+                    身高 (cm)
+                  </label>
                   <input 
                     type="number" 
                     id="ob-height" 
+                    className="input input-bordered w-full h-11 text-base font-mono font-bold bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none"
                     value={height}
                     onChange={(e) => setHeight(e.target.value)}
                     placeholder="175"
@@ -381,37 +386,56 @@ function OnboardingScreen({ onComplete, onSkip }) {
                 </div>
               </div>
 
-              <div className="ob-form-group">
-                <label htmlFor="ob-weight">当前体重 (kg)</label>
-                <input 
-                  type="number" 
-                  id="ob-weight" 
-                  value={weight}
-                  onChange={(e) => setWeight(e.target.value)}
-                  placeholder="70.0"
-                  step="0.1"
-                  min="20"
-                  max="300"
-                  required
-                />
+              {/* 体重 */}
+              <div className="form-control w-full">
+                <label className="label py-1 text-sm font-bold text-text-secondary dark:text-text-secondary-dark" htmlFor="ob-weight">
+                  当前体重 (kg)
+                </label>
+                <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark px-3 h-11 w-full focus-within:border-primary">
+                  <input 
+                    type="number" 
+                    id="ob-weight" 
+                    className="w-full bg-transparent text-base font-mono font-bold text-text-main dark:text-text-main-dark focus:outline-none"
+                    value={weight}
+                    onChange={(e) => setWeight(e.target.value)}
+                    placeholder="70.0"
+                    step="0.1"
+                    min="20"
+                    max="300"
+                    required
+                  />
+                  <span className="text-sm font-bold text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
+                </div>
               </div>
             </div>
           )}
 
           {/* STEP 2: 训练背景 */}
           {currentStep === 2 && (
-            <div className="ob-step-form animate-slideIn">
-              <h3 className="ob-step-title"><Activity size={20} /> 选择你的训练背景</h3>
-              <p className="ob-step-subtitle">定制你的健身侧写，辅助记录您的体能进化阶段。</p>
-              
-              <div className="ob-form-group">
-                <label>训练年限</label>
-                <div className="badge-selector-grid">
+            <div className="flex flex-col gap-4 animate-slideIn">
+              <div>
+                <h3 className="text-lg font-bold text-text-main dark:text-text-main-dark flex items-center gap-1.5">
+                  <Activity size={18} className="text-primary" />
+                  <span>选择训练背景</span>
+                </h3>
+                <p className="text-sm text-text-secondary dark:text-text-secondary-dark mt-1 leading-relaxed">定制你的健身侧写，辅助记录您的体能进化阶段。</p>
+              </div>
+
+              {/* 训练年限 */}
+              <div className="form-control w-full">
+                <label className="label py-1 text-sm font-bold text-text-secondary dark:text-text-secondary-dark">
+                  训练年限
+                </label>
+                <div className="grid grid-cols-2 gap-2">
                   {['0-1年', '1-3年', '3-5年', '5年以上'].map(y => (
                     <button 
                       key={y}
                       type="button" 
-                      className={`selector-badge-btn ${trainingYears === y ? 'active' : ''}`}
+                      className={`btn btn-md h-10 rounded-xl font-bold cursor-pointer transition-all text-sm ${
+                        trainingYears === y 
+                          ? 'btn-primary text-white shadow-md' 
+                          : 'btn-outline border-border-card dark:border-border-card-dark text-text-secondary hover:bg-bg-hover dark:hover:bg-bg-hover-dark'
+                      }`}
                       onClick={() => setTrainingYears(y)}
                     >
                       {y}
@@ -420,14 +444,21 @@ function OnboardingScreen({ onComplete, onSkip }) {
                 </div>
               </div>
 
-              <div className="ob-form-group">
-                <label>目前训练水平</label>
-                <div className="badge-selector-grid">
+              {/* 训练水平 */}
+              <div className="form-control w-full">
+                <label className="label py-1 text-sm font-bold text-text-secondary dark:text-text-secondary-dark">
+                  目前训练水平
+                </label>
+                <div className="grid grid-cols-3 gap-2">
                   {['初学者', '中级者', '高级者'].map(lvl => (
                     <button 
                       key={lvl}
                       type="button" 
-                      className={`selector-badge-btn ${trainingLevel === lvl ? 'active' : ''}`}
+                      className={`btn btn-md h-10 rounded-xl font-bold cursor-pointer transition-all text-sm ${
+                        trainingLevel === lvl 
+                          ? 'btn-primary text-white shadow-md' 
+                          : 'btn-outline border-border-card dark:border-border-card-dark text-text-secondary hover:bg-bg-hover dark:hover:bg-bg-hover-dark'
+                      }`}
                       onClick={() => setTrainingLevel(lvl)}
                     >
                       {lvl}
@@ -436,14 +467,21 @@ function OnboardingScreen({ onComplete, onSkip }) {
                 </div>
               </div>
 
-              <div className="ob-form-group">
-                <label>主要训练目标</label>
-                <div className="badge-selector-grid">
+              {/* 主要目标 */}
+              <div className="form-control w-full">
+                <label className="label py-1 text-sm font-bold text-text-secondary dark:text-text-secondary-dark">
+                  主要训练目标
+                </label>
+                <div className="grid grid-cols-2 gap-2">
                   {['增肌', '减脂', '提高力量', '身体健康'].map(g => (
                     <button 
                       key={g}
                       type="button" 
-                      className={`selector-badge-btn ${primaryGoal === g ? 'active' : ''}`}
+                      className={`btn btn-md h-10 rounded-xl font-bold cursor-pointer transition-all text-sm ${
+                        primaryGoal === g 
+                          ? 'btn-primary text-white shadow-md' 
+                          : 'btn-outline border-border-card dark:border-border-card-dark text-text-secondary hover:bg-bg-hover dark:hover:bg-bg-hover-dark'
+                      }`}
                       onClick={() => setPrimaryGoal(g)}
                     >
                       {g}
@@ -452,32 +490,32 @@ function OnboardingScreen({ onComplete, onSkip }) {
                 </div>
               </div>
 
-              <div className="ob-form-row">
-                <div className="ob-form-group half-width">
-                  <label htmlFor="ob-days-week">每周训练天数 (天)</label>
-                  <input 
-                    type="number" 
-                    id="ob-days-week" 
-                    value={trainingDaysPerWeek}
-                    onChange={(e) => setTrainingDaysPerWeek(parseInt(e.target.value, 10) || '')}
-                    min="1"
-                    max="7"
-                    disabled // 锁死通过日程设置勾选框决定
-                    placeholder="由日程勾选决定"
-                  />
-                  <span className="ob-input-tip">在步骤5日程中勾选决定</span>
+              {/* 单次时长 */}
+              <div className="form-control w-full mt-1">
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-sm font-bold text-text-secondary dark:text-text-secondary-dark" htmlFor="ob-duration">
+                    每次训练预计时长
+                  </label>
+                  <span className="text-xs font-extrabold text-primary px-1.5 py-0.5 bg-primary/10 rounded">
+                    {sessionDurationMin} 分钟
+                  </span>
                 </div>
-                <div className="ob-form-group half-width">
-                  <label htmlFor="ob-duration">单次时长 (分钟)</label>
-                  <input 
-                    type="number" 
-                    id="ob-duration" 
-                    value={sessionDurationMin}
-                    onChange={(e) => setSessionDurationMin(e.target.value)}
-                    placeholder="60"
-                    min="15"
-                    max="180"
-                  />
+                <input 
+                  type="range" 
+                  id="ob-duration"
+                  min="20" 
+                  max="180" 
+                  step="5"
+                  className="range range-primary range-sm cursor-pointer" 
+                  value={sessionDurationMin} 
+                  onChange={(e) => setSessionDurationMin(parseInt(e.target.value, 10))}
+                />
+                <div className="w-full flex justify-between text-xs text-text-secondary/50 font-mono mt-1 select-none">
+                  <span>20m</span>
+                  <span>60m</span>
+                  <span>100m</span>
+                  <span>140m</span>
+                  <span>180m</span>
                 </div>
               </div>
             </div>
@@ -485,24 +523,35 @@ function OnboardingScreen({ onComplete, onSkip }) {
 
           {/* STEP 3: 可用器械 */}
           {currentStep === 3 && (
-            <div className="ob-step-form animate-slideIn">
-              <h3 className="ob-step-title"><Sliders size={20} /> 选择你的可用健身器械</h3>
-              <p className="ob-step-subtitle">勾选你所处训练场馆中拥有的可用器械类别（多选，纯记录）。</p>
-              
-              <div className="equipment-selector-grid">
+            <div className="flex flex-col gap-4 animate-slideIn">
+              <div>
+                <h3 className="text-lg font-bold text-text-main dark:text-text-main-dark flex items-center gap-1.5">
+                  <Sliders size={18} className="text-primary" />
+                  <span>可用器械 (多选)</span>
+                </h3>
+                <p className="text-sm text-text-secondary dark:text-text-secondary-dark mt-1 leading-relaxed">勾选您训练场馆中拥有的可用器械类别（仅作参考）。</p>
+              </div>
+
+              <div className="flex flex-col gap-2">
                 {EQUIPMENTS.map(item => {
                   const isSelected = equipmentList.includes(item.key);
                   return (
                     <button
                       key={item.key}
                       type="button"
-                      className={`equipment-card-btn ${isSelected ? 'active' : ''}`}
+                      className={`btn btn-md h-12 w-full rounded-xl flex items-center justify-between font-bold cursor-pointer transition-all border px-4 text-base ${
+                        isSelected 
+                          ? 'btn-primary text-white shadow-sm' 
+                          : 'btn-outline border-border-card dark:border-border-card-dark text-text-secondary hover:bg-bg-hover dark:hover:bg-bg-hover-dark'
+                      }`}
                       onClick={() => handleToggleEquipment(item.key)}
                     >
-                      <div className="chk-icon-box">
-                        {isSelected ? <Check size={16} /> : <div className="dot-placeholder"></div>}
+                      <span>{item.label}</span>
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center border ${
+                        isSelected ? 'bg-white text-primary border-white' : 'border-border-card dark:border-border-card-dark bg-transparent'
+                      }`}>
+                        {isSelected && <Check size={12} strokeWidth={3} />}
                       </div>
-                      <span className="eq-label">{item.label}</span>
                     </button>
                   );
                 })}
@@ -512,29 +561,40 @@ function OnboardingScreen({ onComplete, onSkip }) {
 
           {/* STEP 4: 力量基准 (1RM) */}
           {currentStep === 4 && (
-            <div className="ob-step-form animate-slideIn">
-              <div className="step-title-row">
-                <h3 className="ob-step-title"><Sparkles size={20} /> 设定主要动作力量基准</h3>
+            <div className="flex flex-col gap-4 animate-slideIn">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-bold text-text-main dark:text-text-main-dark flex items-center gap-1.5">
+                  <Sparkles size={18} className="text-primary" />
+                  <span>主要动作力量基准</span>
+                </h3>
                 <button 
                   type="button" 
-                  className="ob-estimator-toggle-btn"
+                  className="btn btn-xs btn-outline btn-primary rounded-lg font-bold flex items-center gap-1 cursor-pointer"
                   onClick={() => setShowEstimator(!showEstimator)}
                 >
-                  <Calculator size={14} style={{ marginRight: '4px' }} />
-                  {showEstimator ? '隐藏估算器' : '1RM 估算器'}
+                  <Calculator size={12} />
+                  <span>{showEstimator ? '收起计算器' : '1RM 估算器'}</span>
                 </button>
               </div>
-              <p className="ob-step-subtitle">输入主要复合动作的 1RM (最大单次重量) 估算值，用于您的能力归档记录，可随时直接跳过。</p>
+              <p className="text-sm text-text-secondary dark:text-text-secondary-dark mt-0.5 leading-relaxed">
+                输入您的 1RM（单次最大重量，单位：kg）极限进行归档，可选择跳过。
+              </p>
 
-              {/* 1RM 估算器弹窗工具面板 */}
+              {/* 1RM 估算器工具面板 */}
               {showEstimator && (
-                <div className="ob-estimator-panel animate-fadeIn">
-                  <h4>⚙️ 1RM 极限重量估算小工具</h4>
-                  <p className="estimator-desc">使用 Epley 公式：1RM = 使用重量 × (1 + 完成次数 / 30)</p>
+                <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex flex-col gap-3 animate-fadeIn">
+                  <h4 className="text-xs font-extrabold text-primary flex items-center gap-1">🛠️ 1RM 极限重量估算器</h4>
+                  <p className="text-[10px] text-text-secondary dark:text-text-secondary-dark leading-normal">
+                    根据 Epley 公式：1RM = 负重 × (1 + 次数 / 30)
+                  </p>
                   
-                  <div className="ob-form-group">
-                    <label>目标基准动作</label>
-                    <select value={estimatorTarget} onChange={(e) => setEstimatorTarget(e.target.value)}>
+                  <div className="form-control w-full">
+                    <label className="label py-0.5 text-xs font-bold text-text-secondary">目标动作</label>
+                    <select 
+                      className="select select-bordered select-sm w-full h-9 font-bold bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none text-sm"
+                      value={estimatorTarget} 
+                      onChange={(e) => setEstimatorTarget(e.target.value)}
+                    >
                       <option value="squat">深蹲 (Squat)</option>
                       <option value="bench">卧推 (Bench Press)</option>
                       <option value="deadlift">硬拉 (Deadlift)</option>
@@ -542,15 +602,15 @@ function OnboardingScreen({ onComplete, onSkip }) {
                     </select>
                   </div>
 
-                  <div className="ob-form-row">
-                    <div className="ob-form-group half-width">
-                      <label>使用重量 (kg)</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="form-control">
+                      <label className="label py-0.5 text-xs font-bold text-text-secondary">负重 (kg)</label>
                       <input 
                         type="number" 
+                        className="input input-bordered input-sm h-9 text-center font-mono font-bold bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none text-sm"
                         value={estimatorWeight}
                         onChange={(e) => {
                           setEstimatorWeight(e.target.value);
-                          // 自动算
                           const w = parseFloat(e.target.value);
                           const r = parseInt(estimatorReps, 10);
                           if (w > 0 && r > 0) setEstimated1RM(Math.round(w * (1 + r / 30) * 10) / 10);
@@ -558,14 +618,14 @@ function OnboardingScreen({ onComplete, onSkip }) {
                         placeholder="80"
                       />
                     </div>
-                    <div className="ob-form-group half-width">
-                      <label>完成次数 (reps)</label>
+                    <div className="form-control">
+                      <label className="label py-0.5 text-xs font-bold text-text-secondary">完成次数 (次)</label>
                       <input 
                         type="number" 
+                        className="input input-bordered input-sm h-9 text-center font-mono font-bold bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none text-sm"
                         value={estimatorReps}
                         onChange={(e) => {
                           setEstimatorReps(e.target.value);
-                          // 自动算
                           const w = parseFloat(estimatorWeight);
                           const r = parseInt(e.target.value, 10);
                           if (w > 0 && r > 0) setEstimated1RM(Math.round(w * (1 + r / 30) * 10) / 10);
@@ -576,91 +636,129 @@ function OnboardingScreen({ onComplete, onSkip }) {
                   </div>
 
                   {estimated1RM > 0 && (
-                    <div className="estimator-result">
-                      <span>估算极限 1RM：</span>
-                      <strong>{estimated1RM} kg</strong>
-                      <button type="button" className="apply-est-btn" onClick={applyEstimatedValue}>
-                        一键应用
+                    <div className="flex items-center justify-between mt-1 pt-2 border-t border-primary/10 select-none">
+                      <div className="text-xs text-text-main dark:text-text-main-dark">
+                        估算极限: <strong className="text-primary font-mono text-sm">{estimated1RM}</strong> kg
+                      </div>
+                      <button 
+                        type="button" 
+                        className="btn btn-primary btn-xs text-white rounded font-bold cursor-pointer" 
+                        onClick={applyEstimatedValue}
+                      >
+                        一键填充
                       </button>
                     </div>
                   )}
                 </div>
               )}
 
-              <div className="ob-form-row">
-                <div className="ob-form-group half-width">
-                  <label htmlFor="ob-squat">深蹲 1RM (kg)</label>
-                  <input 
-                    type="number" 
-                    id="ob-squat" 
-                    value={squat1RM}
-                    onChange={(e) => setSquat1RM(e.target.value)}
-                    placeholder="未设定"
-                  />
+              {/* 力量基准列表 */}
+              <div className="grid grid-cols-2 gap-4 mt-1">
+                <div className="form-control">
+                  <label className="label py-0.5 text-sm font-bold text-text-secondary" htmlFor="ob-squat">
+                    深蹲 1RM
+                  </label>
+                  <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark px-2.5 h-11 w-full focus-within:border-primary">
+                    <input 
+                      type="number" 
+                      id="ob-squat" 
+                      className="w-full bg-transparent text-base font-mono font-bold text-text-main dark:text-text-main-dark focus:outline-none"
+                      value={squat1RM}
+                      onChange={(e) => setSquat1RM(e.target.value)}
+                      placeholder="未设定"
+                    />
+                    <span className="text-xs font-bold text-text-secondary/35 select-none">kg</span>
+                  </div>
                 </div>
-                <div className="ob-form-group half-width">
-                  <label htmlFor="ob-bench">卧推 1RM (kg)</label>
-                  <input 
-                    type="number" 
-                    id="ob-bench" 
-                    value={bench1RM}
-                    onChange={(e) => setBench1RM(e.target.value)}
-                    placeholder="未设定"
-                  />
+                
+                <div className="form-control">
+                  <label className="label py-0.5 text-sm font-bold text-text-secondary" htmlFor="ob-bench">
+                    卧推 1RM
+                  </label>
+                  <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark px-2.5 h-11 w-full focus-within:border-primary">
+                    <input 
+                      type="number" 
+                      id="ob-bench" 
+                      className="w-full bg-transparent text-base font-mono font-bold text-text-main dark:text-text-main-dark focus:outline-none"
+                      value={bench1RM}
+                      onChange={(e) => setBench1RM(e.target.value)}
+                      placeholder="未设定"
+                    />
+                    <span className="text-xs font-bold text-text-secondary/35 select-none">kg</span>
+                  </div>
+                </div>
+
+                <div className="form-control">
+                  <label className="label py-0.5 text-sm font-bold text-text-secondary" htmlFor="ob-deadlift">
+                    硬拉 1RM
+                  </label>
+                  <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark px-2.5 h-11 w-full focus-within:border-primary">
+                    <input 
+                      type="number" 
+                      id="ob-deadlift" 
+                      className="w-full bg-transparent text-base font-mono font-bold text-text-main dark:text-text-main-dark focus:outline-none"
+                      value={deadlift1RM}
+                      onChange={(e) => setDeadlift1RM(e.target.value)}
+                      placeholder="未设定"
+                    />
+                    <span className="text-xs font-bold text-text-secondary/35 select-none">kg</span>
+                  </div>
+                </div>
+
+                <div className="form-control">
+                  <label className="label py-0.5 text-sm font-bold text-text-secondary" htmlFor="ob-press">
+                    推举 1RM
+                  </label>
+                  <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark px-2.5 h-11 w-full focus-within:border-primary">
+                    <input 
+                      type="number" 
+                      id="ob-press" 
+                      className="w-full bg-transparent text-base font-mono font-bold text-text-main dark:text-text-main-dark focus:outline-none"
+                      value={press1RM}
+                      onChange={(e) => setPress1RM(e.target.value)}
+                      placeholder="未设定"
+                    />
+                    <span className="text-xs font-bold text-text-secondary/35 select-none">kg</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="ob-form-row">
-                <div className="ob-form-group half-width">
-                  <label htmlFor="ob-deadlift">硬拉 1RM (kg)</label>
-                  <input 
-                    type="number" 
-                    id="ob-deadlift" 
-                    value={deadlift1RM}
-                    onChange={(e) => setDeadlift1RM(e.target.value)}
-                    placeholder="未设定"
-                  />
-                </div>
-                <div className="ob-form-group half-width">
-                  <label htmlFor="ob-press">推举 1RM (kg)</label>
-                  <input 
-                    type="number" 
-                    id="ob-press" 
-                    value={press1RM}
-                    onChange={(e) => setPress1RM(e.target.value)}
-                    placeholder="未设定"
-                  />
-                </div>
-              </div>
-
-              <div className="skip-step-notice">
-                <HelpCircle size={14} />
-                <span>此力量基准仅作参考，不自动覆盖计划中的今日训练重量。您可以完全不填直接进入下一步。</span>
+              <div className="mt-2 p-3 bg-bg-hover dark:bg-bg-hover-dark rounded-xl flex items-start gap-2 text-xs text-text-secondary dark:text-text-secondary-dark leading-relaxed select-none">
+                <HelpCircle size={14} className="shrink-0 text-primary mt-0.5" />
+                <span>此力量基准仅作存档参考，不会自动覆盖计划中的首训建议重量，您可以完全不填。</span>
               </div>
             </div>
           )}
 
-          {/* STEP 5: 日程设置与确认摘要 */}
+          {/* STEP 5: 日程设置与确认 */}
           {currentStep === 5 && (
-            <div className="ob-step-form ob-step-summary animate-slideIn">
-              <h3 className="ob-step-title"><Calendar size={20} /> 设置你的训练日程</h3>
-              <p className="ob-step-subtitle">系统根据选定日程判断今日为训练日或休息日，这是唯一会影响系统推演逻辑的画像字段。</p>
-              
+            <div className="flex flex-col gap-4 animate-slideIn">
+              <div>
+                <h3 className="text-lg font-bold text-text-main dark:text-text-main-dark flex items-center gap-1.5">
+                  <Calendar size={18} className="text-primary" />
+                  <span>训练日程安排</span>
+                </h3>
+                <p className="text-sm text-text-secondary dark:text-text-secondary-dark mt-1 leading-relaxed">
+                  系统根据选定日程判断今日为训练日或休息日，这是唯一会影响系统推演逻辑的画像字段。
+                </p>
+              </div>
+
               {/* 日程勾选网格 */}
-              <div className="ob-schedule-box">
-                <div className="ob-weekday-checklist">
+              <div className="flex flex-col gap-3.5 mt-1">
+                <div className="grid grid-cols-4 gap-2">
                   {WEEKDAYS.map(day => {
                     const isSelected = trainingDays.includes(day.key);
                     return (
                       <button
                         key={day.key}
                         type="button"
-                        className={`weekday-badge-btn ${isSelected ? 'active' : ''}`}
+                        className={`btn btn-sm h-10 rounded-xl font-bold flex items-center gap-1 cursor-pointer transition-all border text-sm ${
+                          isSelected 
+                            ? 'btn-primary text-white shadow-sm' 
+                            : 'btn-outline border-border-card dark:border-border-card-dark text-text-secondary hover:bg-bg-hover dark:hover:bg-bg-hover-dark'
+                        }`}
                         onClick={() => handleToggleDay(day.key)}
                       >
-                        <div className="ob-chk-indicator">
-                          {isSelected ? <Check size={12} /> : null}
-                        </div>
                         <span>{day.label}</span>
                       </button>
                     );
@@ -668,42 +766,45 @@ function OnboardingScreen({ onComplete, onSkip }) {
                 </div>
 
                 {/* 练几休几快捷预设 */}
-                <div className="ob-preset-shortcuts">
-                  <span className="preset-label">快捷循环模式：</span>
-                  <div className="preset-btn-group">
-                    <button type="button" className="preset-tag-btn" onClick={() => handleApplyPreset('1-1')}>
+                <div className="flex flex-col gap-2 p-3 bg-bg-main/20 dark:bg-bg-main-dark/20 rounded-xl border border-border-card/50">
+                  <span className="text-xs font-bold text-text-secondary">快捷循环模式：</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button" className="btn btn-outline border-border-card dark:border-border-card-dark hover:bg-bg-hover text-xs h-9 rounded-lg font-bold cursor-pointer" onClick={() => handleApplyPreset('1-1')}>
                       练1休1 (每周4天)
                     </button>
-                    <button type="button" className="preset-tag-btn" onClick={() => handleApplyPreset('2-1')}>
+                    <button type="button" className="btn btn-outline border-border-card dark:border-border-card-dark hover:bg-bg-hover text-xs h-9 rounded-lg font-bold cursor-pointer" onClick={() => handleApplyPreset('2-1')}>
                       练2休1 (每周5天)
                     </button>
-                    <button type="button" className="preset-tag-btn" onClick={() => handleApplyPreset('3-1')}>
+                    <button type="button" className="btn btn-outline border-border-card dark:border-border-card-dark hover:bg-bg-hover text-xs h-9 rounded-lg font-bold cursor-pointer" onClick={() => handleApplyPreset('3-1')}>
                       练3休1 (每周6天)
                     </button>
-                    <button type="button" className="preset-tag-btn" onClick={() => handleApplyPreset('5-2')}>
+                    <button type="button" className="btn btn-outline border-border-card dark:border-border-card-dark hover:bg-bg-hover text-xs h-9 rounded-lg font-bold cursor-pointer" onClick={() => handleApplyPreset('5-2')}>
                       练5休2 (工作日)
                     </button>
                   </div>
                 </div>
 
-                <div className="selected-days-summary">
-                  当前已选择：<strong>{trainingDays.length}</strong> 天/周 (星期{trainingDays.map(d => WEEKDAYS.find(w => w.key === d)?.label.replace('周','')).join('、') || '无'})
+                <div className="text-xs font-bold text-primary px-3 py-1.5 bg-primary/5 rounded-lg border border-primary/10 select-none">
+                  已选择：{trainingDays.length} 天/周 ({trainingDays.map(d => WEEKDAYS.find(w => w.key === d)?.label).join('、') || '未设定'})
                 </div>
               </div>
 
               {/* 画像信息摘要面板 */}
-              <div className="ob-summary-panel">
-                <h4>📊 个人画像摘要核对</h4>
-                <div className="summary-grid">
-                  <div className="summary-item"><span className="lbl">昵称：</span><span className="val">{nickname || '未设定'}</span></div>
-                  <div className="summary-item"><span className="lbl">性别：</span><span className="val">{gender === 'male' ? '男' : gender === 'female' ? '女' : '其他'}</span></div>
-                  <div className="summary-item"><span className="lbl">体能状态：</span><span className="val">{age}岁 / {height}cm / {weight}kg</span></div>
-                  <div className="summary-item"><span className="lbl">背景目标：</span><span className="val">{trainingYears}经验 · {trainingLevel} · {primaryGoal}</span></div>
-                  <div className="summary-item"><span className="lbl">单次时长：</span><span className="val">{sessionDurationMin}分钟</span></div>
-                  <div className="summary-item"><span className="lbl">已设 1RM：</span><span className="val">
-                    蹲 {squat1RM || '-'}kg / 推 {bench1RM || '-'}kg / 拉 {deadlift1RM || '-'}kg / 举 {press1RM || '-'}kg
+              <div className="mt-1 p-4 bg-bg-main/30 dark:bg-bg-main-dark/30 rounded-xl border border-border-card/50 flex flex-col gap-2">
+                <h4 className="text-xs font-extrabold text-text-main dark:text-text-main-dark flex items-center gap-1.5 pb-1 border-b border-border-card/50 select-none">
+                  <Award size={14} className="text-primary" />
+                  <span>个人画像摘要核对</span>
+                </h4>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs leading-relaxed">
+                  <div><span className="text-text-secondary font-bold">昵称：</span><span className="font-bold text-text-main dark:text-text-main-dark">{nickname || '未设定'}</span></div>
+                  <div><span className="text-text-secondary font-bold">性别：</span><span className="font-bold text-text-main dark:text-text-main-dark">{gender === 'male' ? '男' : gender === 'female' ? '女' : '其他'}</span></div>
+                  <div className="col-span-2"><span className="text-text-secondary font-bold">体能：</span><span className="font-bold text-text-main dark:text-text-main-dark">{age}岁 / {height}cm / {weight}kg</span></div>
+                  <div className="col-span-2"><span className="text-text-secondary font-bold">阶段：</span><span className="font-bold text-text-main dark:text-text-main-dark">{trainingYears}经验 · {trainingLevel} · {primaryGoal}</span></div>
+                  <div><span className="text-text-secondary font-bold">单次时长：</span><span className="font-bold text-text-main dark:text-text-main-dark">{sessionDurationMin}分钟</span></div>
+                  <div className="col-span-2"><span className="text-text-secondary font-bold">1RM 基准：</span><span className="font-mono font-bold text-text-main dark:text-text-main-dark">
+                    蹲 {squat1RM || '-'} / 推 {bench1RM || '-'} / 拉 {deadlift1RM || '-'} / 举 {press1RM || '-'}
                   </span></div>
-                  <div className="summary-item" style={{ gridColumn: 'span 2' }}><span className="lbl">可用器械：</span><span className="val">
+                  <div className="col-span-2 truncate"><span className="text-text-secondary font-bold">可用器械：</span><span className="font-bold text-text-main dark:text-text-main-dark">
                     {equipmentList.map(eq => EQUIPMENTS.find(e => e.key === eq)?.label.split(' ')[0]).join(', ') || '未选择'}
                   </span></div>
                 </div>
@@ -714,46 +815,46 @@ function OnboardingScreen({ onComplete, onSkip }) {
         </div>
 
         {/* 底部导航操作区 */}
-        <div className="onboarding-footer">
+        <div className="p-5 border-t border-border-card dark:border-border-card-dark flex items-center justify-between gap-4 shrink-0">
           {currentStep > 1 ? (
             <button 
               type="button" 
-              className="btn-secondary ob-nav-btn" 
+              className="btn btn-sm btn-outline border-border-card dark:border-border-card-dark text-text-secondary dark:text-text-secondary-dark flex-1 h-10 rounded-xl font-bold flex items-center justify-center gap-1 cursor-pointer" 
               onClick={handlePrevStep}
               disabled={saving}
             >
-              <ChevronLeft size={20} />
+              <ChevronLeft size={16} />
               <span>上一步</span>
             </button>
           ) : (
-            <div className="footer-placeholder"></div>
+            <div className="flex-1"></div>
           )}
 
           {currentStep < 5 ? (
             <button 
               type="button" 
-              className="btn-primary ob-nav-btn" 
+              className="btn btn-primary btn-sm text-white flex-1 h-10 rounded-xl font-bold flex items-center justify-center gap-1 cursor-pointer" 
               onClick={handleNextStep}
             >
               <span>下一步</span>
-              <ChevronRight size={20} />
+              <ChevronRight size={16} />
             </button>
           ) : (
             <button 
               type="button" 
-              className="btn-primary ob-save-btn" 
+              className="btn btn-primary btn-sm text-white flex-1 h-10 rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-md" 
               onClick={handleSaveProfile}
               disabled={saving}
             >
               {saving ? (
                 <>
-                  <div className="spinner-small"></div>
+                  <Loader2 className="animate-spin" size={16} />
                   <span>正在保存画像...</span>
                 </>
               ) : (
                 <>
-                  <Check size={20} />
-                  <span>完成画像并前往计划配置</span>
+                  <Check size={16} strokeWidth={3} />
+                  <span>完成画像并前往计划</span>
                 </>
               )}
             </button>

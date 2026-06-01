@@ -145,7 +145,13 @@ function App() {
   useEffect(() => {
     localStorage.setItem('theme', theme);
     document.documentElement.setAttribute('data-theme', theme);
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
   }, [theme]);
+
 
   // Toast 计时器
   useEffect(() => {
@@ -604,63 +610,69 @@ function App() {
   };
 
   return (
-    <>
+    <div className="min-h-screen flex flex-col max-w-[480px] w-full mx-auto bg-bg-main dark:bg-bg-main-dark text-text-main dark:text-text-main-dark border-x border-border-card dark:border-border-card-dark shadow-2xl relative transition-colors duration-200">
       {/* Toast 提示 */}
       {toast && (
-        <div className={`message-toast ${toast.type}`}>
-          {toast.type === 'success' ? (
-            <CheckCircle size={20} />
-          ) : (
-            <AlertTriangle size={20} />
-          )}
-          <span>{toast.message}</span>
+        <div className="toast toast-top toast-center z-[9999] min-w-[320px] max-w-[440px] px-4">
+          <div className={`alert ${toast.type === 'success' ? 'alert-success' : 'alert-error'} shadow-lg rounded-xl flex items-center gap-3`}>
+            {toast.type === 'success' ? (
+              <CheckCircle size={18} className="text-white shrink-0" />
+            ) : (
+              <AlertTriangle size={18} className="text-white shrink-0" />
+            )}
+            <span className="text-sm font-semibold text-white break-words text-left">{toast.message}</span>
+          </div>
         </div>
       )}
 
-      {/* 头部区 */}
-      <header className="header">
-        <div className="header-top">
-          <div className="app-logo">
-            <Dumbbell size={24} />
-            <span>训练助手</span>
-          </div>
-          
-          {/* 右侧动作按钮区 (仅保留日夜模式切换) */}
-          <div className="header-actions">
-            {/* 主题切换按钮，拥有至少 44px 独立触控区域 */}
-            <button 
-              type="button" 
-              className="header-icon-btn theme-toggle-btn"
-              onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
-              aria-label="切换配色模式"
-            >
-              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
-          </div>
+      {/* 头部区 - DaisyUI Navbar */}
+      <div className="navbar sticky top-0 z-50 bg-bg-card/90 dark:bg-bg-card-dark/90 border-b border-border-card dark:border-border-card-dark backdrop-blur px-4">
+        <div className="flex-1 flex items-center gap-2">
+          <Dumbbell size={20} className="text-primary filter drop-shadow-[0_0_8px_rgba(255,107,53,0.4)]" />
+          <span className="text-base font-extrabold tracking-wide bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
+            训练助手
+          </span>
+          {currentDay && (
+            <span className="text-[10px] font-bold text-primary px-2 py-0.5 bg-primary/10 rounded-full border border-primary/20 ml-1">
+              {currentDay}
+            </span>
+          )}
+          {userNickname && (
+            <span className="text-[10px] font-semibold text-text-secondary dark:text-text-secondary-dark px-2 py-0.5 bg-bg-hover dark:bg-bg-hover-dark rounded-full ml-1">
+              {userNickname}
+            </span>
+          )}
         </div>
-        <h1>{userNickname ? `${userNickname}的训练记录` : '力量训练记录'}</h1>
-        <div className="day-badge">
-          今天：{currentDay}
+        <div className="flex-none">
+          {/* 主题切换按钮，拥有至少 44px 独立触控区域 */}
+          <button 
+            type="button" 
+            className="btn btn-ghost btn-circle text-text-secondary dark:text-text-secondary-dark hover:bg-bg-hover dark:hover:bg-bg-hover-dark"
+            onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+            aria-label="切换配色模式"
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
         </div>
-      </header>
+      </div>
 
-      {/* 主屏幕区域 - 使用 display: none/block 保留 Tab 状态 */}
-      <main className="app-container-pad">
+      {/* 主屏幕区域 - pt-6 pb-24 提升呼吸间距并彻底消除 Header 遮挡 */}
+      <main className="flex-1 pt-6 pb-24 px-5 w-full flex flex-col gap-6">
         
         {/* TAB 1: 今日训练页面 */}
         <div style={{ display: activeTab === 'today' ? 'block' : 'none' }}>
           {loading ? (
-            <div className="loading-container">
-              <div className="spinner"></div>
-              <p>正在计算今日训练建议...</p>
+            <div className="flex flex-col items-center justify-center min-h-[300px] text-text-secondary dark:text-text-secondary-dark gap-4">
+              <span className="loading loading-spinner text-primary loading-lg"></span>
+              <p className="text-sm font-semibold">正在计算今日训练建议...</p>
             </div>
           ) : error ? (
-            <div className="loading-container" style={{ color: 'var(--color-error)' }}>
-              <AlertTriangle size={48} />
-              <p style={{ textAlign: 'center', padding: '0 20px' }}>{error}</p>
+            <div className="flex flex-col items-center justify-center min-h-[300px] text-error dark:text-error gap-4 p-6 text-center">
+              <AlertTriangle size={48} className="text-error" />
+              <p className="text-sm font-bold max-w-xs">{error}</p>
               <button 
-                className="btn-primary" 
-                style={{ width: 'auto', marginTop: '20px', padding: '12px 24px' }}
+                type="button"
+                className="btn btn-primary px-6 mt-2 font-bold cursor-pointer"
                 onClick={loadWorkoutData}
               >
                 重新尝试
@@ -716,33 +728,45 @@ function App() {
 
       </main>
 
-      {/* 底部固定导航栏 */}
-      <nav className="tab-nav">
+      {/* 底部固定导航栏 - 使用 DaisyUI v5 dock，精准以 1/2 对齐中线 */}
+      <div className="dock fixed bottom-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[480px] bg-bg-card/90 dark:bg-bg-card-dark/90 border-t border-border-card dark:border-border-card-dark backdrop-blur h-16">
         <button 
           type="button" 
-          className={`tab-item ${activeTab === 'today' ? 'active' : ''}`}
+          className={`transition-all duration-200 ${
+            activeTab === 'today' 
+              ? 'dock-active text-primary font-bold bg-transparent' 
+              : 'text-text-secondary dark:text-text-secondary-dark'
+          }`}
           onClick={() => setActiveTab('today')}
         >
-          <span className="tab-icon">🏋️</span>
-          <span>今日</span>
+          <span className="text-xl">🏋️</span>
+          <span className="dock-label text-xs font-bold">今日</span>
         </button>
         <button 
           type="button" 
-          className={`tab-item ${activeTab === 'plan' ? 'active' : ''}`}
+          className={`transition-all duration-200 ${
+            activeTab === 'plan' 
+              ? 'dock-active text-primary font-bold bg-transparent' 
+              : 'text-text-secondary dark:text-text-secondary-dark'
+          }`}
           onClick={() => setActiveTab('plan')}
         >
-          <span className="tab-icon">📋</span>
-          <span>计划</span>
+          <span className="text-xl">📋</span>
+          <span className="dock-label text-xs font-bold">计划</span>
         </button>
         <button 
           type="button" 
-          className={`tab-item ${activeTab === 'calendar' ? 'active' : ''}`}
+          className={`transition-all duration-200 ${
+            activeTab === 'calendar' 
+              ? 'dock-active text-primary font-bold bg-transparent' 
+              : 'text-text-secondary dark:text-text-secondary-dark'
+          }`}
           onClick={() => setActiveTab('calendar')}
         >
-          <span className="tab-icon">📅</span>
-          <span>日历</span>
+          <span className="text-xl">📅</span>
+          <span className="dock-label text-xs font-bold">日历</span>
         </button>
-      </nav>
+      </div>
 
       {/* 实时训练遮罩层 */}
       {sessionState.isActive && (
@@ -802,8 +826,9 @@ function App() {
           }}
         />
       )}
-    </>
+    </div>
   );
 }
 
 export default App;
+
