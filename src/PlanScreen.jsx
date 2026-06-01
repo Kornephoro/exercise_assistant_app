@@ -416,12 +416,12 @@ function PlanScreen({ onSettingsSaved }) {
                   
                   <div className="flex flex-col gap-3">
                     {/* 深蹲 */}
-                    <div className="flex flex-row items-center justify-between p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 gap-3">
                       <span className="text-base font-bold text-text-main dark:text-text-main-dark">深蹲 (Squat)</span>
-                      <div className="flex gap-3">
-                        <div className="flex items-center gap-1.5">
+                      <div className="flex gap-3 justify-between sm:justify-end w-full sm:w-auto">
+                        <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
                           <span className="badge bg-tier-t1/10 text-tier-t1 dark:text-tier-t1-dark border-tier-t1/20 dark:border-tier-t1-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T1</span>
-                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[90px] h-9 transition-colors">
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-full sm:w-[90px] h-9 transition-colors">
                             <input
                               type="number"
                               step="0.5"
@@ -433,9 +433,9 @@ function PlanScreen({ onSettingsSaved }) {
                             <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
                           <span className="badge bg-tier-t2/10 text-tier-t2 dark:text-tier-t2-dark border-tier-t2/20 dark:border-tier-t2-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T2</span>
-                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[90px] h-9 transition-colors">
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-full sm:w-[90px] h-9 transition-colors">
                             <input
                               type="number"
                               step="0.5"
@@ -451,12 +451,12 @@ function PlanScreen({ onSettingsSaved }) {
                     </div>
 
                     {/* 卧推 */}
-                    <div className="flex flex-row items-center justify-between p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 gap-3">
                       <span className="text-base font-bold text-text-main dark:text-text-main-dark">卧推 (Bench)</span>
-                      <div className="flex gap-3">
-                        <div className="flex items-center gap-1.5">
+                      <div className="flex gap-3 justify-between sm:justify-end w-full sm:w-auto">
+                        <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
                           <span className="badge bg-tier-t1/10 text-tier-t1 dark:text-tier-t1-dark border-tier-t1/20 dark:border-tier-t1-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T1</span>
-                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[90px] h-9 transition-colors">
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-full sm:w-[90px] h-9 transition-colors">
                             <input
                               type="number"
                               step="0.5"
@@ -468,9 +468,9 @@ function PlanScreen({ onSettingsSaved }) {
                             <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
                           <span className="badge bg-tier-t2/10 text-tier-t2 dark:text-tier-t2-dark border-tier-t2/20 dark:border-tier-t2-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T2</span>
-                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[90px] h-9 transition-colors">
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-full sm:w-[90px] h-9 transition-colors">
                             <input
                               type="number"
                               step="0.5"
@@ -486,12 +486,12 @@ function PlanScreen({ onSettingsSaved }) {
                     </div>
 
                     {/* 硬拉 */}
-                    <div className="flex flex-row items-center justify-between p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 gap-3">
                       <span className="text-base font-bold text-text-main dark:text-text-main-dark">硬拉 (Deadlift)</span>
-                      <div className="flex gap-3">
-                        <div className="flex items-center gap-1.5">
+                      <div className="flex gap-3 justify-between sm:justify-end w-full sm:w-auto">
+                        <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
                           <span className="badge bg-tier-t1/10 text-tier-t1 dark:text-tier-t1-dark border-tier-t1/20 dark:border-tier-t1-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T1</span>
-                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[90px] h-9 transition-colors">
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-full sm:w-[90px] h-9 transition-colors">
                             <input
                               type="number"
                               step="0.5"
@@ -503,9 +503,9 @@ function PlanScreen({ onSettingsSaved }) {
                             <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
                           <span className="badge bg-tier-t2/10 text-tier-t2 dark:text-tier-t2-dark border-tier-t2/20 dark:border-tier-t2-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T2</span>
-                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[90px] h-9 transition-colors">
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-full sm:w-[90px] h-9 transition-colors">
                             <input
                               type="number"
                               step="0.5"
@@ -521,12 +521,12 @@ function PlanScreen({ onSettingsSaved }) {
                     </div>
 
                     {/* 推举 */}
-                    <div className="flex flex-row items-center justify-between p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 gap-3">
                       <span className="text-base font-bold text-text-main dark:text-text-main-dark">推举 (Press)</span>
-                      <div className="flex gap-3">
-                        <div className="flex items-center gap-1.5">
+                      <div className="flex gap-3 justify-between sm:justify-end w-full sm:w-auto">
+                        <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
                           <span className="badge bg-tier-t1/10 text-tier-t1 dark:text-tier-t1-dark border-tier-t1/20 dark:border-tier-t1-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T1</span>
-                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[90px] h-9 transition-colors">
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-full sm:w-[90px] h-9 transition-colors">
                             <input
                               type="number"
                               step="0.5"
@@ -538,9 +538,9 @@ function PlanScreen({ onSettingsSaved }) {
                             <span className="text-sm font-medium text-text-secondary/50 dark:text-text-secondary-dark/50 select-none">kg</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
                           <span className="badge bg-tier-t2/10 text-tier-t2 dark:text-tier-t2-dark border-tier-t2/20 dark:border-tier-t2-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T2</span>
-                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-[90px] h-9 transition-colors">
+                          <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-full sm:w-[90px] h-9 transition-colors">
                             <input
                               type="number"
                               step="0.5"
