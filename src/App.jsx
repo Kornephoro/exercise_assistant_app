@@ -18,7 +18,6 @@ import {
   Dumbbell, 
   CheckCircle, 
   AlertTriangle, 
-  Settings,
   Sun,
   Moon
 } from 'lucide-react';
@@ -520,10 +519,10 @@ function App() {
         <div className="header-top">
           <div className="app-logo">
             <Dumbbell size={24} />
-            <span>GZCLP Power</span>
+            <span>训练助手</span>
           </div>
           
-          {/* 右侧动作按钮区 (日夜模式 + 计划配置跳转) */}
+          {/* 右侧动作按钮区 (仅保留日夜模式切换) */}
           <div className="header-actions">
             {/* 主题切换按钮，拥有至少 44px 独立触控区域 */}
             <button 
@@ -533,16 +532,6 @@ function App() {
               aria-label="切换配色模式"
             >
               {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
-            
-            {/* 齿轮配置按钮 */}
-            <button 
-              type="button" 
-              className="header-icon-btn settings-btn"
-              onClick={() => setActiveTab('plan')}
-              aria-label="切换到计划设定"
-            >
-              <Settings size={20} />
             </button>
           </div>
         </div>

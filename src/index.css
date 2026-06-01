@@ -36,6 +36,9 @@
   --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   --shadow-premium: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
   --border-soft: rgba(255, 255, 255, 0.04);
+  --bg-nav: rgba(20, 22, 29, 0.95);
+  --border-nav: rgba(255, 255, 255, 0.05);
+  --shadow-nav: 0 -4px 20px rgba(0, 0, 0, 0.4);
 }
 
 [data-theme="light"] {
@@ -59,6 +62,10 @@
   
   --color-t3-glow: rgba(191, 90, 242, 0.08);
   --color-t3-border: rgba(191, 90, 242, 0.25);
+
+  --bg-nav: rgba(244, 244, 243, 0.95);
+  --border-nav: rgba(0, 0, 0, 0.06);
+  --shadow-nav: 0 -4px 20px rgba(0, 0, 0, 0.04);
 }
 
 * {
@@ -909,15 +916,15 @@ body {
   width: 100%;
   max-width: 480px;
   height: 60px;
-  background-color: rgba(20, 22, 29, 0.95);
+  background-color: var(--bg-nav);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--border-nav);
   display: flex;
   justify-content: space-around;
   align-items: center;
   z-index: 1000;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-nav);
 }
 
 .tab-item {
@@ -1983,9 +1990,9 @@ body {
 
 /* D. 日间模式的组件微调覆盖 */
 [data-theme="light"] .floating-ball {
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1), 0 0 15px rgba(99, 102, 241, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 
 [data-theme="light"] .floating-ball-progress {
@@ -1994,16 +2001,16 @@ body {
 }
 
 [data-theme="light"] .train-session-overlay {
-  background: rgba(245, 245, 247, 0.85);
+  background: rgba(250, 250, 249, 0.96);
 }
 
 [data-theme="light"] .train-session-header {
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.9);
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="light"] .set-row {
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.85);
   border-color: rgba(0, 0, 0, 0.04);
 }
 
@@ -2029,6 +2036,16 @@ body {
 
 [data-theme="light"] .settings-form .section-title {
   border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+/* 导航栏日间模式修复与对比度提升 */
+[data-theme="light"] .tab-item {
+  color: var(--text-secondary);
+}
+
+[data-theme="light"] .tab-item.active {
+  color: #8b5cf6;
+  text-shadow: none;
 }
 
 
