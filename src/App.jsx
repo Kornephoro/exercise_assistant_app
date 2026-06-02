@@ -7,6 +7,7 @@ import CalendarScreen from './CalendarScreen';
 import TrainSession from './TrainSession';
 import FloatingBall from './FloatingBall';
 import OnboardingScreen from './OnboardingScreen';
+import WorkoutPreviewModal from './WorkoutPreviewModal';
 import {
   Dumbbell,
   CheckCircle,
@@ -69,8 +70,11 @@ function App() {
   const [sessionState, setSessionState] = useState({
     isActive: false,
     isMinimized: false,
-    setsData: { T1: [], T2: [], T3: [] }
+    setsData: {} // key = index in todayWorkout.exercises, supports multiple exercises per tier
   });
+
+  // 训练预览弹窗
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('theme', theme);
@@ -218,20 +222,19 @@ function App() {
       }
     };
 
-    const setsData = { T1: [], T2: [], T3: [] };
-    todayWorkout.exercises.forEach(ex => {
-      const tier = ex.tier || 'T1';
+    const setsData = {};
+    todayWorkout.exercises.forEach((ex, idx) => {
       const method = exercisesMap[ex.exercise]?.recording_method || 'standard';
       const extra = getSetExtraFields(method);
-      const sets = Array.from({ length: ex.sets }, (_, idx) => ({
-        set_number: idx + 1,
+      const sets = Array.from({ length: ex.sets }, (_, setIdx) => ({
+        set_number: setIdx + 1,
         planned_reps: ex.reps,
         actual_reps: '',
         completed: false,
         weight_kg: ex.weight,
         ...extra
       }));
-      setsData[tier] = sets;
+      setsData[idx] = sets; // key = exercise index, supports multiple T3 per day
     });
 
     setSessionState({
@@ -253,7 +256,7 @@ function App() {
     setSessionState({
       isActive: false,
       isMinimized: false,
-      setsData: { T1: [], T2: [], T3: [] }
+      setsData: {}
     });
     setToast({ type: 'success', message: '已放弃本次训练数据。' });
   };
@@ -351,12 +354,10 @@ function App() {
     const setsToInsert = [];
     const workoutRecords = [];
 
-    for (const tier of ['T1', 'T2', 'T3']) {
-      const sets = setsData[tier] || [];
-      if (sets.length === 0) continue;
-
-      const tierEx = todayWorkout.exercises.find(e => e.tier === tier);
-      if (!tierEx) continue;
+    (todayWorkout.exercises || []).forEach((tierEx, exIdx) => {
+      const tier = tierEx.tier || 'T1';
+      const sets = setsData[exIdx] || [];
+      if (sets.length === 0) return;
 
       const method = getRecordingMethod(tierEx.exercise);
       const lastSet = sets[sets.length - 1];
@@ -376,7 +377,13 @@ function App() {
       };
       if (['standard', 'reps_only', 'bodyweight_added', 'bodyweight_assisted'].includes(method)) {
         record.planned_reps = tierEx.reps;
-        record.actual_last_set_reps = getFinalReps(lastSet);
+        if (tier === 'T2') {
+          // T2: 存储所有组的实际总次数，需 ≥ threshold
+          record.actual_last_set_reps = sets.reduce((sum, s) => sum + getFinalReps(s), 0);
+        } else {
+          // T1 & T3: 存储所有组的最小次数，每组都必须 ≥ planned_reps (T1) 或 threshold (T3)
+          record.actual_last_set_reps = Math.min(...sets.map(s => getFinalReps(s)));
+        }
       } else if (method === 'duration_only') {
         record.actual_last_set_reps = lastSet.duration_seconds || 0;
       } else if (['distance_only', 'loaded_carry'].includes(method)) {
@@ -386,7 +393,7 @@ function App() {
 
       // workout_sets detail records
       sets.forEach((s, setIdx) => {
-        const setKey = `${tier}_${todayWorkout.exercises.findIndex(e => e.tier === tier)}_${setIdx}`;
+        const setKey = `${tier}_${exIdx}_${setIdx}`;
         const detail = setDetails[setKey] || {};
         const base = {
           exercise: tierEx.exercise,
@@ -422,7 +429,7 @@ function App() {
         }
         setsToInsert.push(base);
       });
-    }
+    });
 
     setSaving(true);
     try {
@@ -454,7 +461,7 @@ function App() {
       setSessionState({
         isActive: false,
         isMinimized: false,
-        setsData: { T1: [], T2: [], T3: [] }
+        setsData: {}
       });
 
       await loadWorkoutData();
@@ -468,14 +475,14 @@ function App() {
 
   const getSessionProgress = (setsData) => {
     if (!setsData) return '';
-    const tiers = ['T1', 'T2', 'T3'];
-    for (const tier of tiers) {
-      const sets = setsData[tier] || [];
+    const keys = Object.keys(setsData).sort((a, b) => Number(a) - Number(b));
+    for (const key of keys) {
+      const sets = setsData[key] || [];
       const completedCount = sets.filter(s => s.completed).length;
-      if (completedCount < sets.length) return `${tier} ${completedCount}/${sets.length}`;
+      if (completedCount < sets.length) return `${completedCount}/${sets.length}`;
     }
-    const t3Sets = setsData.T3 || [];
-    return `T3 ${t3Sets.length}/${t3Sets.length}`;
+    const total = keys.reduce((sum, k) => sum + (setsData[k]?.length || 0), 0);
+    return `${total}/${total}`;
   };
 
   const getExerciseCNName = (exercise) => {
@@ -570,6 +577,7 @@ function App() {
               exercisesMap={exercisesMap}
               sessionState={sessionState}
               onStartTrain={handleStartOrRestoreTrain}
+              onOpenPreview={() => setPreviewOpen(true)}
               onSwitchProgram={switchActiveProgram}
               onGoToLibrary={() => setActiveTab('plan')}
               getExerciseCNName={getExerciseCNName}
@@ -670,6 +678,18 @@ function App() {
           }}
         />
       )}
+
+      {/* 今日训练预览弹窗 */}
+      <WorkoutPreviewModal
+        isOpen={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        onStartTrain={() => {
+          setPreviewOpen(false);
+          handleStartOrRestoreTrain();
+        }}
+        todayWorkout={todayWorkout}
+        getExerciseCNName={getExerciseCNName}
+      />
     </div>
   );
 }

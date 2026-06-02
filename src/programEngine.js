@@ -229,13 +229,15 @@ function gzclpGetTierProgression(exercise, history, schemes, initialWeight, incr
   let nextIdx = currentIdx;
 
   // 判断成功/失败
+  // 阈值优先级：传入参数（T3 按动作自定义）> 当前方案的 success_threshold（T2 自动推导）> 无（T1 按 AMRAP）
+  const effectiveThreshold = successThreshold ?? currentScheme.success_threshold;
   let success;
-  if (successThreshold !== undefined && successThreshold !== null) {
-    // T2/T3: 基于总次数
-    const totalReps = (lastPlannedReps * 2) + lastActual;
-    success = totalReps >= successThreshold;
+  if (effectiveThreshold !== undefined && effectiveThreshold !== null) {
+    // T2: actual_last_set_reps = 所有组实际总次数，需 ≥ threshold
+    // T3: actual_last_set_reps = 所有组最小次数，每组都必须 ≥ threshold
+    success = lastActual >= effectiveThreshold;
   } else {
-    // T1: 基于最后一组
+    // T1: actual_last_set_reps = 所有组最小次数，每组都必须 ≥ planned_reps
     success = lastActual >= lastPlannedReps;
   }
 
@@ -270,7 +272,6 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier) {
   const schedule = userProgram.schedule || {};
   const currentDay = state.current_day || Object.keys(config.day_map)[0];
   const dayConfig = config.day_map[currentDay];
-  const schemeIndex = state.scheme_index || {};
   const lastTrainingDate = state.last_training_date || null;
 
   if (!dayConfig) return { exercises: [], dayLabel: currentDay, error: `未知训练日: ${currentDay}` };
@@ -284,7 +285,6 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier) {
     const userEx = exConfig[ex] || {};
     const initWeight = userEx.initial_weight ?? config.default_weights?.[ex];
     const incr = userEx.increment_t1 ?? config.default_increment?.['T1'] ?? 2.5;
-    const schemeIdx = schemeIndex[`${ex}_T1`] ?? 0;
     const schemes = config.t1_schemes;
     const result = gzclpGetTierProgression(ex, hist, schemes, initWeight, incr, null);
 
@@ -307,9 +307,8 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier) {
     const initWeight = userEx.initial_weight ?? config.default_weights?.[ex];
     const incr = userEx.increment_t2 ?? config.default_increment?.['T2'] ?? 2.5;
     const schemes = config.t2_schemes;
-    const schemeIdx = schemeIndex[`${ex}_T2`] ?? 0;
-    const threshold = schemes[schemeIdx].success_threshold;
-    const result = gzclpGetTierProgression(ex, hist, schemes, initWeight, incr, threshold);
+    // 不传 threshold，让 gzclpGetTierProgression 从当前方案的 success_threshold 自动推导
+    const result = gzclpGetTierProgression(ex, hist, schemes, initWeight, incr, null);
 
     exercises.push({
       exercise: ex,

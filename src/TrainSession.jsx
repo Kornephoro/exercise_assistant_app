@@ -37,12 +37,16 @@ function TrainSession({
   const [setDetails, setSetDetails] = useState({});
   const [customRestSeconds, setCustomRestSeconds] = useState(DEFAULT_REST_SECONDS);
 
+  const adjustCustomRest = (delta) => {
+    setCustomRestSeconds(prev => Math.max(0, prev + delta));
+  };
+
   const audioContextRef = useRef(null);
   const restTimerRef = useRef(null);
 
   const getRecordingMethod = (exerciseKey) => exercisesMap?.[exerciseKey]?.recording_method || 'standard';
 
-  const getTotalSets = () => (todayWorkout?.exercises || []).reduce((sum, ex) => sum + (sessionState.setsData[ex.tier]?.length || 0), 0);
+  const getTotalSets = () => (todayWorkout?.exercises || []).reduce((sum, ex, idx) => sum + (sessionState.setsData[idx]?.length || 0), 0);
   const getCompletedSets = () => Object.values(sessionState.setsData).flat().filter(s => s.completed).length;
   const getProgress = () => { const t = getTotalSets(); return t === 0 ? 0 : Math.round((getCompletedSets() / t) * 100); };
   const isSessionFinished = () => getProgress() === 100;
@@ -84,7 +88,7 @@ function TrainSession({
             if (focusedSet) {
               const { exerciseIdx, setIdx } = focusedSet;
               const ex = todayWorkout.exercises[exerciseIdx];
-              const totalSets = sessionState.setsData[ex.tier].length;
+              const totalSets = sessionState.setsData[exerciseIdx].length;
               if (setIdx === totalSets - 1 && exerciseIdx < todayWorkout.exercises.length - 1) {
                 openSetCard(exerciseIdx + 1, 0);
               } else if (setIdx < totalSets - 1) {
@@ -100,35 +104,35 @@ function TrainSession({
     return () => { if (restTimerRef.current) clearInterval(restTimerRef.current); };
   }, [restTimer.active, playRestEndSound]);
 
-  const handleToggleSet = (tier, setIndex) => {
+  const handleToggleSet = (exIndex, setIndex) => {
     const updated = { ...sessionState.setsData };
-    const target = updated[tier][setIndex];
+    const target = updated[exIndex][setIndex];
     target.completed = !target.completed;
     if (target.completed && (target.actual_reps === '' || target.actual_reps === undefined)) target.actual_reps = target.planned_reps;
     setSessionState(prev => ({ ...prev, setsData: updated }));
   };
 
-  const handleRepsChange = (tier, setIndex, value) => {
+  const handleRepsChange = (exIndex, setIndex, value) => {
     const updated = { ...sessionState.setsData };
-    updated[tier][setIndex].actual_reps = value === '' ? '' : parseInt(value, 10);
+    updated[exIndex][setIndex].actual_reps = value === '' ? '' : parseInt(value, 10);
     setSessionState(prev => ({ ...prev, setsData: updated }));
   };
 
-  const handleWeightChange = (tier, setIndex, value) => {
+  const handleWeightChange = (exIndex, setIndex, value) => {
     const updated = { ...sessionState.setsData };
-    updated[tier][setIndex].weight_kg = value === '' ? 0 : parseFloat(value);
+    updated[exIndex][setIndex].weight_kg = value === '' ? 0 : parseFloat(value);
     setSessionState(prev => ({ ...prev, setsData: updated }));
   };
 
-  const handleDurationChange = (tier, setIndex, value) => {
+  const handleDurationChange = (exIndex, setIndex, value) => {
     const updated = { ...sessionState.setsData };
-    updated[tier][setIndex].duration_seconds = value === '' ? 0 : parseInt(value, 10);
+    updated[exIndex][setIndex].duration_seconds = value === '' ? 0 : parseInt(value, 10);
     setSessionState(prev => ({ ...prev, setsData: updated }));
   };
 
-  const handleDistanceChange = (tier, setIndex, value) => {
+  const handleDistanceChange = (exIndex, setIndex, value) => {
     const updated = { ...sessionState.setsData };
-    updated[tier][setIndex].distance_meters = value === '' ? 0 : parseFloat(value);
+    updated[exIndex][setIndex].distance_meters = value === '' ? 0 : parseFloat(value);
     setSessionState(prev => ({ ...prev, setsData: updated }));
   };
 
@@ -139,9 +143,9 @@ function TrainSession({
     if (!focusedSet) return;
     const { exerciseIdx, setIdx } = focusedSet;
     const ex = todayWorkout.exercises[exerciseIdx];
-    handleToggleSet(ex.tier, setIdx);
+    handleToggleSet(exerciseIdx, setIdx);
     closeSetCard();
-    const totalSets = sessionState.setsData[ex.tier].length;
+    const totalSets = sessionState.setsData[exerciseIdx].length;
     const isLastExercise = exerciseIdx === todayWorkout.exercises.length - 1;
     const isLastSet = setIdx === totalSets - 1;
     if (!(isSessionFinished() || (isLastSet && isLastExercise))) {
@@ -157,7 +161,7 @@ function TrainSession({
     if (focusedSet) {
       const { exerciseIdx, setIdx } = focusedSet;
       const ex = todayWorkout.exercises[exerciseIdx];
-      const totalSets = sessionState.setsData[ex.tier].length;
+      const totalSets = sessionState.setsData[exerciseIdx].length;
       if (setIdx === totalSets - 1 && exerciseIdx < todayWorkout.exercises.length - 1) openSetCard(exerciseIdx + 1, 0);
       else if (setIdx < totalSets - 1) openSetCard(exerciseIdx, setIdx + 1);
     }
@@ -180,14 +184,14 @@ function TrainSession({
     if (!showSetCard || !focusedSet) return null;
     const { exerciseIdx, setIdx } = focusedSet;
     const ex = todayWorkout.exercises[exerciseIdx];
-    const set = sessionState.setsData[ex.tier]?.[setIdx];
+    const set = sessionState.setsData[exerciseIdx]?.[setIdx];
     if (!set) return null;
 
     const method = getRecordingMethod(ex.exercise);
     const setKey = getSetKey(exerciseIdx, setIdx);
     const detail = setDetails[setKey] || {};
     const rpeValue = detail.rpe ?? 7;
-    const totalSets = sessionState.setsData[ex.tier].length;
+    const totalSets = sessionState.setsData[exerciseIdx].length;
 
     const weightLabel = method === 'bodyweight_added' ? '附加重量' : method === 'bodyweight_assisted' ? '辅助重量' : method === 'loaded_carry' ? '负重重量' : '实际重量';
     const weightPlaceholder = method === 'loaded_carry' ? 'kg' : ex.weight?.toFixed(1);
@@ -224,7 +228,7 @@ function TrainSession({
                       type="number" 
                       className="input input-bordered text-center font-mono text-3xl font-bold w-full h-14 text-base-content" 
                       value={set.actual_reps ?? set.planned_reps ?? ''} 
-                      onChange={(e) => handleRepsChange(ex.tier, setIdx, e.target.value)} 
+                      onChange={(e) => handleRepsChange(exerciseIdx, setIdx, e.target.value)} 
                     />
                   </div>
                 )}
@@ -236,7 +240,7 @@ function TrainSession({
                       step={weightStep} 
                       className="input input-bordered text-center font-mono text-3xl font-bold w-full h-14 text-base-content" 
                       value={set.weight_kg ?? ex.weight ?? ''} 
-                      onChange={(e) => handleWeightChange(ex.tier, setIdx, e.target.value)} 
+                      onChange={(e) => handleWeightChange(exerciseIdx, setIdx, e.target.value)} 
                     />
                   </div>
                 )}
@@ -252,7 +256,7 @@ function TrainSession({
                   className="input input-bordered text-center font-mono text-3xl font-bold w-full h-14" 
                   value={set.duration_seconds ?? ''} 
                   placeholder="秒" 
-                  onChange={(e) => handleDurationChange(ex.tier, setIdx, e.target.value)} 
+                  onChange={(e) => handleDurationChange(exerciseIdx, setIdx, e.target.value)} 
                 />
               </div>
             )}
@@ -267,7 +271,7 @@ function TrainSession({
                   className="input input-bordered text-center font-mono text-3xl font-bold w-full h-14" 
                   value={set.distance_meters ?? ''} 
                   placeholder="米" 
-                  onChange={(e) => handleDistanceChange(ex.tier, setIdx, e.target.value)} 
+                  onChange={(e) => handleDistanceChange(exerciseIdx, setIdx, e.target.value)} 
                 />
               </div>
             )}
@@ -302,7 +306,38 @@ function TrainSession({
                     return (
                       <div key={fields[idx]} className="flex flex-col gap-1 items-center">
                         <span className="text-xs text-base-content/40">{label}</span>
-                        <input type="number" min="0" max="9" className="input input-bordered text-center font-mono font-bold w-full h-16 text-3xl rounded-md px-0" value={detail[fields[idx]] ?? defaults[idx]} onChange={(e) => updateSetDetail(setKey, fields[idx], parseInt(e.target.value) || 0)} />
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]"
+                          maxLength={1}
+                          className="input input-bordered text-center !text-center font-mono font-bold w-full h-16 text-3xl rounded-md px-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          value={detail[fields[idx]] ?? defaults[idx]}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/\D/g, '').slice(-1);
+                            const v = raw === '' ? defaults[idx] : Math.min(9, Math.max(0, parseInt(raw, 10)));
+                            updateSetDetail(setKey, fields[idx], v);
+                          }}
+                          onBeforeInput={(e) => {
+                            if (e.data && !/^[0-9]$/.test(e.data)) e.preventDefault();
+                          }}
+                          onKeyDown={(e) => {
+                            if (!/^[0-9]$/.test(e.key) && !['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                              e.preventDefault();
+                            }
+                          }}
+                          onFocus={(e) => {
+                            requestAnimationFrame(() => e.target.select());
+                          }}
+                          onClick={(e) => e.target.select()}
+                          onTouchStart={(e) => e.target.select()}
+                          onPaste={(e) => {
+                            const pasted = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(-1);
+                            e.preventDefault();
+                            const v = pasted === '' ? defaults[idx] : Math.min(9, Math.max(0, parseInt(pasted, 10)));
+                            updateSetDetail(setKey, fields[idx], v);
+                          }}
+                        />
                       </div>
                     );
                   })}
@@ -313,12 +348,49 @@ function TrainSession({
             {/* 组间休息调整 */}
             <div className="flex flex-col gap-1">
               <label className="text-sm font-semibold text-base-content/50">组间休息（秒）</label>
-              <input 
-                type="number" 
-                className="input input-bordered text-center font-mono text-3xl font-bold w-full h-14" 
-                value={customRestSeconds}
-                onChange={(e) => setCustomRestSeconds(parseInt(e.target.value) || 90)}
-              />
+              <div className="flex items-stretch gap-2">
+                <button type="button" onClick={() => adjustCustomRest(-30)}
+                  className="btn btn-outline h-14 w-14 rounded-md font-bold text-base text-base-content/70 hover:text-error hover:border-error/50 active:scale-95"
+                  aria-label="减少 30 秒"
+                >-30s</button>
+                <button type="button" onClick={() => adjustCustomRest(-10)}
+                  className="btn btn-outline h-14 w-14 rounded-md font-bold text-base text-base-content/70 hover:text-error hover:border-error/50 active:scale-95"
+                  aria-label="减少 10 秒"
+                >-10s</button>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={4}
+                  className="input input-bordered text-center !text-center font-mono text-3xl font-bold flex-1 h-14 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  value={customRestSeconds}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/\D/g, '');
+                    setCustomRestSeconds(raw === '' ? 0 : parseInt(raw, 10));
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === '' || isNaN(parseInt(e.target.value, 10))) {
+                      setCustomRestSeconds(0);
+                    }
+                  }}
+                  onFocus={(e) => requestAnimationFrame(() => e.target.select())}
+                  onClick={(e) => e.target.select()}
+                  onTouchStart={(e) => e.target.select()}
+                  onPaste={(e) => {
+                    const pasted = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 4);
+                    e.preventDefault();
+                    setCustomRestSeconds(pasted === '' ? 0 : parseInt(pasted, 10));
+                  }}
+                />
+                <button type="button" onClick={() => adjustCustomRest(10)}
+                  className="btn btn-outline h-14 w-14 rounded-md font-bold text-base text-primary hover:bg-primary hover:text-primary-content hover:border-primary active:scale-95"
+                  aria-label="增加 10 秒"
+                >+10s</button>
+                <button type="button" onClick={() => adjustCustomRest(30)}
+                  className="btn btn-outline h-14 w-14 rounded-md font-bold text-base text-primary hover:bg-primary hover:text-primary-content hover:border-primary active:scale-95"
+                  aria-label="增加 30 秒"
+                >+30s</button>
+              </div>
             </div>
 
             {/* 备注/感受 */}
@@ -335,7 +407,7 @@ function TrainSession({
             {/* Actions */}
             <div className="flex gap-3">
               <button type="button" className="btn btn-primary flex-1 font-bold gap-2 h-14 text-lg" onClick={completeSet}><Check size={20} />完成本组</button>
-              <button type="button" className="btn btn-ghost btn-outline flex-1 font-semibold gap-2 h-14 text-lg" onClick={() => { handleToggleSet(ex.tier, setIdx); closeSetCard(); }}><SkipForward size={20} />跳过</button>
+              <button type="button" className="btn btn-ghost btn-outline flex-1 font-semibold gap-2 h-14 text-lg" onClick={() => { handleToggleSet(exerciseIdx, setIdx); closeSetCard(); }}><SkipForward size={20} />跳过</button>
             </div>
           </div>
         </div>
@@ -409,7 +481,7 @@ function TrainSession({
       <div className="flex flex-col gap-4">
         {exercises.map((ex, exIdx) => {
           const tier = ex.tier || 'T1';
-          const sets = sessionState.setsData[tier] || [];
+          const sets = sessionState.setsData[exIdx] || [];
           const completedCount = sets.filter(s => s.completed).length;
           const isFullyCompleted = completedCount === sets.length && sets.length > 0;
 

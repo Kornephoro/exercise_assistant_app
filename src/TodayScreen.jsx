@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, RotateCcw, CheckCircle, Heart, Utensils, Calendar, ChevronDown, ChevronRight, ArrowRight, SkipForward, Flag } from 'lucide-react';
+import { Play, RotateCcw, CheckCircle, Heart, Utensils, Calendar, ChevronDown, ArrowRight, SkipForward, Flag } from 'lucide-react';
 
 const TIER_COLORS = {
   T1: { bg: 'bg-tier-t1/10', text: 'text-tier-t1', darkText: 'dark:text-tier-t1-dark', border: 'border-tier-t1/20', darkBorder: 'dark:border-tier-t1-dark/20' },
@@ -16,6 +16,7 @@ function TodayScreen({
   exercisesMap,
   sessionState,
   onStartTrain,
+  onOpenPreview,
   onSwitchProgram,
   onGoToLibrary,
   getExerciseCNName,
@@ -207,43 +208,75 @@ function TodayScreen({
           </div>
         ) : todayWorkout && todayWorkout.exercises ? (
           /* 今日训练 */
-          <div className="card hover:border-primary/30 transition-all duration-200 cursor-pointer" onClick={onStartTrain}>
-            <div className="flex justify-between items-center mb-3 select-none">
-              <span className="badge badge-primary badge-outline font-bold text-sm">今日安排</span>
-              <span className="text-sm font-semibold text-primary flex items-center gap-1 hover:underline">开始训练 →</span>
-            </div>
+          <div className="flex flex-col gap-3">
+            <div className="card hover:border-primary/30 transition-all duration-200 cursor-pointer" onClick={onOpenPreview}>
+              <div className="flex justify-between items-center mb-3 select-none">
+                <span className="badge badge-primary badge-outline font-bold text-sm">今日安排</span>
+                <span className="text-xs font-semibold text-text-secondary dark:text-text-secondary-dark">点击查看详情</span>
+              </div>
 
-            <h3 className="text-xl font-extrabold text-text-main dark:text-text-main-dark mb-4">
-              {todayWorkout.dayLabel} 训练日
-            </h3>
+              <h3 className="text-xl font-extrabold text-text-main dark:text-text-main-dark mb-4">
+                {todayWorkout.dayLabel} 训练日
+              </h3>
 
-            <div className="flex flex-col gap-5">
-              {todayWorkout.exercises.map((ex, idx) => {
-                const tc = TIER_COLORS[ex.tier] || TIER_COLORS.T1;
-                return (
-                  <div key={idx} className="flex items-center justify-between p-2 rounded-xl hover:bg-bg-hover dark:hover:bg-bg-hover-dark transition-colors duration-150">
-                    <div className="flex items-center gap-3">
-                      {ex.tier && (
-                        <span className={`badge ${tc.bg} ${tc.text} ${tc.darkText} ${tc.border} ${tc.darkBorder} font-bold text-xs w-7 h-5 flex items-center justify-center rounded`}>
-                          {ex.tier}
-                        </span>
-                      )}
-                      <div className="flex flex-col">
-                        <span className="text-base font-bold text-text-main dark:text-text-main-dark">
-                          {getExerciseCNName(ex.exercise)}
-                        </span>
-                        <span className="text-sm text-text-secondary dark:text-text-secondary-dark mt-0.5">
-                          {ex.sets}组 &times; {ex.reps}次
-                        </span>
+              <div className="flex flex-col gap-5">
+                {todayWorkout.exercises.map((ex, idx) => {
+                  const tc = TIER_COLORS[ex.tier] || TIER_COLORS.T1;
+                  return (
+                    <div key={idx} className="flex items-center justify-between p-2 rounded-xl hover:bg-bg-hover dark:hover:bg-bg-hover-dark transition-colors duration-150">
+                      <div className="flex items-center gap-3">
+                        {ex.tier && (
+                          <span className={`badge ${tc.bg} ${tc.text} ${tc.darkText} ${tc.border} ${tc.darkBorder} font-bold text-xs w-7 h-5 flex items-center justify-center rounded`}>
+                            {ex.tier}
+                          </span>
+                        )}
+                        <div className="flex flex-col">
+                          <span className="text-base font-bold text-text-main dark:text-text-main-dark">
+                            {getExerciseCNName(ex.exercise)}
+                          </span>
+                          <span className="text-sm text-text-secondary dark:text-text-secondary-dark mt-0.5">
+                            {ex.sets}组 &times; {ex.reps}次
+                          </span>
+                        </div>
                       </div>
+                      <span className="text-lg font-extrabold text-text-main dark:text-text-main-dark font-mono">
+                        {ex.weight?.toFixed(1)}kg
+                      </span>
                     </div>
-                    <span className="text-lg font-extrabold text-text-main dark:text-text-main-dark font-mono">
-                      {ex.weight?.toFixed(1)}kg
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
+
+            {/* 卡片下方：开始训练 + 跳过 */}
+            {!isSessionActive && (
+              <div className="flex flex-col gap-2">
+                <button type="button"
+                  className="btn btn-primary btn-block btn-lg shadow-md flex items-center justify-center gap-2 cursor-pointer select-none"
+                  onClick={onStartTrain}
+                >
+                  <Play size={18} fill="currentColor" />
+                  <span>开始今日训练 ({todayWorkout?.dayLabel || ''})</span>
+                </button>
+                <button type="button"
+                  className="btn btn-ghost btn-block text-text-secondary dark:text-text-secondary-dark border border-border-card dark:border-border-card-dark font-semibold cursor-pointer"
+                  onClick={() => setShowSkipModal(true)}
+                >
+                  <SkipForward size={16} />
+                  <span>跳过今日训练（自动顺延）</span>
+                </button>
+              </div>
+            )}
+
+            {isSessionActive && (
+              <button type="button"
+                className="btn btn-primary btn-block btn-lg shadow-md flex items-center justify-center gap-2 cursor-pointer select-none animate-bounce"
+                onClick={onStartTrain}
+              >
+                <RotateCcw size={18} />
+                <span>恢复进行中的训练</span>
+              </button>
+            )}
           </div>
         ) : (
           /* 计划存在但无今日训练数据 */
@@ -276,45 +309,19 @@ function TodayScreen({
         </div>
       </div>
 
-      {/* 底部按钮 */}
-      {!isTodayCompleted && (
+      {/* 底部按钮 - 休息日加练入口（仅休息日仍保留在底部） */}
+      {!isTodayCompleted && isRestDay && !isSessionActive && (
         <div className="mt-4 flex flex-col gap-2">
-          {isRestDay && !isSessionActive ? (
-            <>
-              <button type="button" className="btn btn-neutral btn-block btn-lg flex items-center justify-center gap-2 border-border-card dark:border-border-card-dark select-none">
-                今日休息中，合理恢复
-              </button>
-              <button type="button"
-                className="btn btn-ghost btn-block text-text-secondary dark:text-text-secondary-dark border border-border-card dark:border-border-card-dark font-semibold cursor-pointer"
-                onClick={() => setShowExtraModal(true)}
-              >
-                <Flag size={16} />
-                <span>今天想加练？</span>
-              </button>
-            </>
-          ) : (
-            <>
-              <button type="button"
-                className={`btn btn-primary btn-block btn-lg shadow-md flex items-center justify-center gap-2 cursor-pointer select-none ${isSessionActive ? 'animate-bounce' : ''}`}
-                onClick={onStartTrain}
-              >
-                {isSessionActive ? (
-                  <><RotateCcw size={18} /><span>恢复进行中的训练</span></>
-                ) : (
-                  <><Play size={18} fill="currentColor" /><span>开始今日训练 ({todayWorkout?.dayLabel || ''})</span></>
-                )}
-              </button>
-              {!isSessionActive && (
-                <button type="button"
-                  className="btn btn-ghost btn-block text-text-secondary dark:text-text-secondary-dark border border-border-card dark:border-border-card-dark font-semibold cursor-pointer"
-                  onClick={() => setShowSkipModal(true)}
-                >
-                  <SkipForward size={16} />
-                  <span>跳过今日训练（自动顺延）</span>
-                </button>
-              )}
-            </>
-          )}
+          <button type="button" className="btn btn-neutral btn-block btn-lg flex items-center justify-center gap-2 border-border-card dark:border-border-card-dark select-none">
+            今日休息中，合理恢复
+          </button>
+          <button type="button"
+            className="btn btn-ghost btn-block text-text-secondary dark:text-text-secondary-dark border border-border-card dark:border-border-card-dark font-semibold cursor-pointer"
+            onClick={() => setShowExtraModal(true)}
+          >
+            <Flag size={16} />
+            <span>今天想加练？</span>
+          </button>
         </div>
       )}
 

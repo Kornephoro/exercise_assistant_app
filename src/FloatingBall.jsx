@@ -142,13 +142,9 @@ function FloatingBall({ progress, onRestore, onCancel }) {
     }
   };
 
-  // 核心内容区解析：从 progress 中解析 Tier（如 T1）和 组进度（如 1/3）
-  const match = progress ? progress.match(/^(T\d+)\s+(.+)$/) : null;
-  const tier = match ? match[1] : 'T1';
-  const setProgress = match ? match[2] : progress;
-  
-  // 自动计算打卡组数百分比
+  // 解析进度字符串 "1/5" → 计算百分比
   let percentage = 0;
+  const setProgress = progress || '0/0';
   if (setProgress && setProgress.includes('/')) {
     const parts = setProgress.split('/');
     const currentSet = parseInt(parts[0], 10);
@@ -206,8 +202,8 @@ function FloatingBall({ progress, onRestore, onCancel }) {
       >
         {/* 内部小圆盘 */}
         <div className="absolute inset-[3.5px] rounded-full bg-bg-card dark:bg-bg-card-dark flex flex-col items-center justify-center gap-0.5 select-none">
-          <span className="text-[10px] font-bold text-primary tracking-wider select-none">{tier}</span>
-          <span className="text-[11px] font-mono font-semibold text-text-main dark:text-text-main-dark select-none">{setProgress}</span>
+          <span className="text-[10px] font-bold text-primary tracking-wider select-none">组</span>
+          <span className="text-[11px] font-mono font-semibold text-text-main dark:text-text-main-dark select-none">{progress || '0/0'}</span>
         </div>
       </div>
     </div>

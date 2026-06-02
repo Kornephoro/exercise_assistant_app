@@ -1,5 +1,3 @@
-import daisyui from 'daisyui';
-
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: 'class',
@@ -73,31 +71,5 @@ export default {
       }
     }
   },
-  plugins: [daisyui],
-  daisyui: {
-    themes: [
-      {
-        light: {
-          "primary": "#FF6B35",
-          "secondary": "#6E6E73",
-          "accent": "#FF6B35",
-          "neutral": "#1C1C1E",
-          "base-100": "#F5F5F7",
-          "base-200": "#E5E5EA",
-          "success": "#2E7D32",
-          "error": "#E53935",
-        },
-        dark: {
-          "primary": "#FF6B35",
-          "secondary": "#98989D",
-          "accent": "#FF6B35",
-          "neutral": "#FFFFFF",
-          "base-100": "#121212",
-          "base-200": "#2C2C2E",
-          "success": "#32D74B",
-          "error": "#FF453A",
-        }
-      }
-    ]
-  }
+  plugins: []
 };
