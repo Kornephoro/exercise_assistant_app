@@ -231,7 +231,12 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramActivated }
                 const prog = programs.find(p => p.id === up.program_id);
                 if (!prog) return null;
                 return (
-                  <div key={up.id} className="card !p-4 border-l-4 border-l-primary">
+                  <div key={up.id} className="card !p-4 border-l-4 border-l-primary cursor-pointer hover:border-primary/60 transition-all"
+                  onClick={() => {
+                    const prog = programs.find(p => p.id === up.program_id);
+                    if (prog) handleStartProgram(prog);
+                  }}
+                >
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col gap-1">
                         <span className="text-base font-bold text-text-main dark:text-text-main-dark">{prog.name}</span>
@@ -267,7 +272,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramActivated }
               return (
                 <div key={p.id}
                   className="card !p-4 hover:border-primary/30 transition-all duration-200 cursor-pointer"
-                  onClick={() => setSelectedProgram(p)}
+                  onClick={() => handleStartProgram(p)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex flex-col gap-1 flex-1 min-w-0">

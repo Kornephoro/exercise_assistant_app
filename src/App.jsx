@@ -109,14 +109,12 @@ function App() {
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
-      const [programsRes, userProgramsRes, exercisesRes, todayWorkoutsRes, profileRes, settingsRes, progressionRes] = await Promise.all([
+      const [programsRes, userProgramsRes, exercisesRes, todayWorkoutsRes, profileRes] = await Promise.all([
         supabase.from('programs').select('*').eq('is_active', true).order('name'),
         supabase.from('user_programs').select('*'),
         supabase.from('exercises').select('*'),
         supabase.from('workouts').select('*').gte('created_at', todayStart.toISOString()).order('created_at'),
-        supabase.from('user_profiles').select('*').limit(1),
-        supabase.from('user_settings').select('*'),
-        supabase.from('exercise_progression_settings').select('*')
+        supabase.from('user_profiles').select('*').limit(1)
       ]);
 
       if (programsRes.error) throw programsRes.error;
@@ -124,7 +122,6 @@ function App() {
       if (exercisesRes.error) throw exercisesRes.error;
       if (todayWorkoutsRes.error) throw todayWorkoutsRes.error;
       if (profileRes.error) throw profileRes.error;
-      // settingsRes and progressionRes errors are non-fatal (tables may not exist yet)
 
       // 解析 exercises map
       const exMap = {};
@@ -169,51 +166,7 @@ function App() {
         const activeUP = activeUps.find(u => u.id === currentActiveId);
         const activeProgram = allPrograms.find(p => p.id === activeUP.program_id);
         if (activeProgram) {
-          // 将旧表数据合并到 exercise_config（GZCLP 兼容）
-          const mergedUP = { ...activeUP };
-          const oldWeights = {};
-          const oldIncrements = {};
-          const oldTargets = {};
-
-          if (!settingsRes.error) {
-            (settingsRes.data || []).forEach(row => {
-              oldWeights[row.exercise] = row.initial_weight;
-            });
-          }
-          if (!progressionRes.error) {
-            (progressionRes.data || []).forEach(row => {
-              oldIncrements[`${row.exercise}_${row.tier}`] = row.increment;
-              if (row.tier === 'T3' && row.target_reps != null) {
-                oldTargets[row.exercise] = row.target_reps;
-              }
-            });
-          }
-
-          // 如果旧表有数据且 exercise_config 为空，用旧表数据填充
-          if (Object.keys(oldWeights).length > 0 && !mergedUP.exercise_config) {
-            mergedUP.exercise_config = {};
-          }
-          if (mergedUP.exercise_config || Object.keys(oldWeights).length > 0) {
-            const ec = { ...(mergedUP.exercise_config || {}) };
-            Object.keys(oldWeights).forEach(ex => {
-              if (!ec[ex]) ec[ex] = {};
-              if (ec[ex].initial_weight == null) ec[ex].initial_weight = oldWeights[ex];
-            });
-            Object.entries(oldIncrements).forEach(([key, val]) => {
-              const [ex, tier] = key.split('_');
-              if (!ec[ex]) ec[ex] = {};
-              const incrKey = `increment_${tier.toLowerCase()}`;
-              if (ec[ex][incrKey] == null) ec[ex][incrKey] = val;
-            });
-            Object.entries(oldTargets).forEach(([ex, val]) => {
-              if (!ec[ex]) ec[ex] = {};
-              if (ec[ex].target_reps == null) ec[ex].target_reps = val;
-            });
-            mergedUP.exercise_config = ec;
-          }
-
           // 获取该计划所有相关动作的历史
-          const workoutQuery = { program_id: activeProgram.id };
           const { data: historyData } = await supabase
             .from('workouts')
             .select('*')
@@ -228,7 +181,7 @@ function App() {
             histByExTier[row.exercise][row.tier].push(row);
           });
 
-          const result = getNextWorkout(activeProgram, mergedUP, histByExTier);
+          const result = getNextWorkout(activeProgram, activeUP, histByExTier);
           setTodayWorkout(result);
         }
       } else {
@@ -412,8 +365,13 @@ function App() {
       if (insertSetsRes.error) throw insertSetsRes.error;
 
       // 更新 user_programs 的 program_state
-      const nextDay = getNextDay(activeProgram, todayWorkout.dayLabel);
-      const newState = { ...activeUP.program_state, current_day: nextDay };
+      const schedule = activeUP.schedule || {};
+      const nextDay = getNextDay(activeProgram, todayWorkout.dayLabel, schedule, activeUP.program_state?.last_training_date);
+      const newState = {
+        ...activeUP.program_state,
+        current_day: nextDay,
+        last_training_date: new Date().toISOString()
+      };
       await supabase.from('user_programs').update({ program_state: newState, updated_at: new Date().toISOString() }).eq('id', activeUP.id);
 
       const nextDate = calculateNextTrainingDate(trainingDays, new Date());

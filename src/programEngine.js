@@ -10,11 +10,76 @@ function roundWeight(weight) {
 
 // ==================== GZCLP 引擎 ====================
 
-function gzclpGetNextDay(config, lastDay) {
+/**
+ * 计算下一个训练日
+ * @param {Object} config - programs.config
+ * @param {string} lastDay - 上次训练日标签 (e.g. 'Day1')
+ * @param {Object} schedule - user_programs.schedule
+ * @param {string} lastTrainingDate - 上次训练日期 ISO string
+ * @returns {string} 下一个训练日标签
+ */
+function gzclpGetNextDay(config, lastDay, schedule, lastTrainingDate) {
   const days = Object.keys(config.day_map);
   if (!lastDay || !days.includes(lastDay)) return days[0];
-  const idx = days.indexOf(lastDay);
-  return days[(idx + 1) % days.length];
+
+  const scheduleType = schedule?.scheduleType || 'weekly';
+
+  if (scheduleType === 'custom-ratio') {
+    // 练 N 休 M 轮转模式
+    const trainDays = schedule?.trainDays || 1;
+    const restDays = schedule?.restDays || 1;
+    const cycleLength = trainDays + restDays;
+
+    // 计算从上次训练到今天经过了多少天
+    if (lastTrainingDate) {
+      const lastDate = new Date(lastTrainingDate);
+      const today = new Date();
+      lastDate.setHours(0, 0, 0, 0);
+      today.setHours(0, 0, 0, 0);
+      const daysSinceLast = Math.floor((today - lastDate) / (1000 * 60 * 60 * 24));
+
+      if (daysSinceLast > 0) {
+        // 计算应该前进多少个训练日
+        // 每 (trainDays + restDays) 天完成一个完整轮转
+        const totalCycleDays = trainDays + restDays;
+        const cyclesCompleted = Math.floor(daysSinceLast / totalCycleDays);
+        const remainingDays = daysSinceLast % totalCycleDays;
+
+        // 计算当前在轮转中的位置
+        const lastDayIdx = days.indexOf(lastDay);
+        let currentIdx = lastDayIdx;
+
+        // 根据剩余天数推进
+        for (let i = 0; i < remainingDays; i++) {
+          // 判断当前是训练日还是休息日
+          const positionInCycle = (lastDayIdx + i) % totalCycleDays;
+          if (positionInCycle < trainDays) {
+            // 这是训练日，推进到下一个训练日
+            currentIdx = (currentIdx + 1) % days.length;
+          }
+          // 休息日不推进训练日索引
+        }
+
+        return days[currentIdx];
+      }
+    }
+
+    // 默认：简单轮转（不考虑日期）
+    const lastDayIdx = days.indexOf(lastDay);
+    const positionInCycle = lastDayIdx % (trainDays + restDays);
+    if (positionInCycle < trainDays - 1) {
+      // 还在训练日内，推进到下一个训练日
+      return days[(lastDayIdx + 1) % days.length];
+    } else {
+      // 训练日结束，需要跳过休息日
+      const skipDays = restDays;
+      return days[(lastDayIdx + skipDays + 1) % days.length];
+    }
+  } else {
+    // 每周固定几天模式（原有逻辑）
+    const idx = days.indexOf(lastDay);
+    return days[(idx + 1) % days.length];
+  }
 }
 
 function gzclpGetSchemeText(scheme) {
@@ -90,9 +155,11 @@ function gzclpGetTierProgression(exercise, history, schemes, initialWeight, incr
 function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier) {
   const state = userProgram.program_state || {};
   const exConfig = userProgram.exercise_config || {};
+  const schedule = userProgram.schedule || {};
   const currentDay = state.current_day || Object.keys(config.day_map)[0];
   const dayConfig = config.day_map[currentDay];
   const schemeIndex = state.scheme_index || {};
+  const lastTrainingDate = state.last_training_date || null;
 
   if (!dayConfig) return { exercises: [], dayLabel: currentDay, error: `未知训练日: ${currentDay}` };
 
@@ -170,7 +237,7 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier) {
   return {
     exercises,
     dayLabel: currentDay,
-    nextDay: gzclpGetNextDay(config, currentDay)
+    nextDay: gzclpGetNextDay(config, currentDay, schedule, lastTrainingDate)
   };
 }
 
@@ -262,7 +329,7 @@ const engines = {
   starting_strength: {
     getNextWorkout: ssGetNextWorkout,
     calculateProgression: () => ({ success: true, note: 'SS 进阶逻辑待实现' }),
-    getNextDay: (config, lastDay) => {
+    getNextDay: (config, lastDay, schedule, lastTrainingDate) => {
       const keys = Object.keys(config.day_map);
       if (!lastDay) return keys[0];
       const idx = keys.indexOf(lastDay);
@@ -287,8 +354,8 @@ export function calculateProgression(program, userProgram, exercise, tier, compl
   return engine.calculateProgression(program.config, userProgram, exercise, tier, completedSets);
 }
 
-export function getNextDay(program, lastDay) {
+export function getNextDay(program, lastDay, schedule, lastTrainingDate) {
   const engine = engines[program.config?.engine_type];
   if (!engine) return 'Day1';
-  return engine.getNextDay(program.config, lastDay);
+  return engine.getNextDay(program.config, lastDay, schedule, lastTrainingDate);
 }
