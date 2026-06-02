@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Loader2, Search, ChevronRight, X, Users, Calendar, Zap, Target, BookOpen } from 'lucide-react';
+import { supabase } from './supabaseClient';
+import { Loader2, Search, ChevronRight, X, Users, Calendar, Zap, Target, BookOpen, Pause, Play } from 'lucide-react';
 import ProgramConfigScreen from './ProgramConfigScreen';
 import ExerciseLibrary from './ExerciseLibrary';
 
@@ -35,6 +36,31 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramActivated }
 
   const handleStartProgram = (program) => {
     setConfigProgram(program);
+  };
+
+  const handlePauseProgram = async (userProgramId) => {
+    if (!confirm('确定要暂停这个计划吗？你可以随时恢复。')) return;
+    const { error } = await supabase
+      .from('user_programs')
+      .update({ is_active: false, paused_at: new Date().toISOString() })
+      .eq('id', userProgramId);
+    if (error) {
+      alert('暂停失败：' + error.message);
+      return;
+    }
+    onProgramActivated();
+  };
+
+  const handleResumeProgram = async (userProgramId) => {
+    const { error } = await supabase
+      .from('user_programs')
+      .update({ is_active: true, paused_at: null })
+      .eq('id', userProgramId);
+    if (error) {
+      alert('恢复失败：' + error.message);
+      return;
+    }
+    onProgramActivated();
   };
 
   if (configProgram) {
@@ -120,14 +146,28 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramActivated }
           )}
         </div>
 
-        <button
-          type="button"
-          className={`btn btn-lg btn-block font-bold shadow-lg ${active ? 'btn-ghost border-border-card' : 'btn-primary'}`}
-          onClick={() => !active && handleStartProgram(p)}
-          disabled={active}
-        >
-          {active ? '已启用' : '开始此计划'}
-        </button>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            className={`btn btn-lg btn-block font-bold shadow-lg ${active ? 'btn-primary' : 'btn-primary'}`}
+            onClick={() => handleStartProgram(p)}
+          >
+            {active ? '配置' : '开始此计划'}
+          </button>
+          {active && (
+            <button
+              type="button"
+              className="btn btn-lg btn-block btn-ghost text-text-secondary dark:text-text-secondary-dark border border-border-card dark:border-border-card-dark font-semibold"
+              onClick={() => {
+                const up = userPrograms.find(u => u.program_id === p.id && u.is_active);
+                if (up) handlePauseProgram(up.id);
+              }}
+            >
+              <Pause size={16} />
+              <span>暂停计划</span>
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -199,7 +239,17 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramActivated }
                           当前: {up.program_state?.current_day || 'Day1'}
                         </span>
                       </div>
-                      <span className="badge badge-primary badge-sm font-bold">进行中</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs text-text-secondary dark:text-text-secondary-dark cursor-pointer"
+                          onClick={(e) => { e.stopPropagation(); handlePauseProgram(up.id); }}
+                          title="暂停"
+                        >
+                          <Pause size={14} />
+                        </button>
+                        <span className="badge badge-primary badge-sm font-bold">进行中</span>
+                      </div>
                     </div>
                   </div>
                 );
