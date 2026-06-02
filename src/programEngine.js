@@ -1,0 +1,294 @@
+/**
+ * 参数化训练计划引擎
+ * 根据 programs.config JSONB 配置计算今日训练和进阶结果
+ * 支持 GZCLP（完整）和 Starting Strength（占位）
+ */
+
+function roundWeight(weight) {
+  return Math.round(weight * 10) / 10;
+}
+
+// ==================== GZCLP 引擎 ====================
+
+function gzclpGetNextDay(config, lastDay) {
+  const days = Object.keys(config.day_map);
+  if (!lastDay || !days.includes(lastDay)) return days[0];
+  const idx = days.indexOf(lastDay);
+  return days[(idx + 1) % days.length];
+}
+
+function gzclpGetSchemeText(scheme) {
+  const amrapText = scheme.amrap_last ? ' (最后一组 AMRAP，即尽量多做)' : '';
+  return `${scheme.sets}组 × ${scheme.reps}次${amrapText}`;
+}
+
+function gzclpGetTierProgression(exercise, history, schemes, initialWeight, increment, successThreshold) {
+  const defaultWeight = (initialWeight !== undefined && initialWeight !== null)
+    ? Number(initialWeight)
+    : 20.0;
+  const step = Number(increment);
+
+  if (!history || history.length === 0) {
+    const scheme = schemes[0];
+    return {
+      weight_kg: roundWeight(defaultWeight),
+      planned_reps: scheme.reps,
+      scheme_text: gzclpGetSchemeText(scheme),
+      scheme_index: 0
+    };
+  }
+
+  const last = history[history.length - 1];
+  const lastWeight = Number(last.weight_kg);
+  const lastPlannedReps = Number(last.planned_reps);
+  const lastActual = Number(last.actual_last_set_reps);
+
+  // 找到当前方案
+  let currentIdx = schemes.findIndex(s => s.reps === lastPlannedReps);
+  if (currentIdx === -1) currentIdx = 0;
+  const currentScheme = schemes[currentIdx];
+
+  let nextWeight = lastWeight;
+  let nextIdx = currentIdx;
+
+  // 判断成功/失败
+  let success;
+  if (successThreshold !== undefined && successThreshold !== null) {
+    // T2/T3: 基于总次数
+    const totalReps = (lastPlannedReps * 2) + lastActual;
+    success = totalReps >= successThreshold;
+  } else {
+    // T1: 基于最后一组
+    success = lastActual >= lastPlannedReps;
+  }
+
+  if (success) {
+    nextWeight = lastWeight + step;
+    // 如果有 fail_to 且不是 -1，说明需要升级回 scheme 0
+    // 成功时：如果有更高级方案（fail_to 指向的），回到 scheme 0
+    nextIdx = 0;
+  } else {
+    nextWeight = lastWeight;
+    if (currentScheme.fail_to !== undefined && currentScheme.fail_to >= 0) {
+      nextIdx = currentScheme.fail_to;
+    } else if (currentScheme.fail_to === -1) {
+      // 已经是最后方案，保持不变
+      nextIdx = currentIdx;
+    }
+  }
+
+  const nextScheme = schemes[nextIdx];
+
+  return {
+    weight_kg: roundWeight(nextWeight),
+    planned_reps: nextScheme.reps,
+    scheme_text: gzclpGetSchemeText(nextScheme),
+    scheme_index: nextIdx
+  };
+}
+
+function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier) {
+  const state = userProgram.program_state || {};
+  const exConfig = userProgram.exercise_config || {};
+  const currentDay = state.current_day || Object.keys(config.day_map)[0];
+  const dayConfig = config.day_map[currentDay];
+  const schemeIndex = state.scheme_index || {};
+
+  if (!dayConfig) return { exercises: [], dayLabel: currentDay, error: `未知训练日: ${currentDay}` };
+
+  const exercises = [];
+
+  // T1
+  if (dayConfig.T1) {
+    const ex = dayConfig.T1;
+    const hist = (historyByExerciseTier[ex] && historyByExerciseTier[ex]['T1']) || [];
+    const userEx = exConfig[ex] || {};
+    const initWeight = userEx.initial_weight ?? config.default_weights?.[ex];
+    const incr = userEx.increment_t1 ?? config.default_increment?.['T1'] ?? 2.5;
+    const schemeIdx = schemeIndex[`${ex}_T1`] ?? 0;
+    const schemes = config.t1_schemes;
+    const result = gzclpGetTierProgression(ex, hist, schemes, initWeight, incr, null);
+
+    exercises.push({
+      exercise: ex,
+      tier: 'T1',
+      sets: schemes[result.scheme_index].sets,
+      reps: result.planned_reps,
+      weight: result.weight_kg,
+      scheme_text: result.scheme_text,
+      amrap_last: schemes[result.scheme_index].amrap_last
+    });
+  }
+
+  // T2
+  if (dayConfig.T2) {
+    const ex = dayConfig.T2;
+    const hist = (historyByExerciseTier[ex] && historyByExerciseTier[ex]['T2']) || [];
+    const userEx = exConfig[ex] || {};
+    const initWeight = userEx.initial_weight ?? config.default_weights?.[ex];
+    const incr = userEx.increment_t2 ?? config.default_increment?.['T2'] ?? 2.5;
+    const schemes = config.t2_schemes;
+    const schemeIdx = schemeIndex[`${ex}_T2`] ?? 0;
+    const threshold = schemes[schemeIdx].success_threshold;
+    const result = gzclpGetTierProgression(ex, hist, schemes, initWeight, incr, threshold);
+
+    exercises.push({
+      exercise: ex,
+      tier: 'T2',
+      sets: schemes[result.scheme_index].sets,
+      reps: result.planned_reps,
+      weight: result.weight_kg,
+      scheme_text: result.scheme_text,
+      amrap_last: schemes[result.scheme_index].amrap_last
+    });
+  }
+
+  // T3
+  if (dayConfig.T3) {
+    const t3Exercises = Array.isArray(dayConfig.T3) ? dayConfig.T3 : [dayConfig.T3];
+    for (const ex of t3Exercises) {
+      const hist = (historyByExerciseTier[ex] && historyByExerciseTier[ex]['T3']) || [];
+      const userEx = exConfig[ex] || {};
+      const initWeight = userEx.initial_weight ?? config.default_weights?.[ex] ?? 10;
+      const incr = userEx.increment_t3 ?? config.default_increment?.['T3'] ?? 2.5;
+      const threshold = userEx.target_reps ?? config.t3_scheme?.success_threshold ?? 25;
+      const scheme = config.t3_scheme;
+      const result = gzclpGetTierProgression(ex, hist, [scheme], initWeight, incr, threshold);
+
+      exercises.push({
+        exercise: ex,
+        tier: 'T3',
+        sets: scheme.sets,
+        reps: result.planned_reps,
+        weight: result.weight_kg,
+        scheme_text: result.scheme_text,
+        amrap_last: scheme.amrap_last
+      });
+    }
+  }
+
+  return {
+    exercises,
+    dayLabel: currentDay,
+    nextDay: gzclpGetNextDay(config, currentDay)
+  };
+}
+
+function gzclpCalculateProgression(config, userProgram, exercise, tier, completedSets) {
+  const scheme = tier === 'T1' ? config.t1_schemes
+    : tier === 'T2' ? config.t2_schemes
+    : [config.t3_scheme];
+  const schemes = Array.isArray(scheme) ? scheme : [scheme];
+
+  const lastSet = completedSets[completedSets.length - 1];
+  const plannedReps = lastSet.planned_reps;
+  const actualReps = lastSet.actual_reps;
+
+  let currentIdx = schemes.findIndex(s => s.reps === plannedReps);
+  if (currentIdx === -1) currentIdx = 0;
+  const currentScheme = schemes[currentIdx];
+
+  let success;
+  if (tier === 'T1') {
+    success = actualReps >= plannedReps;
+  } else {
+    const totalReps = (plannedReps * 2) + actualReps;
+    const threshold = currentScheme.success_threshold || 25;
+    success = totalReps >= threshold;
+  }
+
+  let nextIdx;
+  if (success) {
+    nextIdx = 0;
+  } else if (currentScheme.fail_to !== undefined && currentScheme.fail_to >= 0) {
+    nextIdx = currentScheme.fail_to;
+  } else {
+    nextIdx = currentIdx;
+  }
+
+  return {
+    success,
+    scheme_index: nextIdx,
+    nextScheme: schemes[nextIdx]
+  };
+}
+
+// ==================== Starting Strength 引擎（占位）====================
+
+function ssGetNextWorkout(config, userProgram, historyByExercise) {
+  const state = userProgram.program_state || {};
+  const lastWorkout = state.last_workout || null;
+  const cycleLength = config.cycle_length || 2;
+  const dayKeys = Object.keys(config.day_map);
+
+  let nextDayIdx;
+  if (!lastWorkout) {
+    nextDayIdx = 0;
+  } else {
+    const lastIdx = dayKeys.indexOf(lastWorkout);
+    nextDayIdx = lastIdx >= 0 ? (lastIdx + 1) % cycleLength : 0;
+  }
+  const nextDay = dayKeys[nextDayIdx];
+  const dayExercises = config.day_map[nextDay] || [];
+
+  const exercises = dayExercises.map(def => ({
+    exercise: def.exercise,
+    tier: null,
+    sets: def.sets,
+    reps: def.reps,
+    weight: userProgram.exercise_config?.[def.exercise]?.initial_weight
+      ?? config.default_weights?.[def.exercise]
+      ?? 20,
+    scheme_text: `${def.sets}组 × ${def.reps}次`,
+    amrap_last: false
+  }));
+
+  return {
+    exercises,
+    dayLabel: nextDay,
+    nextDay: dayKeys[(nextDayIdx + 1) % cycleLength],
+    note: 'Starting Strength 进阶逻辑待实现'
+  };
+}
+
+// ==================== 统一入口 ====================
+
+const engines = {
+  gzclp: {
+    getNextWorkout: gzclpGetNextWorkout,
+    calculateProgression: gzclpCalculateProgression,
+    getNextDay: gzclpGetNextDay
+  },
+  starting_strength: {
+    getNextWorkout: ssGetNextWorkout,
+    calculateProgression: () => ({ success: true, note: 'SS 进阶逻辑待实现' }),
+    getNextDay: (config, lastDay) => {
+      const keys = Object.keys(config.day_map);
+      if (!lastDay) return keys[0];
+      const idx = keys.indexOf(lastDay);
+      return idx >= 0 ? keys[(idx + 1) % keys.length] : keys[0];
+    }
+  }
+};
+
+export function getEngine(engineType) {
+  return engines[engineType] || null;
+}
+
+export function getNextWorkout(program, userProgram, historyByExerciseTier) {
+  const engine = engines[program.config?.engine_type];
+  if (!engine) return { exercises: [], dayLabel: 'unknown', error: `未知引擎: ${program.config?.engine_type}` };
+  return engine.getNextWorkout(program.config, userProgram, historyByExerciseTier);
+}
+
+export function calculateProgression(program, userProgram, exercise, tier, completedSets) {
+  const engine = engines[program.config?.engine_type];
+  if (!engine) return { success: false, error: `未知引擎` };
+  return engine.calculateProgression(program.config, userProgram, exercise, tier, completedSets);
+}
+
+export function getNextDay(program, lastDay) {
+  const engine = engines[program.config?.engine_type];
+  if (!engine) return 'Day1';
+  return engine.getNextDay(program.config, lastDay);
+}

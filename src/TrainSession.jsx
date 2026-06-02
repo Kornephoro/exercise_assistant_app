@@ -9,12 +9,7 @@ import { Minimize2, X, ChevronDown, ChevronUp, Check, Sparkles } from 'lucide-re
  * @param {string} props.currentDay 当前训练日 (如 'Day1')
  * @param {Object} props.sessionState 实时训练会话全局状态
  * @param {Function} props.setSessionState 全局训练状态更新器
- * @param {string} props.t1Exercise T1动作名
- * @param {string} props.t2Exercise T2动作名
- * @param {string} props.t3Exercise T3动作名
- * @param {number} props.t1Weight T1今日重量
- * @param {number} props.t2Weight T2今日重量
- * @param {number} props.t3Weight T3今日重量
+ * @param {Object} props.todayWorkout 引擎输出的今日训练数据 { exercises, dayLabel }
  * @param {Function} props.getExerciseCNName 获取中文名翻译
  * @param {Object} props.exercisesMap 动作库全量数据 map
  * @param {Function} props.onMinimize 缩小隐藏训练层回调
@@ -25,23 +20,16 @@ function TrainSession({
   currentDay,
   sessionState,
   setSessionState,
-  t1Exercise,
-  t2Exercise,
-  t3Exercise,
-  t1Weight,
-  t2Weight,
-  t3Weight,
-  getExerciseCNName,
+  todayWorkout,
   exercisesMap,
+  getExerciseCNName,
   onMinimize,
   onSave,
   onCancel
 }) {
   const [expandedIndex, setExpandedIndex] = useState(0);
 
-  const t1CardRef = useRef(null);
-  const t2CardRef = useRef(null);
-  const t3CardRef = useRef(null);
+  const cardRefs = [useRef(null), useRef(null), useRef(null)];
 
   const getRecordingMethod = (exerciseKey) => {
     return exercisesMap?.[exerciseKey]?.recording_method || 'standard';
@@ -104,9 +92,8 @@ function TrainSession({
   const handleGoToNext = (nextIndex) => {
     setExpandedIndex(nextIndex);
     setTimeout(() => {
-      const targetRef = nextIndex === 1 ? t2CardRef : t3CardRef;
-      if (targetRef.current) {
-        targetRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (cardRefs[nextIndex]?.current) {
+        cardRefs[nextIndex].current.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }, 150);
   };
@@ -292,13 +279,13 @@ function TrainSession({
               ))}
             </div>
 
-            {isTierFinished(tier) && tierIndex < 2 && (
+            {isTierFinished(tier) && tierIndex < (todayWorkout?.exercises?.length || 3) - 1 && (
               <button
                 type="button"
                 className="btn btn-primary btn-sm btn-block mt-1 font-semibold text-xs select-none shadow-md transition-transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
                 onClick={() => handleGoToNext(tierIndex + 1)}
               >
-                完成 {tier}，进入下一个动作 {tierIndex === 0 ? 'T2' : 'T3'}
+                完成 {tier}，进入下一个动作
               </button>
             )}
           </div>
@@ -337,9 +324,14 @@ function TrainSession({
       </div>
 
       <div className="flex-1 overflow-y-auto pr-0.5 flex flex-col gap-4 pb-24">
-        {renderTierCard('T1', t1Exercise, t1Weight, 0, t1CardRef, 't1')}
-        {renderTierCard('T2', t2Exercise, t2Weight, 1, t2CardRef, 't2')}
-        {renderTierCard('T3', t3Exercise, t3Weight, 2, t3CardRef, 't3')}
+        {(todayWorkout?.exercises || []).map((ex, idx) => {
+          const tierColor = ex.tier === 'T1' ? 't1' : ex.tier === 'T2' ? 't2' : 't3';
+          return (
+            <React.Fragment key={idx}>
+              {renderTierCard(ex.tier || 'T1', ex.exercise, ex.weight, idx, cardRefs[idx] || cardRefs[0], tierColor)}
+            </React.Fragment>
+          );
+        })}
 
         {isSessionFinished() && (
           <div className="mt-4 px-1 pb-8 animate-fadeIn">

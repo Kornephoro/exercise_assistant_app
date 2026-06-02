@@ -229,7 +229,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
       }
 
       localStorage.setItem('onboarding_completed', 'true');
-      onComplete('plan');
+      onComplete();
 
     } catch (err) {
       console.error('保存画像数据失败：', err);
