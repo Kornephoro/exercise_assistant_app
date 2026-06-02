@@ -82,6 +82,118 @@ function gzclpGetNextDay(config, lastDay, schedule, lastTrainingDate) {
   }
 }
 
+/**
+ * 判断今天是否是训练日
+ * @param {Object} schedule - user_programs.schedule
+ * @param {string} lastTrainingDate - program_state.last_training_date
+ * @param {string} startDate - program_state.start_date
+ * @returns {boolean}
+ */
+function isTodayTrainingDay(schedule, lastTrainingDate, startDate) {
+  const scheduleType = schedule?.scheduleType || 'weekly';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  if (scheduleType === 'custom-ratio') {
+    const trainDays = schedule?.trainDays || 1;
+    const restDays = schedule?.restDays || 1;
+    const totalCycleDays = trainDays + restDays;
+    
+    const baseDate = startDate || lastTrainingDate;
+    if (!baseDate) return true;
+    
+    const base = new Date(baseDate);
+    base.setHours(0, 0, 0, 0);
+    const daysSinceBase = Math.floor((today - base) / (1000 * 60 * 60 * 24));
+    
+    if (daysSinceBase < 0) return false;
+    
+    const positionInCycle = daysSinceBase % totalCycleDays;
+    return positionInCycle < trainDays;
+  } else {
+    const trainingDays = schedule?.training_days || [];
+    if (trainingDays.length === 0) return true;
+    const weekdaysEng = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayWeekday = weekdaysEng[today.getDay()];
+    return trainingDays.includes(todayWeekday);
+  }
+}
+
+/**
+ * 计算下次训练日期（格式化字符串）
+ * @param {Object} schedule - user_programs.schedule
+ * @param {string} lastTrainingDate - program_state.last_training_date
+ * @param {string} startDate - program_state.start_date
+ * @returns {string} 格式化的日期字符串
+ */
+function getNextTrainingDate(schedule, lastTrainingDate, startDate) {
+  const scheduleType = schedule?.scheduleType || 'weekly';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  if (scheduleType === 'custom-ratio') {
+    const trainDays = schedule?.trainDays || 1;
+    const restDays = schedule?.restDays || 1;
+    const totalCycleDays = trainDays + restDays;
+    
+    const baseDate = startDate || lastTrainingDate;
+    if (!baseDate) return '';
+    
+    const base = new Date(baseDate);
+    base.setHours(0, 0, 0, 0);
+    const daysSinceBase = Math.floor((today - base) / (1000 * 60 * 60 * 24));
+    
+    if (daysSinceBase < 0) {
+      return base.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+    }
+    
+    const positionInCycle = daysSinceBase % totalCycleDays;
+    if (positionInCycle < trainDays) {
+      return today.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+    }
+    
+    const daysUntilNextTrain = totalCycleDays - positionInCycle;
+    const nextDate = new Date(today);
+    nextDate.setDate(today.getDate() + daysUntilNextTrain);
+    return nextDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+  } else {
+    const trainingDays = schedule?.training_days || [];
+    if (trainingDays.length === 0) return '';
+    const weekdaysEng = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayWeekday = weekdaysEng[today.getDay()];
+    const targetIndices = trainingDays.map(day => weekdaysEng.indexOf(day)).filter(idx => idx !== -1);
+    if (targetIndices.length === 0) return '';
+    
+    const todayIdx = today.getDay();
+    let nextDayIdx = targetIndices.find(idx => idx > todayIdx);
+    let daysDiff = 0;
+    if (nextDayIdx !== undefined) {
+      daysDiff = nextDayIdx - todayIdx;
+    } else {
+      const minIdx = Math.min(...targetIndices);
+      daysDiff = 7 - todayIdx + minIdx;
+    }
+    
+    const nextDate = new Date(today);
+    nextDate.setDate(today.getDate() + daysDiff);
+    return nextDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+  }
+}
+
+/**
+ * 计算距离开始还有多少天
+ * @param {string} startDate - program_state.start_date
+ * @returns {number} 天数（负数表示已开始）
+ */
+function getDaysUntilStart(startDate) {
+  if (!startDate) return 0;
+  const start = new Date(startDate);
+  const today = new Date();
+  start.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  return Math.ceil((start - today) / (1000 * 60 * 60 * 24));
+}
+
 function gzclpGetSchemeText(scheme) {
   const amrapText = scheme.amrap_last ? ' (最后一组 AMRAP，即尽量多做)' : '';
   return `${scheme.sets}组 × ${scheme.reps}次${amrapText}`;
@@ -359,3 +471,5 @@ export function getNextDay(program, lastDay, schedule, lastTrainingDate) {
   if (!engine) return 'Day1';
   return engine.getNextDay(program.config, lastDay, schedule, lastTrainingDate);
 }
+
+export { isTodayTrainingDay, getNextTrainingDate, getDaysUntilStart };

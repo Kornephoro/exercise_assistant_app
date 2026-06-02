@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { getNextWorkout, getNextDay } from './programEngine';
+import { getNextWorkout, getNextDay, isTodayTrainingDay, getNextTrainingDate, getDaysUntilStart } from './programEngine';
 import TodayScreen from './TodayScreen';
 import PlanScreen from './PlanScreen';
 import CalendarScreen from './CalendarScreen';
@@ -25,25 +25,6 @@ const getWeekdayEnglish = (date) => {
 const getWeekdayCN = (date) => {
   const weekdaysCN = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
   return weekdaysCN[date.getDay()];
-};
-
-const calculateNextTrainingDate = (trainingDaysArr, baseDate = new Date()) => {
-  if (!trainingDaysArr || trainingDaysArr.length === 0) return null;
-  const weekdaysEng = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const targetIndices = trainingDaysArr.map(day => weekdaysEng.indexOf(day)).filter(idx => idx !== -1);
-  if (targetIndices.length === 0) return null;
-  const baseDayIdx = baseDate.getDay();
-  let nextDayIdx = targetIndices.find(idx => idx > baseDayIdx);
-  let daysDiff = 0;
-  if (nextDayIdx !== undefined) {
-    daysDiff = nextDayIdx - baseDayIdx;
-  } else {
-    const minIdx = Math.min(...targetIndices);
-    daysDiff = 7 - baseDayIdx + minIdx;
-  }
-  const nextDate = new Date(baseDate.getTime());
-  nextDate.setDate(baseDate.getDate() + daysDiff);
-  return nextDate;
 };
 
 function App() {
@@ -78,6 +59,11 @@ function App() {
   const [todayWorkout, setTodayWorkout] = useState(null);
   const [isTodayCompleted, setIsTodayCompleted] = useState(false);
   const [todayWorkoutSummary, setTodayWorkoutSummary] = useState([]);
+
+  // 日程计算结果
+  const [isRestDayValue, setIsRestDayValue] = useState(false);
+  const [nextTrainingDateValue, setNextTrainingDateValue] = useState('');
+  const [daysUntilStartValue, setDaysUntilStartValue] = useState(0);
 
   // 训练会话状态
   const [sessionState, setSessionState] = useState({
@@ -185,9 +171,20 @@ function App() {
 
           const result = getNextWorkout(activeProgram, activeUP, histByExTier);
           setTodayWorkout(result);
+
+          // 计算日程相关值
+          const schedule = activeUP.schedule || {};
+          const programState = activeUP.program_state || {};
+          const isRestDay = !isTodayTrainingDay(schedule, programState.last_training_date, programState.start_date);
+          setIsRestDayValue(isRestDay);
+          setNextTrainingDateValue(getNextTrainingDate(schedule, programState.last_training_date, programState.start_date));
+          setDaysUntilStartValue(getDaysUntilStart(programState.start_date));
         }
       } else {
         setTodayWorkout(null);
+        setIsRestDayValue(false);
+        setNextTrainingDateValue('');
+        setDaysUntilStartValue(0);
       }
 
     } catch (err) {
@@ -286,10 +283,10 @@ function App() {
     
     await supabase.from('user_programs').update({ program_state: newState, updated_at: new Date().toISOString() }).eq('id', activeUP.id);
     
-    const nextDate = calculateNextTrainingDate(trainingDays, new Date());
+    const nextDateStr = getNextTrainingDate(schedule, newState.last_training_date, newState.start_date);
     let toastMsg = `已跳过今日训练，下次训练日：${nextDay}`;
-    if (nextDate) {
-      toastMsg = `已跳过今日训练，下次训练日：${nextDate.getMonth() + 1}月${nextDate.getDate()}日 (${getWeekdayCN(nextDate)})`;
+    if (nextDateStr) {
+      toastMsg = `已跳过今日训练，下次训练日：${nextDateStr}`;
     }
     setToast({ type: 'info', message: toastMsg });
     await loadWorkoutData();
@@ -315,17 +312,17 @@ function App() {
     
     await supabase.from('user_programs').update({ program_state: newState, updated_at: new Date().toISOString() }).eq('id', activeUP.id);
     
-    const nextDate = calculateNextTrainingDate(trainingDays, new Date());
+    const nextDateStr = getNextTrainingDate(schedule, newState.last_training_date, newState.start_date);
     let toastMsg = `加练完成！下次计划训练日：${nextDay}`;
-    if (nextDate) {
-      toastMsg = `加练完成！下次计划训练日：${nextDate.getMonth() + 1}月${nextDate.getDate()}日 (${getWeekdayCN(nextDate)})`;
+    if (nextDateStr) {
+      toastMsg = `加练完成！下次计划训练日：${nextDateStr}`;
     }
     setToast({ type: 'success', message: toastMsg });
     await loadWorkoutData();
   };
 
   // 保存训练记录
-  const handleSaveSession = async () => {
+  const handleSaveSession = async (setDetails = {}) => {
     const activeUP = userPrograms.find(u => u.id === activeProgramId);
     const activeProgram = programs.find(p => p.id === activeUP?.program_id);
     if (!activeUP || !activeProgram) {
@@ -333,7 +330,7 @@ function App() {
       return;
     }
 
-    const { T1: t1Sets, T2: t2Sets, T3: t3Sets } = sessionState.setsData;
+    const setsData = sessionState.setsData;
     const getFinalReps = (setObj) => {
       if (setObj.actual_reps === '' || setObj.actual_reps === undefined) return setObj.planned_reps;
       return parseInt(setObj.actual_reps, 10);
@@ -388,13 +385,21 @@ function App() {
       workoutRecords.push(record);
 
       // workout_sets detail records
-      sets.forEach(s => {
+      sets.forEach((s, setIdx) => {
+        const setKey = `${tier}_${todayWorkout.exercises.findIndex(e => e.tier === tier)}_${setIdx}`;
+        const detail = setDetails[setKey] || {};
         const base = {
           exercise: tierEx.exercise,
           tier,
           set_number: s.set_number,
           completed: s.completed,
-          notes: null,
+          notes: detail.notes || null,
+          rpe: detail.rpe ?? null,
+          tempo_eccentric: detail.tempo_eccentric ?? null,
+          tempo_pause_bottom: detail.tempo_pause_bottom ?? null,
+          tempo_concentric: detail.tempo_concentric ?? null,
+          tempo_pause_top: detail.tempo_pause_top ?? null,
+          rest_duration: detail.rest_duration ?? null,
         };
         if (['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(method)) {
           base.weight_kg = s.weight_kg;
@@ -439,10 +444,10 @@ function App() {
       };
       await supabase.from('user_programs').update({ program_state: newState, updated_at: new Date().toISOString() }).eq('id', activeUP.id);
 
-      const nextDate = calculateNextTrainingDate(trainingDays, new Date());
+      const nextDateStr = getNextTrainingDate(schedule, newState.last_training_date, newState.start_date);
       let toastMsg = `保存成功！下次训练日为 ${nextDay}`;
-      if (nextDate) {
-        toastMsg = `保存成功！下次训练日为 ${nextDate.getMonth() + 1}月${nextDate.getDate()}日 (${getWeekdayCN(nextDate)})`;
+      if (nextDateStr) {
+        toastMsg = `保存成功！下次训练日为 ${nextDateStr}`;
       }
       setToast({ type: 'success', message: toastMsg });
 
@@ -488,37 +493,7 @@ function App() {
     return userPrograms.find(u => u.id === activeProgramId) || null;
   };
 
-  const getStartDate = () => {
-    const up = getActiveUserProgram();
-    return up?.program_state?.start_date || null;
-  };
-
-  const getDaysUntilStart = () => {
-    const startDate = getStartDate();
-    if (!startDate) return 0;
-    const start = new Date(startDate);
-    const today = new Date();
-    start.setHours(0, 0, 0, 0);
-    today.setHours(0, 0, 0, 0);
-    const diff = Math.ceil((start - today) / (1000 * 60 * 60 * 24));
-    return diff;
-  };
-
   const activeUserPrograms = userPrograms.filter(up => up.is_active);
-
-  const getNextTrainingDateFormatted = () => {
-    if (!trainingDays || trainingDays.length === 0) return '';
-    const todayEnglish = getWeekdayEnglish(new Date());
-    const isTodayScheduled = trainingDays.includes(todayEnglish);
-    let baseDate = new Date();
-    if (isTodayScheduled && !isTodayCompleted) {
-      return baseDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-    } else {
-      const nextDate = calculateNextTrainingDate(trainingDays, baseDate);
-      if (!nextDate) return '';
-      return nextDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-    }
-  };
 
   return (
     <div className="min-h-screen flex flex-col max-w-[480px] w-full mx-auto bg-bg-main dark:bg-bg-main-dark text-text-main dark:text-text-main-dark border-x border-border-card dark:border-border-card-dark shadow-2xl relative transition-colors duration-200">
@@ -600,15 +575,11 @@ function App() {
               getExerciseCNName={getExerciseCNName}
               isTodayCompleted={isTodayCompleted && !sessionState.isActive}
               todayWorkoutSummary={todayWorkoutSummary}
-              isRestDay={
-                trainingDays && trainingDays.length > 0
-                  ? !trainingDays.includes(getWeekdayEnglish(new Date()))
-                  : false
-              }
-              nextTrainingDate={getNextTrainingDateFormatted()}
+              isRestDay={isRestDayValue}
+              nextTrainingDate={nextTrainingDateValue}
               onSkipTraining={handleSkipTraining}
               onExtraTraining={handleExtraTraining}
-              daysUntilStart={getDaysUntilStart()}
+              daysUntilStart={daysUntilStartValue}
             />
           )}
         </div>
