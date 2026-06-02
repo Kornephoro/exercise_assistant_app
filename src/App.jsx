@@ -12,7 +12,9 @@ import {
   CheckCircle,
   AlertTriangle,
   Sun,
-  Moon
+  Moon,
+  SkipForward,
+  Flag
 } from 'lucide-react';
 
 const getWeekdayEnglish = (date) => {
@@ -259,6 +261,69 @@ function App() {
     setToast({ type: 'success', message: '已放弃本次训练数据。' });
   };
 
+  // 跳过训练
+  const handleSkipTraining = async (reason) => {
+    const activeUP = userPrograms.find(u => u.id === activeProgramId);
+    const activeProgram = programs.find(p => p.id === activeUP?.program_id);
+    if (!activeUP || !activeProgram || !todayWorkout) {
+      setToast({ type: 'error', message: '未找到活跃计划' });
+      return;
+    }
+
+    const schedule = activeUP.schedule || {};
+    const nextDay = getNextDay(activeProgram, todayWorkout.dayLabel, schedule, activeUP.program_state?.last_training_date);
+    
+    const newState = {
+      ...activeUP.program_state,
+      current_day: nextDay,
+      last_training_date: new Date().toISOString(),
+      skipped_dates: [...(activeUP.program_state?.skipped_dates || []), {
+        date: new Date().toISOString(),
+        day_label: todayWorkout.dayLabel,
+        reason: reason || '未记录'
+      }]
+    };
+    
+    await supabase.from('user_programs').update({ program_state: newState, updated_at: new Date().toISOString() }).eq('id', activeUP.id);
+    
+    const nextDate = calculateNextTrainingDate(trainingDays, new Date());
+    let toastMsg = `已跳过今日训练，下次训练日：${nextDay}`;
+    if (nextDate) {
+      toastMsg = `已跳过今日训练，下次训练日：${nextDate.getMonth() + 1}月${nextDate.getDate()}日 (${getWeekdayCN(nextDate)})`;
+    }
+    setToast({ type: 'info', message: toastMsg });
+    await loadWorkoutData();
+  };
+
+  // 加练
+  const handleExtraTraining = async () => {
+    const activeUP = userPrograms.find(u => u.id === activeProgramId);
+    const activeProgram = programs.find(p => p.id === activeUP?.program_id);
+    if (!activeUP || !activeProgram || !todayWorkout) {
+      setToast({ type: 'error', message: '未找到活跃计划' });
+      return;
+    }
+
+    const schedule = activeUP.schedule || {};
+    const nextDay = getNextDay(activeProgram, todayWorkout.dayLabel, schedule, activeUP.program_state?.last_training_date);
+    
+    const newState = {
+      ...activeUP.program_state,
+      current_day: nextDay,
+      last_training_date: new Date().toISOString()
+    };
+    
+    await supabase.from('user_programs').update({ program_state: newState, updated_at: new Date().toISOString() }).eq('id', activeUP.id);
+    
+    const nextDate = calculateNextTrainingDate(trainingDays, new Date());
+    let toastMsg = `加练完成！下次计划训练日：${nextDay}`;
+    if (nextDate) {
+      toastMsg = `加练完成！下次计划训练日：${nextDate.getMonth() + 1}月${nextDate.getDate()}日 (${getWeekdayCN(nextDate)})`;
+    }
+    setToast({ type: 'success', message: toastMsg });
+    await loadWorkoutData();
+  };
+
   // 保存训练记录
   const handleSaveSession = async () => {
     const activeUP = userPrograms.find(u => u.id === activeProgramId);
@@ -423,6 +488,22 @@ function App() {
     return userPrograms.find(u => u.id === activeProgramId) || null;
   };
 
+  const getStartDate = () => {
+    const up = getActiveUserProgram();
+    return up?.program_state?.start_date || null;
+  };
+
+  const getDaysUntilStart = () => {
+    const startDate = getStartDate();
+    if (!startDate) return 0;
+    const start = new Date(startDate);
+    const today = new Date();
+    start.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    const diff = Math.ceil((start - today) / (1000 * 60 * 60 * 24));
+    return diff;
+  };
+
   const activeUserPrograms = userPrograms.filter(up => up.is_active);
 
   const getNextTrainingDateFormatted = () => {
@@ -443,11 +524,17 @@ function App() {
     <div className="min-h-screen flex flex-col max-w-[480px] w-full mx-auto bg-bg-main dark:bg-bg-main-dark text-text-main dark:text-text-main-dark border-x border-border-card dark:border-border-card-dark shadow-2xl relative transition-colors duration-200">
       {toast && (
         <div className="toast toast-top toast-center z-[9999] min-w-[320px] max-w-[440px] px-4">
-          <div className={`alert ${toast.type === 'success' ? 'alert-success' : 'alert-error'} shadow-lg rounded-xl flex items-center gap-3`}>
+          <div className={`alert shadow-lg rounded-xl flex items-center gap-3 ${
+            toast.type === 'success' ? 'alert-success bg-success/10 border-success/30 text-success' :
+            toast.type === 'error' ? 'alert-error bg-error/10 border-error/30 text-error' :
+            'alert-info bg-info/10 border-info/30 text-info'
+          }`}>
             {toast.type === 'success'
-              ? <CheckCircle size={18} className="text-white shrink-0" />
-              : <AlertTriangle size={18} className="text-white shrink-0" />}
-            <span className="text-sm font-semibold text-white break-words text-left">{toast.message}</span>
+              ? <CheckCircle size={18} className="shrink-0" />
+              : toast.type === 'error'
+                ? <AlertTriangle size={18} className="shrink-0" />
+                : <SkipForward size={18} className="shrink-0" />}
+            <span className="text-sm font-semibold break-words text-left">{toast.message}</span>
           </div>
         </div>
       )}
@@ -519,6 +606,9 @@ function App() {
                   : false
               }
               nextTrainingDate={getNextTrainingDateFormatted()}
+              onSkipTraining={handleSkipTraining}
+              onExtraTraining={handleExtraTraining}
+              daysUntilStart={getDaysUntilStart()}
             />
           )}
         </div>

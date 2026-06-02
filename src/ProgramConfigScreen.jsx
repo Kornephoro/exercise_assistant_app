@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
-import { Loader2, ArrowLeft, Save, ShieldAlert, CheckCircle, Scale, Zap, Dumbbell, Search, X, Filter } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, ShieldAlert, CheckCircle, Scale, Zap, Dumbbell, Search, X, Filter, Calendar, SkipForward, Flag } from 'lucide-react';
 import { convertWeight, toStorageWeight, getExerciseUnit } from './unitUtils';
 
 // ==================== GZCLP 完整配置 ====================
@@ -70,6 +70,12 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
   const [weightUnit, setWeightUnit] = useState('kg');
   const [exerciseUnits, setExerciseUnits] = useState({});
 
+  // 开始日期
+  const [startDate, setStartDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
+
   const muscleCategories = [
     { label: '全部', value: '' },
     { label: '胸部', value: '胸' },
@@ -79,6 +85,13 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
     { label: '手臂', value: '臂' },
     { label: '核心', value: '腹' },
   ];
+
+  // T3 动作名称映射（DB key -> 完整动作对象）
+  const exerciseNameMap = useMemo(() => {
+    const map = {};
+    exercises.forEach(ex => { map[ex.name] = ex; });
+    return map;
+  }, [exercises]);
 
   const filteredExercises = useMemo(() => {
     return exercises.filter(ex => {
@@ -107,6 +120,35 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
   }, [exercises, selectorSearch, selectorMuscleFilter]);
 
   useEffect(() => { fetchConfig(); }, []);
+
+  // T3 同步逻辑：监听 dayTemplate 变化，自动同步 t3Exercises
+  // 保留已配置的动作数据（即使从 dayTemplate 中移除），重新添加时恢复上次配置
+  useEffect(() => {
+    if (exercises.length === 0) return;
+    
+    const usedT3Names = new Set();
+    dayTemplate.forEach(day => {
+      day.t3.forEach(name => {
+        if (name && name.trim()) usedT3Names.add(name.trim());
+      });
+    });
+
+    setT3Exercises(prev => {
+      const currentMap = {};
+      prev.forEach(ex => { currentMap[ex.name] = ex; });
+      
+      const result = [];
+      usedT3Names.forEach(name => {
+        if (currentMap[name]) {
+          result.push(currentMap[name]);
+        } else {
+          result.push({ name, targetReps: 25, incrementKg: 2.5, startWeightKg: 10 });
+        }
+      });
+      
+      return result;
+    });
+  }, [dayTemplate, exercises]);
 
   const fetchConfig = async () => {
     setLoading(true);
@@ -301,7 +343,12 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
 
       const upData = {
         is_active: true,
-        program_state: { current_day: dayKeys[0] || 'Day1', scheme_index: {} },
+        program_state: {
+          current_day: dayKeys[0] || 'Day1',
+          scheme_index: {},
+          start_date: startDate,
+          last_training_date: startDate
+        },
         exercise_config: exerciseConfig,
         schedule,
         updated_at: new Date().toISOString()
@@ -318,6 +365,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
       localStorage.setItem('training_days', JSON.stringify(trainingDays));
       setSuccessMsg('配置保存成功！今日建议重量已同步刷新。');
       if (onActivated) onActivated();
+      setTimeout(() => onBack(), 800);
     } catch (err) {
       setError('保存配置失败：' + err.message);
     } finally {
@@ -432,6 +480,22 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
             </div>
           </div>
         )}
+      </div>
+
+      {/* 开始日期 */}
+      <div className="card flex flex-col gap-3">
+        <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
+          <Calendar size={16} className="text-primary" /><span>开始日期</span>
+        </h3>
+        <input type="date"
+          className="input input-bordered w-full bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary"
+          value={startDate}
+          min={new Date().toISOString().split('T')[0]}
+          onChange={(e) => setStartDate(e.target.value)}
+        />
+        <p className="text-xs text-text-secondary dark:text-text-secondary-dark">
+          默认从今天开始，你也可以选择未来的某一天开始训练
+        </p>
       </div>
 
       {/* 1. 重量设置 */}
@@ -559,88 +623,97 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
                   </button>
                 </div>
               </div>
-              <div className="flex flex-col gap-2">
-                {day.t3.map((exName, exIdx) => (
-                  <button key={exIdx} type="button"
-                    className="btn btn-sm btn-outline border-border-card dark:border-border-card-dark text-left justify-start cursor-pointer"
-                    onClick={() => {
-                      setSelectingTarget({ dayLabel: day.label, idx: exIdx });
-                      setSelectorOpen(true);
-                    }}
-                  >
-                    <span className={`truncate ${exName ? 'text-text-main dark:text-text-main-dark font-semibold' : 'text-text-secondary italic'}`}>
-                      {exName || '点击选择动作...'}
-                    </span>
-                  </button>
-                ))}
-              </div>
+               <div className="flex flex-col gap-2">
+                 {day.t3.map((exName, exIdx) => {
+                   const exInfo = exerciseNameMap[exName];
+                   const displayName = exInfo?.name_cn || exName;
+                   return (
+                     <button key={exIdx} type="button"
+                       className="btn btn-sm btn-outline border-border-card dark:border-border-card-dark text-left justify-start cursor-pointer"
+                       onClick={() => {
+                         setSelectingTarget({ dayLabel: day.label, idx: exIdx });
+                         setSelectorOpen(true);
+                       }}
+                     >
+                       <span className={`truncate ${exName ? 'text-text-main dark:text-text-main-dark font-semibold' : 'text-text-secondary italic'}`}>
+                         {displayName || '点击选择动作...'}
+                       </span>
+                     </button>
+                   );
+                 })}
+               </div>
             </div>
           ))}
         </div>
 
         {/* T3 动作配置池 */}
-        {t3Exercises.length > 0 && (
-          <div className="flex flex-col gap-3">
-            <h4 className="text-sm font-bold text-text-secondary dark:text-text-secondary-dark">T3 动作进阶配置</h4>
-            {t3Exercises.map((ex, exIdx) => {
-              const exUnit = exerciseUnits[ex.name] || weightUnit;
+        {(() => {
+          // 只渲染当前在 dayTemplate 中使用的动作
+          const usedT3Names = new Set();
+          dayTemplate.forEach(day => {
+            day.t3.forEach(name => { if (name && name.trim()) usedT3Names.add(name.trim()); });
+          });
+          const activeT3Exercises = t3Exercises.filter(ex => usedT3Names.has(ex.name));
+          
+          return activeT3Exercises.length > 0 && (
+            <div className="flex flex-col gap-3">
+              <h4 className="text-sm font-bold text-text-secondary dark:text-text-secondary-dark">T3 动作进阶配置</h4>
+              {activeT3Exercises.map((ex) => {
+                const exIdx = t3Exercises.findIndex(e => e.name === ex.name);
+                const exUnit = exerciseUnits[ex.name] || weightUnit;
               return (
                 <div key={ex.name} className="flex flex-col gap-2 p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="badge bg-tier-t3/10 text-tier-t3 dark:text-tier-t3-dark border-tier-t3/20 dark:border-tier-t3-dark/20 font-extrabold text-xs">T3</span>
-                      <span className="text-sm font-bold text-text-main dark:text-text-main-dark">{ex.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card dark:border-border-card-dark rounded overflow-hidden">
-                        <button type="button"
-                          className={`px-1.5 py-0.5 text-[10px] font-bold transition-all cursor-pointer ${exUnit === 'kg' ? 'bg-primary text-white' : 'text-text-secondary'}`}
-                          onClick={() => setExerciseUnits(prev => ({ ...prev, [ex.name]: 'kg' }))}>KG</button>
-                        <button type="button"
-                          className={`px-1.5 py-0.5 text-[10px] font-bold transition-all cursor-pointer ${exUnit === 'lbs' ? 'bg-primary text-white' : 'text-text-secondary'}`}
-                          onClick={() => setExerciseUnits(prev => ({ ...prev, [ex.name]: 'lbs' }))}>LB</button>
-                      </div>
-                      <button type="button"
-                        className="btn btn-xs btn-ghost text-error cursor-pointer"
-                        onClick={() => {
-                          setT3Exercises(prev => prev.filter((_, i) => i !== exIdx));
-                        }}
-                      >
-                        移除
-                      </button>
-                    </div>
+                   <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-2">
+                       <span className="badge bg-tier-t3/10 text-tier-t3 dark:text-tier-t3-dark border-tier-t3/20 dark:border-tier-t3-dark/20 font-extrabold text-xs">T3</span>
+                       <span className="text-sm font-bold text-text-main dark:text-text-main-dark">{exerciseNameMap[ex.name]?.name_cn || ex.name}</span>
+                     </div>
+                     <div className="flex items-center gap-2">
+                       <div className="flex bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card dark:border-border-card-dark rounded overflow-hidden">
+                         <button type="button"
+                           className={`px-1.5 py-0.5 text-[10px] font-bold transition-all cursor-pointer ${exUnit === 'kg' ? 'bg-primary text-white' : 'text-text-secondary'}`}
+                           onClick={() => setExerciseUnits(prev => ({ ...prev, [ex.name]: 'kg' }))}>KG</button>
+                         <button type="button"
+                           className={`px-1.5 py-0.5 text-[10px] font-bold transition-all cursor-pointer ${exUnit === 'lbs' ? 'bg-primary text-white' : 'text-text-secondary'}`}
+                           onClick={() => setExerciseUnits(prev => ({ ...prev, [ex.name]: 'lbs' }))}>LB</button>
+                       </div>
+                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs text-text-secondary dark:text-text-secondary-dark">起始重量</label>
-                      <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
-                        <input type="number" step="0.5" min="0"
-                          className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
-                          value={ex.startWeightKg ?? 10}
-                          onChange={(e) => {
-                            const newT3 = [...t3Exercises];
-                            newT3[exIdx] = { ...newT3[exIdx], startWeightKg: parseFloat(e.target.value) || 0 };
-                            setT3Exercises(newT3);
-                          }}
-                        />
-                        <span className="text-xs text-text-secondary/50">{exUnit}</span>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs text-text-secondary dark:text-text-secondary-dark">加重步长</label>
-                      <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
-                        <input type="number" step="0.5" min="0.5"
-                          className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
-                          value={ex.incrementKg}
-                          onChange={(e) => {
-                            const newT3 = [...t3Exercises];
-                            newT3[exIdx] = { ...newT3[exIdx], incrementKg: parseFloat(e.target.value) || 0.5 };
-                            setT3Exercises(newT3);
-                          }}
-                        />
-                        <span className="text-xs text-text-secondary/50">{exUnit}</span>
-                      </div>
-                    </div>
+                   <div className="grid grid-cols-3 gap-2">
+                     <div className="flex flex-col gap-1">
+                       <label className="text-xs text-text-secondary dark:text-text-secondary-dark">起始重量</label>
+                       <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
+                         <input type="number" step="0.5" min="0"
+                           className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                           value={exUnit === 'lbs' ? convertWeight(ex.startWeightKg ?? 10, 'lbs') : (ex.startWeightKg ?? 10)}
+                           onChange={(e) => {
+                             const val = parseFloat(e.target.value) || 0;
+                             const kgVal = exUnit === 'lbs' ? toStorageWeight(val, 'lbs') : val;
+                             const newT3 = [...t3Exercises];
+                             newT3[exIdx] = { ...newT3[exIdx], startWeightKg: kgVal };
+                             setT3Exercises(newT3);
+                           }}
+                         />
+                         <span className="text-xs text-text-secondary/50">{exUnit}</span>
+                       </div>
+                     </div>
+                     <div className="flex flex-col gap-1">
+                       <label className="text-xs text-text-secondary dark:text-text-secondary-dark">加重步长</label>
+                       <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
+                         <input type="number" step="0.5" min="0.5"
+                           className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                           value={exUnit === 'lbs' ? convertWeight(ex.incrementKg, 'lbs') : ex.incrementKg}
+                           onChange={(e) => {
+                             const val = parseFloat(e.target.value) || 0.5;
+                             const kgVal = exUnit === 'lbs' ? toStorageWeight(val, 'lbs') : val;
+                             const newT3 = [...t3Exercises];
+                             newT3[exIdx] = { ...newT3[exIdx], incrementKg: kgVal };
+                             setT3Exercises(newT3);
+                           }}
+                         />
+                         <span className="text-xs text-text-secondary/50">{exUnit}</span>
+                       </div>
+                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-xs text-text-secondary dark:text-text-secondary-dark">达标门槛</label>
                       <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
@@ -661,7 +734,8 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
               );
             })}
           </div>
-        )}
+        );
+        })()}
       </div>
 
       {/* T3 动作选择器模态框 */}

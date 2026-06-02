@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, RotateCcw, CheckCircle, Heart, Utensils, Calendar, ChevronDown, ChevronRight, ArrowRight } from 'lucide-react';
+import { Play, RotateCcw, CheckCircle, Heart, Utensils, Calendar, ChevronDown, ChevronRight, ArrowRight, SkipForward, Flag } from 'lucide-react';
 
 const TIER_COLORS = {
   T1: { bg: 'bg-tier-t1/10', text: 'text-tier-t1', darkText: 'dark:text-tier-t1-dark', border: 'border-tier-t1/20', darkBorder: 'dark:border-tier-t1-dark/20' },
@@ -22,10 +22,25 @@ function TodayScreen({
   isTodayCompleted,
   todayWorkoutSummary,
   isRestDay = false,
-  nextTrainingDate = ''
+  nextTrainingDate = '',
+  onSkipTraining,
+  onExtraTraining,
+  daysUntilStart = 0
 }) {
   const [showProgramSwitcher, setShowProgramSwitcher] = useState(false);
+  const [showSkipModal, setShowSkipModal] = useState(false);
+  const [showExtraModal, setShowExtraModal] = useState(false);
+  const [skipReason, setSkipReason] = useState('');
   const isSessionActive = sessionState && sessionState.isActive;
+
+  const skipReasons = [
+    { value: 'fatigue', label: '身体疲劳' },
+    { value: 'injury', label: '轻微受伤' },
+    { value: 'travel', label: '出差/旅行' },
+    { value: 'illness', label: '生病' },
+    { value: 'busy', label: '事务繁忙' },
+    { value: 'other', label: '其他原因' },
+  ];
 
   const getExerciseShortName = (exercise) => {
     const cnName = getExerciseCNName(exercise);
@@ -160,6 +175,20 @@ function TodayScreen({
               })}
             </div>
           </div>
+        ) : daysUntilStart > 0 ? (
+          /* 尚未开始 */
+          <div className="card !border-primary/20 dark:!border-primary/30">
+            <div className="flex flex-col items-center text-center gap-3 select-none">
+              <Calendar className="text-primary" size={48} />
+              <h3 className="text-xl font-bold text-text-main dark:text-text-main-dark">计划尚未开始</h3>
+              <p className="text-sm text-text-secondary dark:text-text-secondary-dark">
+                距离开始还有 <span className="text-primary font-bold text-lg">{daysUntilStart}</span> 天
+              </p>
+              <p className="text-xs text-text-secondary dark:text-text-secondary-dark">
+                耐心等待，养精蓄锐，届时全力以赴！
+              </p>
+            </div>
+          </div>
         ) : isRestDay ? (
           /* 休息日 */
           <div className="card !border-green-500/10 dark:!border-green-500/20">
@@ -251,22 +280,89 @@ function TodayScreen({
       {!isTodayCompleted && (
         <div className="mt-4 flex flex-col gap-2">
           {isRestDay && !isSessionActive ? (
-            <button type="button" className="btn btn-neutral btn-block btn-lg flex items-center justify-center gap-2 border-border-card dark:border-border-card-dark cursor-not-allowed select-none" disabled>
-              今日休息中，合理恢复
-            </button>
+            <>
+              <button type="button" className="btn btn-neutral btn-block btn-lg flex items-center justify-center gap-2 border-border-card dark:border-border-card-dark select-none">
+                今日休息中，合理恢复
+              </button>
+              <button type="button"
+                className="btn btn-ghost btn-block text-text-secondary dark:text-text-secondary-dark border border-border-card dark:border-border-card-dark font-semibold cursor-pointer"
+                onClick={() => setShowExtraModal(true)}
+              >
+                <Flag size={16} />
+                <span>今天想加练？</span>
+              </button>
+            </>
           ) : (
-            <button type="button"
-              className={`btn btn-primary btn-block btn-lg shadow-md flex items-center justify-center gap-2 cursor-pointer select-none ${isSessionActive ? 'animate-bounce' : ''}`}
-              onClick={onStartTrain}
-            >
-              {isSessionActive ? (
-                <><RotateCcw size={18} /><span>恢复进行中的训练</span></>
-              ) : (
-                <><Play size={18} fill="currentColor" /><span>开始今日训练 ({todayWorkout?.dayLabel || ''})</span></>
+            <>
+              <button type="button"
+                className={`btn btn-primary btn-block btn-lg shadow-md flex items-center justify-center gap-2 cursor-pointer select-none ${isSessionActive ? 'animate-bounce' : ''}`}
+                onClick={onStartTrain}
+              >
+                {isSessionActive ? (
+                  <><RotateCcw size={18} /><span>恢复进行中的训练</span></>
+                ) : (
+                  <><Play size={18} fill="currentColor" /><span>开始今日训练 ({todayWorkout?.dayLabel || ''})</span></>
+                )}
+              </button>
+              {!isSessionActive && (
+                <button type="button"
+                  className="btn btn-ghost btn-block text-text-secondary dark:text-text-secondary-dark border border-border-card dark:border-border-card-dark font-semibold cursor-pointer"
+                  onClick={() => setShowSkipModal(true)}
+                >
+                  <SkipForward size={16} />
+                  <span>跳过今日训练（自动顺延）</span>
+                </button>
               )}
-            </button>
+            </>
           )}
         </div>
+      )}
+
+      {/* 跳过训练确认弹窗 */}
+      {showSkipModal && (
+        <dialog className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">跳过今日训练</h3>
+            <p className="py-2 text-sm text-text-secondary">跳过今天后，训练计划将自动顺延。请记录跳过原因，这将帮助 AI 为你提供更好的建议。</p>
+            <div className="flex flex-col gap-2 py-2">
+              <span className="text-xs font-semibold text-text-secondary">跳过原因</span>
+              <div className="flex flex-wrap gap-2">
+                {skipReasons.map(reason => (
+                  <button key={reason.value} type="button"
+                    className={`btn btn-sm ${skipReason === reason.value ? 'btn-primary' : 'btn-ghost border border-border-card'}`}
+                    onClick={() => setSkipReason(reason.value)}
+                  >
+                    {reason.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="modal-action">
+              <button className="btn btn-ghost" onClick={() => { setShowSkipModal(false); setSkipReason(''); }}>取消</button>
+              <button className="btn btn-primary" onClick={() => { onSkipTraining(skipReason); setShowSkipModal(false); setSkipReason(''); }}>确认跳过</button>
+            </div>
+          </div>
+          <form method="dialog" className="modal-backdrop">
+            <button onClick={() => { setShowSkipModal(false); setSkipReason(''); }}>close</button>
+          </form>
+        </dialog>
+      )}
+
+      {/* 加练确认弹窗 */}
+      {showExtraModal && (
+        <dialog className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">今天想加练？</h3>
+            <p className="py-4 text-sm text-text-secondary">今天是休息日，加练会影响恢复。确定要开始吗？加练后计划将顺延至下一个训练日。</p>
+            <div className="modal-action">
+              <button className="btn btn-ghost" onClick={() => setShowExtraModal(false)}>取消</button>
+              <button className="btn btn-primary" onClick={() => { onExtraTraining(); setShowExtraModal(false); }}>确认加练</button>
+            </div>
+          </div>
+          <form method="dialog" className="modal-backdrop">
+            <button onClick={() => setShowExtraModal(false)}>close</button>
+          </form>
+        </dialog>
       )}
     </div>
   );
