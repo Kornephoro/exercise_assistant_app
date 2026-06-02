@@ -270,8 +270,9 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier) {
   const state = userProgram.program_state || {};
   const exConfig = userProgram.exercise_config || {};
   const schedule = userProgram.schedule || {};
-  const currentDay = state.current_day || Object.keys(config.day_map)[0];
-  const dayConfig = config.day_map[currentDay];
+  const effectiveDayMap = userProgram.day_map || config.day_map;
+  const currentDay = state.current_day || Object.keys(effectiveDayMap)[0];
+  const dayConfig = effectiveDayMap[currentDay];
   const lastTrainingDate = state.last_training_date || null;
 
   if (!dayConfig) return { exercises: [], dayLabel: currentDay, error: `未知训练日: ${currentDay}` };
@@ -397,7 +398,8 @@ function ssGetNextWorkout(config, userProgram, historyByExercise) {
   const state = userProgram.program_state || {};
   const lastWorkout = state.last_workout || null;
   const cycleLength = config.cycle_length || 2;
-  const dayKeys = Object.keys(config.day_map);
+  const effectiveDayMap = userProgram.day_map || config.day_map;
+  const dayKeys = Object.keys(effectiveDayMap);
 
   let nextDayIdx;
   if (!lastWorkout) {
@@ -407,7 +409,7 @@ function ssGetNextWorkout(config, userProgram, historyByExercise) {
     nextDayIdx = lastIdx >= 0 ? (lastIdx + 1) % cycleLength : 0;
   }
   const nextDay = dayKeys[nextDayIdx];
-  const dayExercises = config.day_map[nextDay] || [];
+  const dayExercises = effectiveDayMap[nextDay] || [];
 
   const exercises = dayExercises.map(def => ({
     exercise: def.exercise,

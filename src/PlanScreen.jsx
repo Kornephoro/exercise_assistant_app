@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from './supabaseClient';
-import { Loader2, Search, ChevronRight, X, Users, Calendar, Zap, Target, BookOpen, Pause, Play, StopCircle, Settings } from 'lucide-react';
+import { Loader2, Search, ChevronRight, X, Users, Calendar, Zap, Target, BookOpen, Pause, Play, StopCircle, Settings, AlertTriangle } from 'lucide-react';
 import ProgramConfigScreen from './ProgramConfigScreen';
 import ExerciseLibrary from './ExerciseLibrary';
 
@@ -42,7 +42,7 @@ function ConfirmModal({ isOpen, title, message, onConfirm, onCancel, confirmText
   );
 }
 
-function PlanScreen({ programs, userPrograms, exercisesMap, onProgramActivated }) {
+function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, onProgramPaused, onProgramResumed, onProgramEnded, onProgramError, optimisticUpdateUserProgram, isOperationLocked = false }) {
   const [activeSubTab, setActiveSubTab] = useState('programs');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProgram, setSelectedProgram] = useState(null);
@@ -81,49 +81,74 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramActivated }
   };
 
   const handlePauseProgram = async (userProgramId) => {
+    // 第二道防线：handler 内部拦截（防弹窗打开后状态变化）
+    if (isOperationLocked) {
+      onProgramError?.('请先完成或放弃训练后再管理计划');
+      setShowPauseConfirm(false);
+      return;
+    }
     setShowPauseConfirm(false);
     const { error } = await supabase
       .from('user_programs')
       .update({ is_active: false, paused_at: new Date().toISOString() })
       .eq('id', userProgramId);
     if (error) {
-      onProgramActivated();
+      onProgramError?.('暂停计划失败：' + error.message);
       return;
     }
-    onProgramActivated();
+    onProgramPaused?.(userProgramId);
   };
 
   const handleResumeProgram = async (userProgramId) => {
+    if (isOperationLocked) {
+      onProgramError?.('请先完成或放弃训练后再管理计划');
+      return;
+    }
     const { error } = await supabase
       .from('user_programs')
       .update({ is_active: true, paused_at: null })
       .eq('id', userProgramId);
     if (error) {
-      onProgramActivated();
+      onProgramError?.('恢复计划失败：' + error.message);
       return;
     }
-    onProgramActivated();
+    onProgramResumed?.(userProgramId);
   };
 
   const handleEndProgram = async (userProgramId) => {
+    if (isOperationLocked) {
+      onProgramError?.('请先完成或放弃训练后再结束计划');
+      setShowEndConfirm(false);
+      return;
+    }
     setShowEndConfirm(false);
+    setSelectedActiveProgram(null);
     const { error } = await supabase
       .from('user_programs')
       .update({ is_active: false, ended_at: new Date().toISOString() })
       .eq('id', userProgramId);
     if (error) {
-      onProgramActivated();
+      onProgramError?.('结束计划失败：' + error.message);
       return;
     }
-    onProgramActivated();
+    onProgramEnded?.(userProgramId);
   };
 
   const openPauseConfirm = (userProgramId) => {
+    // 第一道防线：按钮入口拦截
+    if (isOperationLocked) {
+      onProgramError?.('请先完成或放弃训练后再管理计划');
+      return;
+    }
     setPendingUserProgramId(userProgramId);
     setShowPauseConfirm(true);
   };
 
   const openEndConfirm = (userProgramId) => {
+    if (isOperationLocked) {
+      onProgramError?.('请先完成或放弃训练后再结束计划');
+      return;
+    }
     setPendingUserProgramId(userProgramId);
     setShowEndConfirm(true);
   };
@@ -134,7 +159,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramActivated }
         program={configProgram}
         exercisesMap={exercisesMap}
         onBack={() => setConfigProgram(null)}
-        onActivated={onProgramActivated}
+        onProgramStarted={onProgramStarted}
       />
     );
   }
@@ -153,8 +178,17 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramActivated }
             ←
           </button>
           <h3 className="text-lg font-bold text-text-main dark:text-text-main-dark">{p.name}</h3>
-          <span className="badge badge-primary badge-sm font-bold">进行中</span>
+          {!up.is_active && up.paused_at
+            ? <span className="badge badge-warning badge-sm font-bold">已暂停</span>
+            : <span className="badge badge-primary badge-sm font-bold">进行中</span>}
         </div>
+
+        {isOperationLocked && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-warning-bg border border-warning/40 text-warning text-sm font-semibold">
+            <AlertTriangle size={16} className="shrink-0" />
+            <span>训练进行中，请先完成或放弃训练后再管理计划。</span>
+          </div>
+        )}
 
         <div className="card flex flex-col gap-4">
           <p className="text-sm text-text-secondary dark:text-text-secondary-dark leading-relaxed">
@@ -232,14 +266,25 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramActivated }
             <Settings size={16} />
             <span>更改配置</span>
           </button>
-          <button
-            type="button"
-            className="btn btn-lg btn-block btn-ghost text-text-secondary dark:text-text-secondary-dark border border-border-card dark:border-border-card-dark font-semibold"
-            onClick={() => openPauseConfirm(up.id)}
-          >
-            <Pause size={16} />
-            <span>暂停计划</span>
-          </button>
+          {!up.is_active && up.paused_at ? (
+            <button
+              type="button"
+              className="btn btn-lg btn-block btn-primary font-bold shadow-lg"
+              onClick={() => handleResumeProgram(up.id)}
+            >
+              <Play size={16} />
+              <span>恢复计划</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-lg btn-block btn-ghost text-text-secondary dark:text-text-secondary-dark border border-border-card dark:border-border-card-dark font-semibold"
+              onClick={() => openPauseConfirm(up.id)}
+            >
+              <Pause size={16} />
+              <span>暂停计划</span>
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-lg btn-block btn-ghost text-error border border-error/30 font-semibold"
@@ -487,23 +532,33 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramActivated }
             </div>
           </div>
 
-          {userPrograms.filter(up => up.is_active).length > 0 && (
+          {userPrograms.filter(up => up.is_active || up.paused_at).length > 0 && (
             <div className="flex flex-col gap-2">
               <h4 className="text-xs font-extrabold text-text-secondary dark:text-text-secondary-dark uppercase tracking-wider px-1 select-none">
                 正在进行计划
               </h4>
-              {userPrograms.filter(up => up.is_active).map(up => {
+              {userPrograms.filter(up => up.is_active || up.paused_at).map(up => {
                 const prog = programs.find(p => p.id === up.program_id);
                 if (!prog) return null;
+                const isPaused = !up.is_active && !!up.paused_at;
                 return (
-                  <div key={up.id} className="card !p-4 border-l-4 border-l-primary cursor-pointer hover:border-primary/60 transition-all"
+                  <div key={up.id} className={`card !p-4 border-l-4 cursor-pointer transition-all ${
+                    isPaused
+                      ? 'border-l-warning opacity-90 hover:opacity-100 hover:border-warning/60'
+                      : 'border-l-primary hover:border-primary/60'
+                  }`}
                     onClick={() => setSelectedActiveProgram({ program: prog, userProgram: up })}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col gap-1">
-                        <span className="text-base font-bold text-text-main dark:text-text-main-dark">{prog.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-bold text-text-main dark:text-text-main-dark">{prog.name}</span>
+                          {isPaused
+                            ? <span className="badge badge-warning badge-sm font-bold">已暂停</span>
+                            : <span className="badge badge-primary badge-sm font-bold">进行中</span>}
+                        </div>
                         <span className="text-xs text-text-secondary dark:text-text-secondary-dark">
-                          当前: {up.program_state?.current_day || 'Day1'}
+                          {isPaused ? '已暂停' : '当前'}: {up.program_state?.current_day || 'Day1'}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">

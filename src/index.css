@@ -110,6 +110,12 @@
   --color-border-card: #E5E5EA;
   --color-border-card-dark: #2C2C2E;
 
+  /* Toast / 通知浅色不透明背景（同色系淡化，文字仍用主色） */
+  --color-success-bg: #E8F5E9;
+  --color-error-bg:   #FFEBEE;
+  --color-info-bg:    #E3F2FD;
+  --color-warning-bg: #FFF8E1;
+
   --font-size-num-large: 32px;
 }
 

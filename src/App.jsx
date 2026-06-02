@@ -76,6 +76,9 @@ function App() {
   // 训练预览弹窗
   const [previewOpen, setPreviewOpen] = useState(false);
 
+  // 操作锁定：训练中或预览弹窗打开时，禁止在 PlanScreen 结束/暂停计划
+  const isOperationLocked = sessionState.isActive || previewOpen;
+
   useEffect(() => {
     localStorage.setItem('theme', theme);
     document.documentElement.setAttribute('data-theme', theme);
@@ -207,6 +210,21 @@ function App() {
   // 切换活跃计划
   const switchActiveProgram = (programId) => {
     setActiveProgramId(programId);
+  };
+
+  // 乐观更新：立刻把 userPrograms state 中的某条记录打补丁，并同步联动 activeProgramId / todayWorkout
+  // 单一真相源：App.jsx 的 userPrograms state 同步生效后，所有下游组件（PlanScreen、TodayScreen）同一帧内重渲染
+  const optimisticUpdateUserProgram = (id, patch) => {
+    setUserPrograms(prev => prev.map(up => up.id === id ? { ...up, ...patch } : up));
+    if (patch.is_active === false) {
+      setActiveProgramId(prev => (prev === id ? null : prev));
+      setTodayWorkout(null);
+      setIsRestDayValue(false);
+      setNextTrainingDateValue('');
+      setDaysUntilStartValue(0);
+    } else if (patch.is_active === true) {
+      setActiveProgramId(id);
+    }
   };
 
   // 开始训练会话
@@ -505,11 +523,11 @@ function App() {
   return (
     <div className="min-h-screen flex flex-col max-w-[480px] w-full mx-auto bg-bg-main dark:bg-bg-main-dark text-text-main dark:text-text-main-dark border-x border-border-card dark:border-border-card-dark shadow-2xl relative transition-colors duration-200">
       {toast && (
-        <div className="toast toast-top toast-center z-[9999] min-w-[320px] max-w-[440px] px-4">
-          <div className={`alert shadow-lg rounded-xl flex items-center gap-3 ${
-            toast.type === 'success' ? 'alert-success bg-success/10 border-success/30 text-success' :
-            toast.type === 'error' ? 'alert-error bg-error/10 border-error/30 text-error' :
-            'alert-info bg-info/10 border-info/30 text-info'
+        <div className="toast toast-top toast-center z-[9999] min-w-[320px] max-w-[440px] px-4" style={{ top: '4.5rem' }}>
+          <div className={`shadow-lg rounded-xl px-4 py-3 flex items-center gap-3 border ${
+            toast.type === 'success' ? 'bg-success-bg border-success/40 text-success' :
+            toast.type === 'error' ? 'bg-error-bg border-error/40 text-error' :
+            'bg-info-bg border-info/40 text-info'
           }`}>
             {toast.type === 'success'
               ? <CheckCircle size={18} className="shrink-0" />
@@ -598,10 +616,32 @@ function App() {
             programs={programs}
             userPrograms={userPrograms}
             exercisesMap={exercisesMap}
-            onProgramActivated={() => {
+            optimisticUpdateUserProgram={optimisticUpdateUserProgram}
+            isOperationLocked={isOperationLocked}
+            onProgramStarted={() => {
               setToast({ type: 'success', message: '计划已启用！' });
               setActiveTab('today');
               loadWorkoutData();
+            }}
+            onProgramPaused={(userProgramId) => {
+              optimisticUpdateUserProgram(userProgramId, { is_active: false, paused_at: new Date().toISOString() });
+              setToast({ type: 'info', message: '计划已暂停。' });
+              loadWorkoutData();
+            }}
+            onProgramResumed={(userProgramId) => {
+              optimisticUpdateUserProgram(userProgramId, { is_active: true, paused_at: null });
+              setToast({ type: 'success', message: '计划已恢复。' });
+              setActiveTab('today');
+              loadWorkoutData();
+            }}
+            onProgramEnded={(userProgramId) => {
+              optimisticUpdateUserProgram(userProgramId, { is_active: false, ended_at: new Date().toISOString() });
+              setToast({ type: 'info', message: '计划已结束，训练历史已保留。' });
+              setActiveTab('plan');
+              loadWorkoutData();
+            }}
+            onProgramError={(message) => {
+              setToast({ type: 'error', message });
             }}
           />
         </div>

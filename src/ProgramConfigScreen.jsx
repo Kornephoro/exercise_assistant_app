@@ -156,7 +156,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
     try {
       // 并行加载：user_programs 配置 + 动作库
       const [upRes, exRes] = await Promise.all([
-        supabase.from('user_programs').select('id, exercise_config, schedule').eq('program_id', program.id).limit(1),
+        supabase.from('user_programs').select('id, exercise_config, schedule, day_map').eq('program_id', program.id).limit(1),
         supabase.from('exercises').select('id, name, name_cn, primary_muscles, secondary_muscles, equipment').order('name')
       ]);
 
@@ -186,11 +186,12 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
       }));
       setT3Exercises(loadedT3Exercises);
 
-      // 从 program.config.day_map 加载每日 T3 安排
-      const dayMap = program.config?.day_map || {};
-      const template = Object.keys(dayMap).map(label => ({
+      // 优先使用用户已保存的 day_map，兜底用程序默认 day_map
+      const userDayMap = existingUP?.day_map;
+      const baseDayMap = userDayMap || program.config?.day_map || {};
+      const template = Object.keys(baseDayMap).map(label => ({
         label,
-        t3: dayMap[label]?.T3 || []
+        t3: baseDayMap[label]?.T3 || []
       }));
       if (template.length > 0) {
         setDayTemplate(template);
@@ -351,6 +352,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
         },
         exercise_config: exerciseConfig,
         schedule,
+        day_map: updatedDayMap,
         updated_at: new Date().toISOString()
       };
 
@@ -1081,7 +1083,7 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
 
 // ==================== 主入口 ====================
 
-function ProgramConfigScreen({ program, exercisesMap, onBack, onActivated }) {
+function ProgramConfigScreen({ program, exercisesMap, onBack, onProgramStarted }) {
   const engineType = program.config?.engine_type;
   const [isActive, setIsActive] = useState(false);
 
@@ -1098,10 +1100,10 @@ function ProgramConfigScreen({ program, exercisesMap, onBack, onActivated }) {
   }, [program.id]);
 
   if (engineType === 'gzclp') {
-    return <GzclpConfig program={program} onBack={onBack} onActivated={onActivated} isExisting={isActive} />;
+    return <GzclpConfig program={program} onBack={onBack} onActivated={onProgramStarted} isExisting={isActive} />;
   }
 
-  return <GenericConfig program={program} exercisesMap={exercisesMap} onBack={onBack} onActivated={onActivated} isExisting={isActive} />;
+  return <GenericConfig program={program} exercisesMap={exercisesMap} onBack={onBack} onActivated={onProgramStarted} isExisting={isActive} />;
 }
 
 export default ProgramConfigScreen;

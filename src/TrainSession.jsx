@@ -43,6 +43,26 @@ function TrainSession({
 
   const audioContextRef = useRef(null);
   const restTimerRef = useRef(null);
+  const swipeStartRef = useRef(null);
+
+  // 全屏左滑手势 → 触发 onMinimize（非破坏性操作）
+  const handleSwipeStart = (e) => {
+    if (!e.touches || e.touches.length === 0) return;
+    swipeStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const handleSwipeEnd = (e) => {
+    const start = swipeStartRef.current;
+    swipeStartRef.current = null;
+    if (!start) return;
+    const end = e.changedTouches?.[0];
+    if (!end) return;
+    const dx = end.clientX - start.x;
+    const dy = end.clientY - start.y;
+    // 左滑 dx < -80px 且水平方向为主（|dx| > |dy|*1.5）
+    if (dx < -80 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      onMinimize();
+    }
+  };
 
   const getRecordingMethod = (exerciseKey) => exercisesMap?.[exerciseKey]?.recording_method || 'standard';
 
@@ -179,6 +199,51 @@ function TrainSession({
   const getRpeColor = (v) => v <= 4 ? 'text-green-500' : v <= 7 ? 'text-yellow-500' : 'text-red-500';
   const handleAbort = () => onCancel();
 
+  // ============ FIELD INPUT GROUP (method-aware inputs) ============
+  const FieldInput = ({ kind, value, onChange }) => {
+    const isInt = kind === 'reps' || kind === 'duration';
+    const maxLen = { reps: 4, duration: 4, weight: 5, distance: 6 }[kind];
+    return (
+      <input
+        type="text"
+        inputMode={isInt ? 'numeric' : 'decimal'}
+        pattern={isInt ? '[0-9]*' : undefined}
+        maxLength={maxLen}
+        className="input input-bordered text-center !text-center font-mono text-3xl font-bold w-full h-14 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        value={value ?? ''}
+        onChange={(e) => {
+          const raw = e.target.value.replace(isInt ? /\D/g : /[^\d.]/g, '');
+          const cleaned = !isInt && raw.split('.').length > 2
+            ? raw.slice(0, raw.lastIndexOf('.'))
+            : raw;
+          onChange(cleaned === '' ? '' : (isInt ? parseInt(cleaned, 10) : parseFloat(cleaned)));
+        }}
+        onFocus={(e) => requestAnimationFrame(() => e.target.select())}
+        onClick={(e) => e.target.select()}
+        onTouchStart={(e) => e.target.select()}
+        onPaste={(e) => {
+          const raw = (e.clipboardData.getData('text') || '').replace(isInt ? /\D/g : /[^\d.]/g, '').slice(0, maxLen);
+          e.preventDefault();
+          onChange(raw === '' ? '' : (isInt ? parseInt(raw, 10) : parseFloat(raw)));
+        }}
+      />
+    );
+  };
+
+  const FieldInputGroup = ({ fields, valueMap, onChangeMap, fieldLabel }) => {
+    if (!fields || fields.length === 0) return null;
+    return (
+      <div className={fields.length === 1 ? 'flex flex-col gap-1' : 'grid grid-cols-2 gap-3'}>
+        {fields.map((kind) => (
+          <div key={kind} className="flex flex-col gap-1">
+            <label className="text-sm font-semibold text-base-content/50">{fieldLabel[kind]}</label>
+            <FieldInput kind={kind} value={valueMap[kind]} onChange={onChangeMap[kind]} />
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   // ============ SET DETAIL CARD (floating centered) ============
   const renderSetCard = () => {
     if (!showSetCard || !focusedSet) return null;
@@ -193,11 +258,23 @@ function TrainSession({
     const rpeValue = detail.rpe ?? 7;
     const totalSets = sessionState.setsData[exerciseIdx].length;
 
-    const weightLabel = method === 'bodyweight_added' ? '附加重量' : method === 'bodyweight_assisted' ? '辅助重量' : method === 'loaded_carry' ? '负重重量' : '实际重量';
-    const weightPlaceholder = method === 'loaded_carry' ? 'kg' : ex.weight?.toFixed(1);
-    const weightStep = method === 'loaded_carry' ? 0.5 : 0.5;
-    const needsWeightInput = ['standard', 'bodyweight_added', 'bodyweight_assisted', 'loaded_carry'].includes(method);
-    const needsRepsInput = method !== 'duration_only' && method !== 'distance_only';
+    const METHOD_CONFIG = {
+      standard:           { summary: (s, ex) => `${s.planned_reps} 次 @ ${ex.weight?.toFixed(1)}kg`,    fields: ['reps', 'weight'],        showTempo: true  },
+      reps_only:          { summary: (s)     => `${s.planned_reps} 次`,                                  fields: ['reps'],                  showTempo: true  },
+      duration_only:      { summary: (s)     => `${s.planned_reps} 秒`,                                  fields: ['duration'],              showTempo: false },
+      distance_only:      { summary: (s)     => `${s.planned_reps} 米`,                                  fields: ['distance'],              showTempo: false },
+      loaded_carry:       { summary: (s, ex) => `${s.planned_reps}m @ ${ex.weight?.toFixed(1)}kg`,      fields: ['weight', 'distance'],    showTempo: false },
+      bodyweight_added:   { summary: (s, ex) => `${s.planned_reps} 次 @ +${ex.weight?.toFixed(1)}kg`,  fields: ['reps', 'weight'],        showTempo: true  },
+      bodyweight_assisted:{ summary: (s, ex) => `${s.planned_reps} 次 @ -${ex.weight?.toFixed(1)}kg`,  fields: ['reps', 'weight'],        showTempo: true  },
+    };
+    const config = METHOD_CONFIG[method] || METHOD_CONFIG.standard;
+
+    const FIELD_LABEL = {
+      reps:     '实际次数',
+      weight:   method === 'bodyweight_added' ? '附加重量' : method === 'bodyweight_assisted' ? '辅助重量' : method === 'loaded_carry' ? '负重重量' : '实际重量',
+      duration: '时长（秒）',
+      distance: '距离（米）',
+    };
 
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-3" onClick={closeSetCard}>
@@ -211,70 +288,32 @@ function TrainSession({
             {/* Summary Line - Large Typography */}
             <div className="p-3 rounded-xl bg-base-200/50">
               <div className="text-2xl font-bold text-base-content">
-                {set.planned_reps} 次 @ {ex.weight?.toFixed(1)}kg
+                {config.summary(set, ex)}
               </div>
               <div className="text-lg font-semibold text-base-content/60 mt-1">
-                RPE {set.planned_rpe ?? 7} | 节奏 {set.tempo ?? '3110'} | 休息 {customRestSeconds}秒
+                RPE {set.planned_rpe ?? 7}
+                {config.showTempo && <> | 节奏 {set.tempo ?? '3110'}</>}
+                <> | 休息 {customRestSeconds}秒</>
               </div>
             </div>
 
-            {/* Reps & Weight side by side */}
-            {(needsRepsInput || needsWeightInput) && (
-              <div className="grid grid-cols-2 gap-3">
-                {needsRepsInput && (
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-semibold text-base-content/50">实际次数</label>
-                    <input 
-                      type="number" 
-                      className="input input-bordered text-center font-mono text-3xl font-bold w-full h-14 text-base-content" 
-                      value={set.actual_reps ?? set.planned_reps ?? ''} 
-                      onChange={(e) => handleRepsChange(exerciseIdx, setIdx, e.target.value)} 
-                    />
-                  </div>
-                )}
-                {needsWeightInput && (
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-semibold text-base-content/50">{weightLabel}</label>
-                    <input 
-                      type="number" 
-                      step={weightStep} 
-                      className="input input-bordered text-center font-mono text-3xl font-bold w-full h-14 text-base-content" 
-                      value={set.weight_kg ?? ex.weight ?? ''} 
-                      onChange={(e) => handleWeightChange(exerciseIdx, setIdx, e.target.value)} 
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Duration */}
-            {method === 'duration_only' && (
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-semibold text-base-content/50">时长（秒）</label>
-                <input 
-                  type="number" 
-                  className="input input-bordered text-center font-mono text-3xl font-bold w-full h-14" 
-                  value={set.duration_seconds ?? ''} 
-                  placeholder="秒" 
-                  onChange={(e) => handleDurationChange(exerciseIdx, setIdx, e.target.value)} 
-                />
-              </div>
-            )}
-
-            {/* Distance */}
-            {method === 'distance_only' && (
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-semibold text-base-content/50">距离（米）</label>
-                <input 
-                  type="number" 
-                  step="0.1" 
-                  className="input input-bordered text-center font-mono text-3xl font-bold w-full h-14" 
-                  value={set.distance_meters ?? ''} 
-                  placeholder="米" 
-                  onChange={(e) => handleDistanceChange(exerciseIdx, setIdx, e.target.value)} 
-                />
-              </div>
-            )}
+            {/* Dynamic Input Area - method-aware */}
+            <FieldInputGroup
+              fields={config.fields}
+              valueMap={{
+                reps:     set.actual_reps,
+                weight:   set.weight_kg ?? ex.weight,
+                duration: set.duration_seconds,
+                distance: set.distance_meters,
+              }}
+              onChangeMap={{
+                reps:     (v) => handleRepsChange(exerciseIdx, setIdx, v),
+                weight:   (v) => handleWeightChange(exerciseIdx, setIdx, v),
+                duration: (v) => handleDurationChange(exerciseIdx, setIdx, v),
+                distance: (v) => handleDistanceChange(exerciseIdx, setIdx, v),
+              }}
+              fieldLabel={FIELD_LABEL}
+            />
 
             <div className="divider my-0" />
 
@@ -288,7 +327,8 @@ function TrainSession({
               <div className="flex justify-between px-1 text-xs text-base-content/30 font-mono"><span>0</span><span>2</span><span>4</span><span>6</span><span>8</span><span>10</span></div>
             </div>
 
-            {/* Tempo: presets left, fields right */}
+            {/* Tempo: presets left, fields right - method-aware visibility */}
+            {config.showTempo && (
             <div className="flex flex-col gap-1">
               <label className="text-sm font-semibold text-base-content/50">动作节奏</label>
               <div className="flex gap-3 items-stretch">
@@ -344,6 +384,7 @@ function TrainSession({
                 </div>
               </div>
             </div>
+            )}
 
             {/* 组间休息调整 */}
             <div className="flex flex-col gap-1">
@@ -538,12 +579,15 @@ function TrainSession({
   const progress = getProgress();
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-base-200/95 backdrop-blur-lg max-w-[480px] w-full mx-auto overflow-hidden">
+    <div className="fixed inset-0 z-50 flex flex-col bg-base-200/95 backdrop-blur-lg max-w-[480px] w-full mx-auto overflow-hidden"
+         onTouchStart={handleSwipeStart}
+         onTouchEnd={handleSwipeEnd}
+    >
       {/* Navbar */}
       <div className="flex items-center justify-between px-4 py-3 bg-base-100 border-b border-base-300">
-        <button type="button" className="btn btn-ghost btn-sm text-base-content/60 hover:text-base-content gap-1" onClick={onMinimize}><Minimize2 size={16} /><span className="text-xs font-medium">缩小</span></button>
-        <div className="text-sm font-bold text-base-content">实时训练中 ({currentDay})</div>
-        <button type="button" className="btn btn-ghost btn-sm text-error hover:text-error gap-1" onClick={handleAbort}><X size={16} /><span className="text-xs font-medium">放弃</span></button>
+        <button type="button" className="btn btn-ghost h-12 px-4 text-base font-semibold text-base-content/70 hover:text-base-content gap-2 active:scale-95" onClick={onMinimize} aria-label="缩小训练窗口"><Minimize2 size={20} /><span>缩小</span></button>
+        <div className="text-sm font-bold text-base-content pointer-events-none">实时训练中 ({currentDay})</div>
+        <button type="button" className="btn btn-ghost h-12 px-4 text-base font-semibold text-error hover:bg-error/10 gap-2 active:scale-95" onClick={handleAbort} aria-label="放弃训练"><X size={20} /><span>放弃</span></button>
       </div>
 
       {/* Progress */}
