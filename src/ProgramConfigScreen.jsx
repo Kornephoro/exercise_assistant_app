@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
-import { Loader2, Save, ShieldAlert, CheckCircle, Scale, Zap, Dumbbell, Search, Calendar, Sparkles } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, ShieldAlert, CheckCircle, Scale, Zap, Dumbbell, Search, Calendar, Sparkles } from 'lucide-react';
 import { convertWeight, toStorageWeight } from './unitUtils';
 import { deriveStartFromOneRm } from './oneRmUtils';
+import { getCNName, FALLBACK_CN_NAMES } from './exerciseNames';
 
 // ==================== 1RM 同步钩子 ====================
 // 拉取每个主项最新 1RM，供「一键应用」使用
@@ -49,10 +50,10 @@ const DEFAULT_T2_CHAIN = [
 ];
 
 const LIFT_CN_NAMES = {
-  squat: '深蹲 (Squat)',
-  bench: '卧推 (Bench)',
-  deadlift: '硬拉 (Deadlift)',
-  press: '推举 (Press)',
+  squat: '深蹲',
+  bench: '卧推',
+  deadlift: '硬拉',
+  press: '推举',
 };
 
 // ==================== ProgressionChainEditor ====================
@@ -1441,7 +1442,7 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
         <div className="grid grid-cols-2 gap-3">
           {Array.from(allExercises).map(ex => (
             <div key={ex} className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-text-secondary dark:text-text-secondary-dark">{exercisesMap[ex]?.name_cn || ex}</label>
+              <label className="text-xs font-medium text-text-secondary dark:text-text-secondary-dark">{getCNName(ex, exercisesMap)}</label>
               <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-9 transition-colors">
                 <input type="number" step="0.5"
                   className="w-full bg-transparent font-mono font-semibold text-sm text-text-main dark:text-text-main-dark focus:outline-none text-right pr-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"

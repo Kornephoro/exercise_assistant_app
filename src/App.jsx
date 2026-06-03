@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import { getNextWorkout, getNextDay, isTodayTrainingDay, getNextTrainingDate, getDaysUntilStart } from './programEngine';
 import { calcE1RM } from './oneRmUtils';
+import { getCNName } from './exerciseNames';
 import TodayScreen from './TodayScreen';
 import PlanScreen from './PlanScreen';
+import CalendarScreen from './CalendarScreen';
 import DataScreen from './DataScreen';
 import MyPage from './MyPage';
 import TrainSession from './TrainSession';
@@ -602,9 +604,7 @@ function App() {
     return `${total}/${total}`;
   };
 
-  const getExerciseCNName = (exercise) => {
-    return exercisesMap[exercise]?.name_cn || exercise;
-  };
+  const getExerciseCNName = (exercise) => getCNName(exercise, exercisesMap);
 
   const getActiveProgram = () => {
     if (!activeProgramId) return null;

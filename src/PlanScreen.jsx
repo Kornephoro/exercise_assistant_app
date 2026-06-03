@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient';
 import { Loader2, Search, ChevronRight, X, Users, Calendar, Zap, Target, BookOpen, Pause, Play, StopCircle, Settings, AlertTriangle } from 'lucide-react';
 import ProgramConfigScreen from './ProgramConfigScreen';
 import ExerciseLibrary from './ExerciseLibrary';
+import { getCNName, FEATURE_LABELS } from './exerciseNames';
 
 const DIFFICULTY_MAP = {
   beginner: { label: '初学者', color: 'badge-success' },
@@ -240,7 +241,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
           {p.features && p.features.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {p.features.map(f => (
-                <span key={f} className="badge badge-outline badge-sm font-semibold text-[10px]">{f}</span>
+                <span key={f} className="badge badge-outline badge-sm font-semibold text-[10px]">{FEATURE_LABELS[f] || f}</span>
               ))}
             </div>
           )}
@@ -251,12 +252,12 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
               {Object.entries(p.config.day_map).map(([day, exercises]) => {
                 let summary;
                 if (Array.isArray(exercises)) {
-                  summary = exercises.map(e => `${e.exercise} ${e.sets}×${e.reps}`).join(', ');
+                  summary = exercises.map(e => `${getCNName(e.exercise, exercisesMap)} ${e.sets}×${e.reps}`).join(', ');
                 } else {
                   const parts = [];
-                  if (exercises.T1) parts.push(`T1: ${exercises.T1}`);
-                  if (exercises.T2) parts.push(`T2: ${exercises.T2}`);
-                  if (exercises.T3) parts.push(`T3: ${(exercises.T3 || []).join(', ')}`);
+                  if (exercises.T1) parts.push(`T1: ${getCNName(exercises.T1, exercisesMap)}`);
+                  if (exercises.T2) parts.push(`T2: ${getCNName(exercises.T2, exercisesMap)}`);
+                  if (exercises.T3) parts.push(`T3: ${(exercises.T3 || []).map(n => getCNName(n, exercisesMap)).join(', ')}`);
                   summary = parts.join(' | ');
                 }
                 return (
@@ -372,7 +373,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
           {p.features && p.features.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {p.features.map(f => (
-                <span key={f} className="badge badge-outline badge-sm font-semibold text-[10px]">{f}</span>
+                <span key={f} className="badge badge-outline badge-sm font-semibold text-[10px]">{FEATURE_LABELS[f] || f}</span>
               ))}
             </div>
           )}
@@ -383,12 +384,12 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
               {Object.entries(p.config.day_map).map(([day, exercises]) => {
                 let summary;
                 if (Array.isArray(exercises)) {
-                  summary = exercises.map(e => `${e.exercise} ${e.sets}×${e.reps}`).join(', ');
+                  summary = exercises.map(e => `${getCNName(e.exercise, exercisesMap)} ${e.sets}×${e.reps}`).join(', ');
                 } else {
                   const parts = [];
-                  if (exercises.T1) parts.push(`T1: ${exercises.T1}`);
-                  if (exercises.T2) parts.push(`T2: ${exercises.T2}`);
-                  if (exercises.T3) parts.push(`T3: ${(exercises.T3 || []).join(', ')}`);
+                  if (exercises.T1) parts.push(`T1: ${getCNName(exercises.T1, exercisesMap)}`);
+                  if (exercises.T2) parts.push(`T2: ${getCNName(exercises.T2, exercisesMap)}`);
+                  if (exercises.T3) parts.push(`T3: ${(exercises.T3 || []).map(n => getCNName(n, exercisesMap)).join(', ')}`);
                   summary = parts.join(' | ');
                 }
                 return (

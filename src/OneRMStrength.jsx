@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
 import { calcE1RM, FORMULA_LABEL, MAIN_LIFTS, pickLatestByLift } from './oneRmUtils';
+import { getCNName } from './exerciseNames';
 import { Loader2, Trash2, TrendingUp, Sparkles } from 'lucide-react';
 
 const LIFT_COLORS = {
@@ -162,7 +163,7 @@ function OneRMStrength({ onLatestChange }) {
                 className="select select-bordered w-full h-11 text-base font-bold bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary"
               >
                 {MAIN_LIFTS.map(l => (
-                  <option key={l.key} value={l.key}>{l.cn} ({l.key})</option>
+                  <option key={l.key} value={l.key}>{l.cn}</option>
                 ))}
               </select>
             </div>
@@ -299,7 +300,7 @@ function OneRMStrength({ onLatestChange }) {
                     >
                       <td className="px-3 py-2.5 font-mono font-semibold text-text-main dark:text-text-main-dark">{r.date}</td>
                       <td className="px-3 py-2.5 font-semibold">
-                        <span className={c.text}>{lift?.cn || r.exercise}</span>
+                        <span className={c.text}>{lift ? lift.cn : getCNName(r.exercise)}</span>
                         {isManual && (
                           <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-500/30 text-amber-700 dark:text-amber-300 border border-amber-500/40">
                             专测
