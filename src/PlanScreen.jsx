@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import { Loader2, Search, ChevronRight, X, Users, Calendar, Zap, Target, BookOpen, Pause, Play, StopCircle, Settings, AlertTriangle } from 'lucide-react';
 import ProgramConfigScreen from './ProgramConfigScreen';
@@ -59,6 +59,17 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [pendingUserProgramId, setPendingUserProgramId] = useState(null);
 
+  // 同步 selectedActiveProgram 中的 userProgram 与 props.userPrograms，
+  // 避免陈旧引用（loadWorkoutData / 乐观更新后，detail 页面仍持有旧对象）
+  useEffect(() => {
+    if (selectedActiveProgram) {
+      const latest = userPrograms.find(u => u.id === selectedActiveProgram.userProgram.id);
+      if (latest && latest !== selectedActiveProgram.userProgram) {
+        setSelectedActiveProgram(prev => prev ? { ...prev, userProgram: latest } : prev);
+      }
+    }
+  }, [userPrograms]);
+
   const filteredPrograms = programs.filter(p => {
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
@@ -104,6 +115,11 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
       onProgramError?.('请先完成或放弃训练后再管理计划');
       return;
     }
+    // ① 立即就地乐观更新 detail 页面 userProgram，按钮立刻变 "暂停计划"
+    setSelectedActiveProgram(prev =>
+      prev ? { ...prev, userProgram: { ...prev.userProgram, is_active: true, paused_at: null } } : prev
+    );
+    // ② 异步写库 + 父级联动（切 today tab + loadWorkoutData）
     const { error } = await supabase
       .from('user_programs')
       .update({ is_active: true, paused_at: null })

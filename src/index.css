@@ -119,6 +119,14 @@
   --font-size-num-large: 32px;
 }
 
+/* 深色模式：使用同色系深色背景，文字沿用主色（在深色页面中主色已是浅色，对比好） */
+:where(.dark, .dark *) {
+  --color-success-bg: #1B3D20;
+  --color-error-bg:   #4A1A1A;
+  --color-info-bg:    #1E3A5F;
+  --color-warning-bg: #4A3A1A;
+}
+
 @layer base {
   body {
     font-family: 'Outfit', 'Noto Sans SC', system-ui, -apple-system, sans-serif;
