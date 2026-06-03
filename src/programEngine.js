@@ -220,7 +220,7 @@ function gzclpGetTierProgression(exercise, history, schemes, initialWeight, incr
   const lastPlannedReps = Number(last.planned_reps);
   const lastActual = Number(last.actual_last_set_reps);
 
-  // 找到当前方案
+  // 找到当前方案：先按 reps 匹配，匹配不到则 fallback 到第一阶段
   let currentIdx = schemes.findIndex(s => s.reps === lastPlannedReps);
   if (currentIdx === -1) currentIdx = 0;
   const currentScheme = schemes[currentIdx];
@@ -243,16 +243,24 @@ function gzclpGetTierProgression(exercise, history, schemes, initialWeight, incr
 
   if (success) {
     nextWeight = lastWeight + step;
-    // 如果有 fail_to 且不是 -1，说明需要升级回 scheme 0
-    // 成功时：如果有更高级方案（fail_to 指向的），回到 scheme 0
+    // 成功：回到 chain 的第一个阶段（基础阶段最重，但要先累积信心）
+    // 原逻辑：成功时 nextIdx = 0 (从最低 reps 重新开始)
     nextIdx = 0;
   } else {
     nextWeight = lastWeight;
+    // 失败：前进到下一阶段（更高 reps + 减重 + 保持重量）
+    // 如果有 fail_to 且 >= 0：跳到该阶段
+    // 如果有 fail_to === -1：保持当前阶段
     if (currentScheme.fail_to !== undefined && currentScheme.fail_to >= 0) {
       nextIdx = currentScheme.fail_to;
     } else if (currentScheme.fail_to === -1) {
       // 已经是最后方案，保持不变
       nextIdx = currentIdx;
+    } else {
+      // 自定义 chain 没有 fail_to 字段：失败时前进到 chain 下一阶段，末阶段循环
+      if (schemes.length > 1) {
+        nextIdx = (currentIdx + 1) % schemes.length;
+      }
     }
   }
 
@@ -264,6 +272,28 @@ function gzclpGetTierProgression(exercise, history, schemes, initialWeight, incr
     scheme_text: gzclpGetSchemeText(nextScheme),
     scheme_index: nextIdx
   };
+}
+
+/**
+ * 把用户的 chain 配置 (来自 exercise_config.{lift}.{tier}_chain)
+ * 转换为 engine 用的 schemes 数组
+ * 自动按 reps 推导 success_threshold（reps * 2.5 圆整到 5）
+ */
+function userChainToSchemes(chain) {
+  if (!Array.isArray(chain) || chain.length === 0) return null;
+  return chain.map((stage, i) => {
+    const reps = Number(stage.reps) || 0;
+    const sets = Number(stage.sets) || 3;
+    return {
+      sets,
+      reps,
+      amrap_last: !!stage.amrap,
+      // T2 链自动推导：reps * 2.5，圆整到 5
+      success_threshold: Math.round((reps * 2.5) / 5) * 5,
+      // 末阶段用 -1 表示「失败时保持」，否则链中失败时前进到下一阶段
+      fail_to: i < chain.length - 1 ? i + 1 : -1,
+    };
+  });
 }
 
 function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier) {
@@ -286,7 +316,9 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier) {
     const userEx = exConfig[ex] || {};
     const initWeight = userEx.initial_weight ?? config.default_weights?.[ex];
     const incr = userEx.increment_t1 ?? config.default_increment?.['T1'] ?? 2.5;
-    const schemes = config.t1_schemes;
+    // 优先使用用户自定义 chain，fallback 到程序默认
+    const userSchemes = userChainToSchemes(userEx.t1_chain);
+    const schemes = userSchemes || config.t1_schemes;
     const result = gzclpGetTierProgression(ex, hist, schemes, initWeight, incr, null);
 
     exercises.push({
@@ -307,7 +339,9 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier) {
     const userEx = exConfig[ex] || {};
     const initWeight = userEx.initial_weight ?? config.default_weights?.[ex];
     const incr = userEx.increment_t2 ?? config.default_increment?.['T2'] ?? 2.5;
-    const schemes = config.t2_schemes;
+    // 优先使用用户自定义 chain，fallback 到程序默认
+    const userSchemes = userChainToSchemes(userEx.t2_chain);
+    const schemes = userSchemes || config.t2_schemes;
     // 不传 threshold，让 gzclpGetTierProgression 从当前方案的 success_threshold 自动推导
     const result = gzclpGetTierProgression(ex, hist, schemes, initWeight, incr, null);
 

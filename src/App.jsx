@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import { getNextWorkout, getNextDay, isTodayTrainingDay, getNextTrainingDate, getDaysUntilStart } from './programEngine';
+import { calcE1RM } from './oneRmUtils';
 import TodayScreen from './TodayScreen';
 import PlanScreen from './PlanScreen';
-import CalendarScreen from './CalendarScreen';
+import DataScreen from './DataScreen';
+import MyPage from './MyPage';
 import TrainSession from './TrainSession';
 import FloatingBall from './FloatingBall';
 import OnboardingScreen from './OnboardingScreen';
@@ -247,7 +249,7 @@ function App() {
       const sets = Array.from({ length: ex.sets }, (_, setIdx) => ({
         set_number: setIdx + 1,
         planned_reps: ex.reps,
-        actual_reps: '',
+        actual_reps: ex.amrap_last ? '' : ex.reps,
         completed: false,
         weight_kg: ex.weight,
         ...extra
@@ -350,6 +352,9 @@ function App() {
       setToast({ type: 'error', message: '未找到活跃计划' });
       return;
     }
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
 
     const setsData = sessionState.setsData;
     const getFinalReps = (setObj) => {
@@ -458,6 +463,100 @@ function App() {
 
       if (insertWorkoutsRes.error) throw insertWorkoutsRes.error;
       if (insertSetsRes.error) throw insertSetsRes.error;
+
+      // ============== 任务 6: 自动推算 + 写入 one_rm_records ==============
+      // 规则: 4 个主项 (squat/bench/deadlift/press) T1 高强度组 (reps ≤ 5) 自动推算 1RM
+      // 过滤: 如果新 e1rm < 当前 latest × 0.9, 视为脏数据跳过
+      const MAIN_LIFTS = ['squat', 'bench', 'deadlift', 'press'];
+      const todayISO = new Date().toISOString().split('T')[0];
+
+      // 收集符合条件的主项 e1rm 候选
+      const candidates = [];
+      (todayWorkout.exercises || []).forEach((tierEx, exIdx) => {
+        const liftKey = tierEx.exercise;
+        if (!MAIN_LIFTS.includes(liftKey)) return;
+        const tier = tierEx.tier || 'T1';
+        const sets = setsData[exIdx] || [];
+        const lastSet = sets[sets.length - 1];
+        if (!lastSet) return;
+        const w = Number(lastSet.weight_kg) || 0;
+        const r = Number(lastSet.actual_reps) || 0;
+        if (w <= 0 || r <= 0) return;
+        // 强度门槛：T1 或者 reps ≤ 5
+        const isHighIntensity = tier === 'T1' || r <= 5;
+        if (!isHighIntensity) return;
+        const result = calcE1RM(w, r);
+        if (!result.valid || result.e1rm <= 0) return;
+        candidates.push({
+          exercise: liftKey,
+          date: todayISO,
+          weight_kg: w,
+          reps: r,
+          e1rm_kg: result.e1rm,
+          formula: result.formula,
+          source: 'auto_from_workout',
+        });
+      });
+
+      if (candidates.length > 0) {
+        try {
+          // 拉取每个主项当前最新 1RM 用于过滤
+          const { data: latestData, error: latestErr } = await supabase
+            .from('one_rm_records')
+            .select('exercise, e1rm_kg, date, source')
+            .in('exercise', candidates.map(c => c.exercise))
+            .order('date', { ascending: false });
+
+          if (latestErr) throw latestErr;
+
+          // 同一主项取 date 最大的那条 (按 e1rm_kg 也 fallback 取 max)
+          const latestByLift = {};
+          (latestData || []).forEach(r => {
+            if (!latestByLift[r.exercise] || r.e1rm_kg > latestByLift[r.exercise].e1rm_kg) {
+              latestByLift[r.exercise] = r;
+            }
+          });
+
+          // 过滤: 新 e1rm ≥ current × 90% 才写入
+          const filtered = candidates.filter(c => {
+            const cur = latestByLift[c.exercise];
+            if (!cur) return true; // 无历史，直接写入
+            return c.e1rm_kg >= cur.e1rm_kg * 0.9;
+          });
+
+          if (filtered.length > 0) {
+            // 获取刚插入的 workouts 行的 id (按 exercise + tier + set_number 顺序)
+            // 这里直接用今天日期 + 动作做反查
+            const { data: todayWorkouts } = await supabase
+              .from('workouts')
+              .select('id, exercise, created_at')
+              .eq('program_id', activeProgram.id)
+              .gte('created_at', todayStart.toISOString())
+              .in('exercise', filtered.map(c => c.exercise));
+
+            const workoutMap = {};
+            (todayWorkouts || []).forEach(w => {
+              if (!workoutMap[w.exercise]) workoutMap[w.exercise] = w.id;
+            });
+
+            const rowsToInsert = filtered.map(c => ({
+              ...c,
+              source_workout_id: workoutMap[c.exercise] || null,
+            }));
+
+            const { error: rmErr } = await supabase
+              .from('one_rm_records')
+              .insert(rowsToInsert);
+
+            if (rmErr) {
+              console.warn('写入 1RM 记录失败 (非阻塞):', rmErr.message);
+            }
+          }
+        } catch (e) {
+          // 1RM 写入失败不阻塞主流程
+          console.warn('自动推算 1RM 流程出错 (非阻塞):', e.message);
+        }
+      }
 
       // 更新 user_programs 的 program_state
       const schedule = activeUP.schedule || {};
@@ -646,9 +745,19 @@ function App() {
           />
         </div>
 
-        {/* TAB 3: 日历 */}
-        <div style={{ display: activeTab === 'calendar' ? 'block' : 'none' }}>
-          <CalendarScreen getExerciseCNName={getExerciseCNName} />
+        {/* TAB 3: 数据 */}
+        <div style={{ display: activeTab === 'data' ? 'block' : 'none' }}>
+          <DataScreen getExerciseCNName={getExerciseCNName} />
+        </div>
+
+        {/* TAB 4: 我的 */}
+        <div style={{ display: activeTab === 'me' ? 'block' : 'none' }}>
+          <MyPage
+            theme={theme}
+            onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+            onReOnboard={() => setShowOnboarding(true)}
+            onOpenLibrary={() => setActiveTab('plan')}
+          />
         </div>
       </main>
 
@@ -669,11 +778,18 @@ function App() {
           <span className="dock-label text-xs font-bold">计划库</span>
         </button>
         <button type="button"
-          className={`transition-all duration-200 ${activeTab === 'calendar' ? 'dock-active text-primary font-bold bg-transparent' : 'text-text-secondary dark:text-text-secondary-dark'}`}
-          onClick={() => setActiveTab('calendar')}
+          className={`transition-all duration-200 ${activeTab === 'data' ? 'dock-active text-primary font-bold bg-transparent' : 'text-text-secondary dark:text-text-secondary-dark'}`}
+          onClick={() => setActiveTab('data')}
         >
-          <span className="text-xl">📅</span>
-          <span className="dock-label text-xs font-bold">日历</span>
+          <span className="text-xl">📊</span>
+          <span className="dock-label text-xs font-bold">数据</span>
+        </button>
+        <button type="button"
+          className={`transition-all duration-200 ${activeTab === 'me' ? 'dock-active text-primary font-bold bg-transparent' : 'text-text-secondary dark:text-text-secondary-dark'}`}
+          onClick={() => setActiveTab('me')}
+        >
+          <span className="text-xl">👤</span>
+          <span className="dock-label text-xs font-bold">我的</span>
         </button>
       </div>
 

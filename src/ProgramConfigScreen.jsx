@@ -1,7 +1,176 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
-import { Loader2, ArrowLeft, Save, ShieldAlert, CheckCircle, Scale, Zap, Dumbbell, Search, X, Filter, Calendar, SkipForward, Flag } from 'lucide-react';
-import { convertWeight, toStorageWeight, getExerciseUnit } from './unitUtils';
+import { Loader2, Save, ShieldAlert, CheckCircle, Scale, Zap, Dumbbell, Search, Calendar, Sparkles } from 'lucide-react';
+import { convertWeight, toStorageWeight } from './unitUtils';
+import { deriveStartFromOneRm } from './oneRmUtils';
+
+// ==================== 1RM 同步钩子 ====================
+// 拉取每个主项最新 1RM，供「一键应用」使用
+function useLatestOneRms() {
+  const [latest, setLatest] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('one_rm_records')
+          .select('exercise, e1rm_kg, date, weight_kg, reps, formula, source')
+          .order('date', { ascending: false });
+        if (error) throw error;
+        if (cancelled) return;
+        const map = {};
+        (data || []).forEach(r => {
+          if (!map[r.exercise] || r.date > map[r.exercise].date) {
+            map[r.exercise] = r;
+          }
+        });
+        setLatest(map);
+      } catch (e) {
+        console.warn('加载 1RM 记录失败:', e.message);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  return latest;
+}
+
+// ==================== 默认 chain ====================
+
+const DEFAULT_T1_CHAIN = [
+  { sets: 5, reps: 3, amrap: true },
+  { sets: 6, reps: 2, amrap: true },
+  { sets: 10, reps: 1, amrap: true },
+];
+
+const DEFAULT_T2_CHAIN = [
+  { sets: 3, reps: 10, amrap: false },
+  { sets: 3, reps: 8, amrap: false },
+  { sets: 3, reps: 6, amrap: false },
+];
+
+const LIFT_CN_NAMES = {
+  squat: '深蹲 (Squat)',
+  bench: '卧推 (Bench)',
+  deadlift: '硬拉 (Deadlift)',
+  press: '推举 (Press)',
+};
+
+// ==================== ProgressionChainEditor ====================
+// 移植自插件 GzclpConfigPanel.tsx:193-277
+function ProgressionChainEditor({ chain, onChange, tierLabel }) {
+  const [open, setOpen] = useState(false);
+  const tierColor = tierLabel === 'T1' ? 'text-tier-t1' : 'text-tier-t2';
+
+  const update = (i, patch) => {
+    const next = chain.map((s, idx) => idx === i ? { ...s, ...patch } : s);
+    onChange(next);
+  };
+  const remove = (i) => {
+    if (chain.length <= 1) return;
+    onChange(chain.filter((_, idx) => idx !== i));
+  };
+  const add = () => {
+    const last = chain[chain.length - 1];
+    onChange([
+      ...chain,
+      { sets: last?.sets ?? 3, reps: Math.max(1, (last?.reps ?? 10) - 2), amrap: last?.amrap ?? false }
+    ]);
+  };
+  const reset = () => {
+    const defaults = tierLabel === 'T1' ? DEFAULT_T1_CHAIN : DEFAULT_T2_CHAIN;
+    onChange(defaults.map(s => ({ ...s })));
+  };
+
+  const label = chain.map(s => `${s.sets}×${s.reps}${s.amrap ? '+' : ''}`).join(' → ');
+
+  return (
+    <div className="text-xs border border-border-card/50 dark:border-border-card-dark/50 rounded-md p-2 bg-bg-main/30 dark:bg-bg-main-dark/30 shadow-xs">
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          className="flex items-center gap-1.5 min-w-0 text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark transition-colors flex-1 text-left"
+        >
+          <span className={`${tierColor} font-bold shrink-0`}>{tierLabel} 进阶链</span>
+          <span className="text-[10px] font-mono text-text-secondary/80 truncate">({label})</span>
+          <span className="text-[10px] ml-auto shrink-0">{open ? '▲' : '▼'}</span>
+        </button>
+        <button
+          type="button"
+          onClick={reset}
+          className="text-[10px] text-text-secondary dark:text-text-secondary-dark hover:text-primary transition-colors shrink-0 px-1"
+          title="恢复为默认 chain"
+        >
+          ↺ 默认
+        </button>
+      </div>
+      {open && (
+        <div className="mt-2 pt-2 border-t border-border-card/40 dark:border-border-card-dark/40 space-y-1.5">
+          {chain.map((s, i) => (
+            <div key={i} className="flex items-center gap-1.5 bg-bg-main/40 dark:bg-bg-main-dark/40 p-1.5 rounded-md border border-border-card/30 dark:border-border-card-dark/30">
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  value={s.sets || ''}
+                  min={1}
+                  max={20}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    update(i, { sets: val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0) });
+                  }}
+                  onBlur={() => { if (!s.sets || s.sets < 1) update(i, { sets: 1 }); }}
+                  className="h-7 w-10 rounded border border-input bg-bg-card dark:bg-bg-card-dark text-center text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary px-0"
+                />
+                <span className="text-[10px] text-text-secondary shrink-0">组</span>
+              </div>
+              <span className="text-[10px] text-text-secondary/50 shrink-0">×</span>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  value={s.reps || ''}
+                  min={1}
+                  max={30}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    update(i, { reps: val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0) });
+                  }}
+                  onBlur={() => { if (!s.reps || s.reps < 1) update(i, { reps: 1 }); }}
+                  className="h-7 w-10 rounded border border-input bg-bg-card dark:bg-bg-card-dark text-center text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary px-0"
+                />
+                <span className="text-[10px] text-text-secondary shrink-0">次</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => update(i, { amrap: !s.amrap })}
+                className={`h-7 px-2 rounded border text-[10px] font-semibold transition-colors shrink-0 ${
+                  s.amrap ? 'bg-primary/15 text-primary border-primary/30' : 'border-input bg-bg-card dark:bg-bg-card-dark text-text-secondary hover:bg-bg-hover'
+                }`}
+                title="最后一组做 AMRAP (尽可能多做次数)"
+              >
+                AMRAP
+              </button>
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                className="h-7 w-7 rounded text-text-secondary hover:text-alert hover:bg-alert/10 transition-colors flex items-center justify-center text-sm ml-auto shrink-0"
+                title="删除此阶段"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={add}
+            className="w-full text-center text-[10px] text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark border border-dashed border-border-card dark:border-border-card-dark rounded py-1 transition-colors bg-bg-card/30 dark:bg-bg-card-dark/30 hover:bg-bg-card/60"
+          >
+            + 添加阶段
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ==================== GZCLP 完整配置 ====================
 
@@ -29,6 +198,49 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
   const [deadliftT2Step, setDeadliftT2Step] = useState('2.5');
   const [pressT1Step, setPressT1Step] = useState('2.5');
   const [pressT2Step, setPressT2Step] = useState('2.5');
+
+  // 任务 1：各主项进阶参数 (1RM + chain)
+  const [squatOneRm, setSquatOneRm] = useState('80');
+  const [benchOneRm, setBenchOneRm] = useState('60');
+  const [deadliftOneRm, setDeadliftOneRm] = useState('100');
+  const [pressOneRm, setPressOneRm] = useState('40');
+  const [squatT1Chain, setSquatT1Chain] = useState(DEFAULT_T1_CHAIN.map(s => ({ ...s })));
+  const [squatT2Chain, setSquatT2Chain] = useState(DEFAULT_T2_CHAIN.map(s => ({ ...s })));
+  const [benchT1Chain, setBenchT1Chain] = useState(DEFAULT_T1_CHAIN.map(s => ({ ...s })));
+  const [benchT2Chain, setBenchT2Chain] = useState(DEFAULT_T2_CHAIN.map(s => ({ ...s })));
+  const [deadliftT1Chain, setDeadliftT1Chain] = useState(DEFAULT_T1_CHAIN.map(s => ({ ...s })));
+  const [deadliftT2Chain, setDeadliftT2Chain] = useState(DEFAULT_T2_CHAIN.map(s => ({ ...s })));
+  const [pressT1Chain, setPressT1Chain] = useState(DEFAULT_T1_CHAIN.map(s => ({ ...s })));
+  const [pressT2Chain, setPressT2Chain] = useState(DEFAULT_T2_CHAIN.map(s => ({ ...s })));
+
+  // 1RM 拉取钩子
+  const latestOneRms = useLatestOneRms();
+
+  // 同步云端 1RM → state (仅在 fetch 完成后, 如果本地初始 80/60/100/40 还没被用户改过)
+  // 策略: 加载时如果云端有, 用云端的 (因为这是真实测试)
+  useEffect(() => {
+    if (Object.keys(latestOneRms).length === 0) return;
+    setSquatOneRm(prev => {
+      const cloud = latestOneRms.squat?.e1rm_kg;
+      if (cloud && (Number(prev) === 80 || !prev)) return String(cloud);
+      return prev;
+    });
+    setBenchOneRm(prev => {
+      const cloud = latestOneRms.bench?.e1rm_kg;
+      if (cloud && (Number(prev) === 60 || !prev)) return String(cloud);
+      return prev;
+    });
+    setDeadliftOneRm(prev => {
+      const cloud = latestOneRms.deadlift?.e1rm_kg;
+      if (cloud && (Number(prev) === 100 || !prev)) return String(cloud);
+      return prev;
+    });
+    setPressOneRm(prev => {
+      const cloud = latestOneRms.press?.e1rm_kg;
+      if (cloud && (Number(prev) === 40 || !prev)) return String(cloud);
+      return prev;
+    });
+  }, [latestOneRms]);
 
   // user_programs 记录 ID
   const [userProgramId, setUserProgramId] = useState(null);
@@ -201,6 +413,9 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
       const getWeight = (ex) => ec[ex]?.initial_weight ?? defaultWeights[ex] ?? 40;
       const getT1Incr = (ex) => ec[ex]?.increment_t1 ?? defaultIncrement.T1 ?? 2.5;
       const getT2Incr = (ex) => ec[ex]?.increment_t2 ?? defaultIncrement.T2 ?? 2.5;
+      const getOneRm = (ex) => ec[ex]?.one_rm ?? null;
+      const getT1Chain = (ex) => ec[ex]?.t1_chain;
+      const getT2Chain = (ex) => ec[ex]?.t2_chain;
 
       // 加载单位设置
       const savedUnit = ec._unit || 'kg';
@@ -236,6 +451,27 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
       setDeadliftT2Step(displayIncr('deadlift', 'T2').toString());
       setPressT1Step(displayIncr('press', 'T1').toString());
       setPressT2Step(displayIncr('press', 'T2').toString());
+
+      // 加载 1RM
+      const squatRM = getOneRm('squat');
+      const benchRM = getOneRm('bench');
+      const deadliftRM = getOneRm('deadlift');
+      const pressRM = getOneRm('press');
+      if (squatRM) setSquatOneRm(squatRM.toString());
+      if (benchRM) setBenchOneRm(benchRM.toString());
+      if (deadliftRM) setDeadliftOneRm(deadliftRM.toString());
+      if (pressRM) setPressOneRm(pressRM.toString());
+
+      // 加载 chain
+      const loadChain = (val) => Array.isArray(val) && val.length > 0 ? val.map(s => ({ ...s })) : null;
+      const sqT1c = loadChain(getT1Chain('squat')); if (sqT1c) setSquatT1Chain(sqT1c);
+      const sqT2c = loadChain(getT2Chain('squat')); if (sqT2c) setSquatT2Chain(sqT2c);
+      const beT1c = loadChain(getT1Chain('bench')); if (beT1c) setBenchT1Chain(beT1c);
+      const beT2c = loadChain(getT2Chain('bench')); if (beT2c) setBenchT2Chain(beT2c);
+      const deT1c = loadChain(getT1Chain('deadlift')); if (deT1c) setDeadliftT1Chain(deT1c);
+      const deT2c = loadChain(getT2Chain('deadlift')); if (deT2c) setDeadliftT2Chain(deT2c);
+      const prT1c = loadChain(getT1Chain('press')); if (prT1c) setPressT1Chain(prT1c);
+      const prT2c = loadChain(getT2Chain('press')); if (prT2c) setPressT2Chain(prT2c);
 
       // 加载训练日程
       if (schedule?.scheduleType) {
@@ -281,6 +517,14 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
       return;
     }
 
+    // 1RM 校验
+    const [sqRM, beRM, deRM, prRM] = [squatOneRm, benchOneRm, deadliftOneRm, pressOneRm].map(v => parseFloat(v));
+    if ([sqRM, beRM, deRM, prRM].some(v => isNaN(v) || v <= 0)) {
+      setError('1RM 必须为大于 0 的有效数字');
+      setSuccessMsg(null);
+      return;
+    }
+
     // 验证 T3 动作配置
     for (const ex of t3Exercises) {
       if (isNaN(ex.incrementKg) || ex.incrementKg < 0.5) {
@@ -306,12 +550,48 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
       };
 
       // 构建 exercise_config JSON（主项 + T3 动作 + 单位）
+      const toKgVal = (v, ex) => {
+        const unit = exerciseUnits[ex] || weightUnit;
+        return unit === 'lbs' ? toStorageWeight(v, 'lbs') : v;
+      };
       const exerciseConfig = {
         _unit: weightUnit, // 全局默认单位
-        squat: { initial_weight: toKg(squatW, 'squat'), increment_t1: toKg(sqT1, 'squat'), increment_t2: toKg(sqT2, 'squat'), unit: exerciseUnits.squat || weightUnit },
-        bench: { initial_weight: toKg(benchW, 'bench'), increment_t1: toKg(beT1, 'bench'), increment_t2: toKg(beT2, 'bench'), unit: exerciseUnits.bench || weightUnit },
-        deadlift: { initial_weight: toKg(deadliftW, 'deadlift'), increment_t1: toKg(deT1, 'deadlift'), increment_t2: toKg(deT2, 'deadlift'), unit: exerciseUnits.deadlift || weightUnit },
-        press: { initial_weight: toKg(pressW, 'press'), increment_t1: toKg(prT1, 'press'), increment_t2: toKg(prT2, 'press'), unit: exerciseUnits.press || weightUnit },
+        squat: {
+          initial_weight: toKg(squatW, 'squat'),
+          one_rm: toKgVal(sqRM, 'squat'),
+          increment_t1: toKg(sqT1, 'squat'),
+          increment_t2: toKg(sqT2, 'squat'),
+          t1_chain: squatT1Chain.map(s => ({ sets: s.sets, reps: s.reps, amrap: !!s.amrap })),
+          t2_chain: squatT2Chain.map(s => ({ sets: s.sets, reps: s.reps, amrap: !!s.amrap })),
+          unit: exerciseUnits.squat || weightUnit,
+        },
+        bench: {
+          initial_weight: toKg(benchW, 'bench'),
+          one_rm: toKgVal(beRM, 'bench'),
+          increment_t1: toKg(beT1, 'bench'),
+          increment_t2: toKg(beT2, 'bench'),
+          t1_chain: benchT1Chain.map(s => ({ sets: s.sets, reps: s.reps, amrap: !!s.amrap })),
+          t2_chain: benchT2Chain.map(s => ({ sets: s.sets, reps: s.reps, amrap: !!s.amrap })),
+          unit: exerciseUnits.bench || weightUnit,
+        },
+        deadlift: {
+          initial_weight: toKg(deadliftW, 'deadlift'),
+          one_rm: toKgVal(deRM, 'deadlift'),
+          increment_t1: toKg(deT1, 'deadlift'),
+          increment_t2: toKg(deT2, 'deadlift'),
+          t1_chain: deadliftT1Chain.map(s => ({ sets: s.sets, reps: s.reps, amrap: !!s.amrap })),
+          t2_chain: deadliftT2Chain.map(s => ({ sets: s.sets, reps: s.reps, amrap: !!s.amrap })),
+          unit: exerciseUnits.deadlift || weightUnit,
+        },
+        press: {
+          initial_weight: toKg(pressW, 'press'),
+          one_rm: toKgVal(prRM, 'press'),
+          increment_t1: toKg(prT1, 'press'),
+          increment_t2: toKg(prT2, 'press'),
+          t1_chain: pressT1Chain.map(s => ({ sets: s.sets, reps: s.reps, amrap: !!s.amrap })),
+          t2_chain: pressT2Chain.map(s => ({ sets: s.sets, reps: s.reps, amrap: !!s.amrap })),
+          unit: exerciseUnits.press || weightUnit,
+        },
         ...Object.fromEntries(t3Exercises.map(ex => {
           const unit = exerciseUnits[ex.name] || weightUnit;
           return [
@@ -373,6 +653,33 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  // ============== 一键应用: 1RM → initial_weight ==============
+  const applyOneRmToInitial = (lift) => {
+    const oneRmMap = {
+      squat: parseFloat(squatOneRm),
+      bench: parseFloat(benchOneRm),
+      deadlift: parseFloat(deadliftOneRm),
+      press: parseFloat(pressOneRm),
+    };
+    const setterMap = {
+      squat: setSquatWeight,
+      bench: setBenchWeight,
+      deadlift: setDeadliftWeight,
+      press: setPressWeight,
+    };
+    const rm = oneRmMap[lift];
+    if (!rm || rm <= 0) {
+      setError(`请先填写 ${LIFT_CN_NAMES[lift]} 的有效 1RM`);
+      return;
+    }
+    const t1 = deriveStartFromOneRm(rm, 0.85);
+    const t2 = deriveStartFromOneRm(rm, 0.65);
+    // 默认用 T1 起始 (1RM × 0.85) 作为 initial_weight
+    setterMap[lift](String(t1));
+    setSuccessMsg(`✨ ${LIFT_CN_NAMES[lift]}: 1RM ${rm}kg → 起始 ${t1}kg (T1×0.85, T2 建议 ${t2}kg)`);
+    setError(null);
   };
 
   if (loading) {
@@ -549,40 +856,119 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
         </div>
       </div>
 
-      {/* 2. T1 & T2 步长 */}
+      {/* 2. 各主项进阶参数 (移植自插件 GzclpConfigPanel) */}
       <div className="card">
-        <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark mb-4 pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
-          <Zap size={16} className="text-primary" /><span>2. 核心动作加重步长 (T1 & T2)</span>
+        <h3 className="text-lg font-extrabold text-text-main dark:text-text-main-dark mb-2 pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
+          <Zap size={18} className="text-primary" /><span>2. 各主项进阶参数</span>
         </h3>
+        <p className="text-sm text-text-secondary dark:text-text-secondary-dark mb-4 leading-relaxed">
+          设置每个主项的 1RM、T1/T2 加重步长、进阶链 (失败时前进到下一阶段)。
+          可用「✨ 一键应用」按 1RM × 0.85 自动填入起始重量。
+        </p>
+
         <div className="flex flex-col gap-3">
-          {[['squat', '深蹲 (Squat)', squatT1Step, setSquatT1Step, squatT2Step, setSquatT2Step],
-            ['bench', '卧推 (Bench)', benchT1Step, setBenchT1Step, benchT2Step, setBenchT2Step],
-            ['deadlift', '硬拉 (Deadlift)', deadliftT1Step, setDeadliftT1Step, deadliftT2Step, setDeadliftT2Step],
-            ['press', '推举 (Press)', pressT1Step, setPressT1Step, pressT2Step, setPressT2Step]
-          ].map(([key, label, t1Val, t1Set, t2Val, t2Set]) => {
-            const exUnit = exerciseUnits[key] || weightUnit;
-            return (
-              <div key={key} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 gap-3">
-                <span className="text-base font-bold text-text-main dark:text-text-main-dark">{label}</span>
-                <div className="flex gap-3 justify-between sm:justify-end w-full sm:w-auto">
-                  <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
-                    <span className="badge bg-tier-t1/10 text-tier-t1 dark:text-tier-t1-dark border-tier-t1/20 dark:border-tier-t1-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T1</span>
-                    <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-full sm:w-[90px] h-9 transition-colors">
-                      <input type="number" step="0.5" min="0.5" className={inputClass} value={t1Val} onChange={(e) => t1Set(e.target.value)} />
-                      <span className="text-sm font-medium text-text-secondary/50 select-none">{exUnit}</span>
+          {(() => {
+            const lifts = [
+              { key: 'squat',    label: '深蹲 (Squat)',    oneRm: squatOneRm,    setOneRm: setSquatOneRm,    t1Step: squatT1Step, setT1: setSquatT1Step,    t2Step: squatT2Step, setT2: setSquatT2Step,    t1Chain: squatT1Chain, setT1Chain: setSquatT1Chain, t2Chain: squatT2Chain, setT2Chain: setSquatT2Chain },
+              { key: 'bench',    label: '卧推 (Bench)',    oneRm: benchOneRm,    setOneRm: setBenchOneRm,    t1Step: benchT1Step, setT1: setBenchT1Step,    t2Step: benchT2Step, setT2: setBenchT2Step,    t1Chain: benchT1Chain, setT1Chain: setBenchT1Chain, t2Chain: benchT2Chain, setT2Chain: setBenchT2Chain },
+              { key: 'deadlift', label: '硬拉 (Deadlift)', oneRm: deadliftOneRm, setOneRm: setDeadliftOneRm, t1Step: deadliftT1Step, setT1: setDeadliftT1Step, t2Step: deadliftT2Step, setT2: setDeadliftT2Step, t1Chain: deadliftT1Chain, setT1Chain: setDeadliftT1Chain, t2Chain: deadliftT2Chain, setT2Chain: setDeadliftT2Chain },
+              { key: 'press',    label: '推举 (Press)',    oneRm: pressOneRm,    setOneRm: setPressOneRm,    t1Step: pressT1Step, setT1: setPressT1Step,    t2Step: pressT2Step, setT2: setPressT2Step,    t1Chain: pressT1Chain, setT1Chain: setPressT1Chain, t2Chain: pressT2Chain, setT2Chain: setPressT2Chain },
+            ];
+            return lifts.map(L => {
+              const exUnit = exerciseUnits[L.key] || weightUnit;
+              const rm = parseFloat(L.oneRm) || 0;
+              const t1Start = deriveStartFromOneRm(rm, 0.85);
+              const t2Start = deriveStartFromOneRm(rm, 0.65);
+              const cloudOneRm = latestOneRms[L.key];
+              return (
+                <div key={L.key} className="p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 flex flex-col gap-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-base font-bold text-text-main dark:text-text-main-dark">{L.label}</span>
+                    {cloudOneRm && (
+                      <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-mono">
+                        云端 1RM: {cloudOneRm.e1rm_kg}kg
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => applyOneRmToInitial(L.key)}
+                    className="btn btn-primary btn-sm w-full gap-1.5 text-sm font-bold cursor-pointer"
+                    title={`用 1RM × 0.85 自动填入起始重量`}
+                  >
+                    <Sparkles size={14} />一键应用 1RM → 起始重量
+                  </button>
+
+                  {/* 1RM 输入 + T1/T2 加重 */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm text-text-secondary dark:text-text-secondary-dark">1RM ({exUnit})</label>
+                      <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          value={L.oneRm}
+                          onChange={(e) => L.setOneRm(e.target.value)}
+                          className={inputClass}
+                        />
+                        <span className="text-sm font-medium text-text-secondary/50 select-none">{exUnit}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm text-text-secondary dark:text-text-secondary-dark">T1 加重</label>
+                      <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0.5"
+                          value={L.t1Step}
+                          onChange={(e) => L.setT1(e.target.value)}
+                          className={inputClass}
+                        />
+                        <span className="text-sm font-medium text-text-secondary/50 select-none">{exUnit}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm text-text-secondary dark:text-text-secondary-dark">T2 加重</label>
+                      <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0.5"
+                          value={L.t2Step}
+                          onChange={(e) => L.setT2(e.target.value)}
+                          className={inputClass}
+                        />
+                        <span className="text-sm font-medium text-text-secondary/50 select-none">{exUnit}</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
-                    <span className="badge bg-tier-t2/10 text-tier-t2 dark:text-tier-t2-dark border-tier-t2/20 dark:border-tier-t2-dark/20 font-extrabold text-xs w-7 h-5 flex items-center justify-center rounded select-none">T2</span>
-                    <div className="input input-bordered input-sm flex items-center gap-0.5 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 w-full sm:w-[90px] h-9 transition-colors">
-                      <input type="number" step="0.5" min="0.5" className={inputClass} value={t2Val} onChange={(e) => t2Set(e.target.value)} />
-                      <span className="text-sm font-medium text-text-secondary/50 select-none">{exUnit}</span>
-                    </div>
+
+                  {rm > 0 && (
+                    <p className="text-sm text-text-secondary dark:text-text-secondary-dark font-mono bg-bg-main/40 dark:bg-bg-main-dark/40 border border-border-card/50 dark:border-border-card-dark/50 rounded-lg p-2">
+                      💡 1RM 推导：T1 起始 <span className="font-bold text-primary">{t1Start}{exUnit}</span>
+                      <span className="mx-1 opacity-50">·</span>
+                      T2 起始 <span className="font-bold text-primary">{t2Start}{exUnit}</span>
+                    </p>
+                  )}
+
+                  <div className="flex flex-col gap-2">
+                    <ProgressionChainEditor
+                      tierLabel="T1"
+                      chain={L.t1Chain}
+                      onChange={L.setT1Chain}
+                    />
+                    <ProgressionChainEditor
+                      tierLabel="T2"
+                      chain={L.t2Chain}
+                      onChange={L.setT2Chain}
+                    />
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            });
+          })()}
         </div>
       </div>
 

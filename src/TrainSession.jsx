@@ -200,7 +200,7 @@ function TrainSession({
   const handleAbort = () => onCancel();
 
   // ============ FIELD INPUT GROUP (method-aware inputs) ============
-  const FieldInput = ({ kind, value, onChange }) => {
+  const FieldInput = ({ kind, value, onChange, placeholder = '' }) => {
     const isInt = kind === 'reps' || kind === 'duration';
     const maxLen = { reps: 4, duration: 4, weight: 5, distance: 6 }[kind];
     return (
@@ -209,7 +209,8 @@ function TrainSession({
         inputMode={isInt ? 'numeric' : 'decimal'}
         pattern={isInt ? '[0-9]*' : undefined}
         maxLength={maxLen}
-        className="input input-bordered text-center !text-center font-mono text-3xl font-bold w-full h-14 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        placeholder={placeholder}
+        className="input input-bordered text-center !text-center font-mono text-2xl font-bold w-full h-12 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         value={value ?? ''}
         onChange={(e) => {
           const raw = e.target.value.replace(isInt ? /\D/g : /[^\d.]/g, '');
@@ -230,14 +231,14 @@ function TrainSession({
     );
   };
 
-  const FieldInputGroup = ({ fields, valueMap, onChangeMap, fieldLabel }) => {
+  const FieldInputGroup = ({ fields, valueMap, onChangeMap, fieldLabel, placeholderMap = {} }) => {
     if (!fields || fields.length === 0) return null;
     return (
-      <div className={fields.length === 1 ? 'flex flex-col gap-1' : 'grid grid-cols-2 gap-3'}>
+      <div className={fields.length === 1 ? 'flex flex-col gap-1' : 'grid grid-cols-2 gap-2.5'}>
         {fields.map((kind) => (
           <div key={kind} className="flex flex-col gap-1">
-            <label className="text-sm font-semibold text-base-content/50">{fieldLabel[kind]}</label>
-            <FieldInput kind={kind} value={valueMap[kind]} onChange={onChangeMap[kind]} />
+            <label className="text-xs font-semibold text-base-content/50">{fieldLabel[kind]}</label>
+            <FieldInput kind={kind} value={valueMap[kind]} onChange={onChangeMap[kind]} placeholder={placeholderMap[kind] || ''} />
           </div>
         ))}
       </div>
@@ -279,18 +280,18 @@ function TrainSession({
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-3" onClick={closeSetCard}>
         <div className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-          <div className="p-4 flex flex-col gap-3">
+          <div className="p-3.5 flex flex-col gap-2.5">
             {/* Header */}
             <div className="flex items-center justify-between">
-              <span className="text-base font-semibold text-base-content/50">第 {set.set_number} 组 / 共 {totalSets} 组</span>
+              <span className="text-sm font-semibold text-base-content/50">第 {set.set_number} 组 / 共 {totalSets} 组</span>
             </div>
 
             {/* Summary Line - Large Typography */}
-            <div className="p-3 rounded-xl bg-base-200/50">
-              <div className="text-2xl font-bold text-base-content">
+            <div className="p-2.5 rounded-xl bg-base-200/50">
+              <div className="text-xl font-bold text-base-content">
                 {config.summary(set, ex)}
               </div>
-              <div className="text-lg font-semibold text-base-content/60 mt-1">
+              <div className="text-base font-semibold text-base-content/60 mt-0.5">
                 RPE {set.planned_rpe ?? 7}
                 {config.showTempo && <> | 节奏 {set.tempo ?? '3110'}</>}
                 <> | 休息 {customRestSeconds}秒</>
@@ -313,6 +314,9 @@ function TrainSession({
                 distance: (v) => handleDistanceChange(exerciseIdx, setIdx, v),
               }}
               fieldLabel={FIELD_LABEL}
+              placeholderMap={{
+                reps: ex.amrap_last && (set.actual_reps === '' || set.actual_reps === undefined) ? 'AMRAP' : '',
+              }}
             />
 
             <div className="divider my-0" />
@@ -320,38 +324,38 @@ function TrainSession({
             {/* RPE */}
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-semibold text-base-content/50">RPE</label>
-                <span className={`text-3xl font-bold font-mono ${getRpeColor(rpeValue)}`}>{rpeValue.toFixed(1)}</span>
+                <label className="text-xs font-semibold text-base-content/50">RPE</label>
+                <span className={`text-2xl font-bold font-mono ${getRpeColor(rpeValue)}`}>{rpeValue.toFixed(1)}</span>
               </div>
               <input type="range" min="0" max="10" step="0.5" value={rpeValue} className="range range-primary w-full" onChange={(e) => updateSetDetail(setKey, 'rpe', parseFloat(e.target.value))} />
-              <div className="flex justify-between px-1 text-xs text-base-content/30 font-mono"><span>0</span><span>2</span><span>4</span><span>6</span><span>8</span><span>10</span></div>
+              <div className="flex justify-between px-1 text-[10px] text-base-content/30 font-mono"><span>0</span><span>2</span><span>4</span><span>6</span><span>8</span><span>10</span></div>
             </div>
 
             {/* Tempo: presets left, fields right - method-aware visibility */}
             {config.showTempo && (
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-semibold text-base-content/50">动作节奏</label>
-              <div className="flex gap-3 items-stretch">
+              <label className="text-xs font-semibold text-base-content/50">动作节奏</label>
+              <div className="flex gap-2.5 items-stretch">
                 {/* 左侧：3 个预设按钮垂直排列，占 50%，均匀分布 */}
-                <div className="flex-1 flex flex-col gap-1.5 justify-between">
+                <div className="flex-1 flex flex-col gap-1 justify-between">
                   {TEMPO_PRESETS.slice(0, 3).map((preset, idx) => (
-                    <button key={idx} type="button" className={`btn btn-ghost h-7 min-h-0 px-2 text-xs w-full whitespace-nowrap rounded-full ${preset.values === null ? 'btn-outline' : ''}`} onClick={() => applyTempoPreset(setKey, preset.values)}>{preset.label}</button>
+                    <button key={idx} type="button" className={`btn btn-ghost h-6 min-h-0 px-2 text-xs w-full whitespace-nowrap rounded-full ${preset.values === null ? 'btn-outline' : ''}`} onClick={() => applyTempoPreset(setKey, preset.values)}>{preset.label}</button>
                   ))}
                 </div>
                 {/* 右侧：4 个输入框横向并排，占 50% */}
-                <div className="flex-1 grid grid-cols-4 gap-2">
+                <div className="flex-1 grid grid-cols-4 gap-1.5">
                   {TEMPO_LABELS.map((label, idx) => {
                     const fields = ['tempo_eccentric', 'tempo_pause_bottom', 'tempo_concentric', 'tempo_pause_top'];
                     const defaults = [3, 1, 1, 0];
                     return (
                       <div key={fields[idx]} className="flex flex-col gap-1 items-center">
-                        <span className="text-xs text-base-content/40">{label}</span>
+                        <span className="text-[10px] text-base-content/40">{label}</span>
                         <input
                           type="text"
                           inputMode="numeric"
                           pattern="[0-9]"
                           maxLength={1}
-                          className="input input-bordered text-center !text-center font-mono font-bold w-full h-16 text-3xl rounded-md px-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className="input input-bordered text-center !text-center font-mono font-bold w-full h-12 text-xl rounded-md px-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={detail[fields[idx]] ?? defaults[idx]}
                           onChange={(e) => {
                             const raw = e.target.value.replace(/\D/g, '').slice(-1);
@@ -388,14 +392,14 @@ function TrainSession({
 
             {/* 组间休息调整 */}
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-semibold text-base-content/50">组间休息（秒）</label>
-              <div className="flex items-stretch gap-2">
+              <label className="text-xs font-semibold text-base-content/50">组间休息（秒）</label>
+              <div className="flex items-stretch gap-1.5">
                 <button type="button" onClick={() => adjustCustomRest(-30)}
-                  className="btn btn-outline h-14 w-14 rounded-md font-bold text-base text-base-content/70 hover:text-error hover:border-error/50 active:scale-95"
+                  className="btn btn-outline h-12 w-12 rounded-md font-bold text-sm text-base-content/70 hover:text-error hover:border-error/50 active:scale-95"
                   aria-label="减少 30 秒"
                 >-30s</button>
                 <button type="button" onClick={() => adjustCustomRest(-10)}
-                  className="btn btn-outline h-14 w-14 rounded-md font-bold text-base text-base-content/70 hover:text-error hover:border-error/50 active:scale-95"
+                  className="btn btn-outline h-12 w-12 rounded-md font-bold text-sm text-base-content/70 hover:text-error hover:border-error/50 active:scale-95"
                   aria-label="减少 10 秒"
                 >-10s</button>
                 <input
@@ -403,7 +407,7 @@ function TrainSession({
                   inputMode="numeric"
                   pattern="[0-9]*"
                   maxLength={4}
-                  className="input input-bordered text-center !text-center font-mono text-3xl font-bold flex-1 h-14 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="input input-bordered text-center !text-center font-mono text-2xl font-bold flex-1 h-12 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   value={customRestSeconds}
                   onChange={(e) => {
                     const raw = e.target.value.replace(/\D/g, '');
@@ -424,11 +428,11 @@ function TrainSession({
                   }}
                 />
                 <button type="button" onClick={() => adjustCustomRest(10)}
-                  className="btn btn-outline h-14 w-14 rounded-md font-bold text-base text-primary hover:bg-primary hover:text-primary-content hover:border-primary active:scale-95"
+                  className="btn btn-outline h-12 w-12 rounded-md font-bold text-sm text-primary hover:bg-primary hover:text-primary-content hover:border-primary active:scale-95"
                   aria-label="增加 10 秒"
                 >+10s</button>
                 <button type="button" onClick={() => adjustCustomRest(30)}
-                  className="btn btn-outline h-14 w-14 rounded-md font-bold text-base text-primary hover:bg-primary hover:text-primary-content hover:border-primary active:scale-95"
+                  className="btn btn-outline h-12 w-12 rounded-md font-bold text-sm text-primary hover:bg-primary hover:text-primary-content hover:border-primary active:scale-95"
                   aria-label="增加 30 秒"
                 >+30s</button>
               </div>
@@ -436,9 +440,9 @@ function TrainSession({
 
             {/* 备注/感受 */}
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-semibold text-base-content/50">备注/感受</label>
-              <textarea 
-                className="textarea textarea-bordered w-full h-20 text-sm" 
+              <label className="text-xs font-semibold text-base-content/50">备注/感受</label>
+              <textarea
+                className="textarea textarea-bordered w-full h-16 text-xs"
                 placeholder="记录本组感受..."
                 value={detail.notes || ''}
                 onChange={(e) => updateSetDetail(setKey, 'notes', e.target.value)}
@@ -446,9 +450,9 @@ function TrainSession({
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3">
-              <button type="button" className="btn btn-primary flex-1 font-bold gap-2 h-14 text-lg" onClick={completeSet}><Check size={20} />完成本组</button>
-              <button type="button" className="btn btn-ghost btn-outline flex-1 font-semibold gap-2 h-14 text-lg" onClick={() => { handleToggleSet(exerciseIdx, setIdx); closeSetCard(); }}><SkipForward size={20} />跳过</button>
+            <div className="flex gap-2.5">
+              <button type="button" className="btn btn-primary flex-1 font-bold gap-2 h-12 text-base" onClick={completeSet}><Check size={18} />完成本组</button>
+              <button type="button" className="btn btn-ghost btn-outline flex-1 font-semibold gap-2 h-12 text-base" onClick={() => { handleToggleSet(exerciseIdx, setIdx); closeSetCard(); }}><SkipForward size={18} />跳过</button>
             </div>
           </div>
         </div>
@@ -466,10 +470,10 @@ function TrainSession({
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-3">
         <div className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-md">
-          <div className="flex flex-col items-center gap-5 p-6">
-            <span className="text-base font-semibold text-base-content/60">组间休息</span>
+          <div className="flex flex-col items-center gap-4 p-5">
+            <span className="text-sm font-semibold text-base-content/60">组间休息</span>
 
-            <div className="relative flex items-center justify-center" style={{ width: '10rem', height: '10rem' }}>
+            <div className="relative flex items-center justify-center" style={{ width: '8rem', height: '8rem' }}>
               <svg className="absolute inset-0" viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>
                 <circle
                   cx="50"
@@ -494,18 +498,18 @@ function TrainSession({
                 />
               </svg>
               <div className="flex flex-col items-center z-10">
-                <span className="text-5xl font-bold font-mono text-base-content">{restTimer.remaining}</span>
-                <span className="text-base text-base-content/40">秒</span>
+                <span className="text-4xl font-bold font-mono text-base-content">{restTimer.remaining}</span>
+                <span className="text-sm text-base-content/40">秒</span>
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 w-full">
-              <div className="flex gap-3 w-full">
-                <button type="button" className="btn btn-ghost btn-outline flex-1 font-bold gap-1 h-12 text-base" onClick={() => addRestTime(-10)}>-10s</button>
-                <button type="button" className="btn btn-ghost btn-outline flex-1 font-bold gap-1 h-12 text-base" onClick={() => addRestTime(10)}>+10s</button>
-                <button type="button" className="btn btn-ghost btn-outline flex-1 font-bold gap-1 h-12 text-base" onClick={() => addRestTime(30)}><Plus size={18} />+30s</button>
+            <div className="flex flex-col gap-2.5 w-full">
+              <div className="flex gap-2 w-full">
+                <button type="button" className="btn btn-ghost btn-outline flex-1 font-bold gap-1 h-11 text-sm" onClick={() => addRestTime(-10)}>-10s</button>
+                <button type="button" className="btn btn-ghost btn-outline flex-1 font-bold gap-1 h-11 text-sm" onClick={() => addRestTime(10)}>+10s</button>
+                <button type="button" className="btn btn-ghost btn-outline flex-1 font-bold gap-1 h-11 text-sm" onClick={() => addRestTime(30)}><Plus size={16} />+30s</button>
               </div>
-              <button type="button" className="btn btn-warning w-full font-bold gap-2 h-12 text-base" onClick={skipRest}><FastForward size={18} />跳过休息</button>
+              <button type="button" className="btn btn-warning w-full font-bold gap-2 h-11 text-sm" onClick={skipRest}><FastForward size={16} />跳过休息</button>
             </div>
           </div>
         </div>
@@ -531,38 +535,38 @@ function TrainSession({
 
           return (
             <div key={exIdx} className={`card bg-base-100 border border-base-300 border-l-4 ${tierBorder} shadow-sm transition-all duration-300 ${isFullyCompleted ? 'opacity-50' : ''}`}>
-              <div className="card-body p-4 gap-3">
+              <div className="card-body p-3.5 gap-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className={`badge ${tierBadge} font-bold text-xs`}>{tier}</span>
-                    <span className="text-base font-bold text-base-content">{getExerciseCNName(ex.exercise)}</span>
-                    <span className="text-sm font-mono font-bold text-base-content/40 bg-base-200 px-2 py-0.5 rounded">{ex.weight?.toFixed(1)}kg</span>
+                    <span className="text-sm font-bold text-base-content">{getExerciseCNName(ex.exercise)}</span>
+                    <span className="text-xs font-mono font-bold text-base-content/40 bg-base-200 px-1.5 py-0.5 rounded">{ex.weight?.toFixed(1)}kg</span>
                   </div>
-                  <span className="text-xs font-semibold text-base-content/40">{completedCount}/{sets.length}</span>
+                  <span className="text-[10px] font-semibold text-base-content/40">{completedCount}/{sets.length}</span>
                 </div>
 
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-1.5">
                   {sets.map((set, setIdx) => {
                     const setKey = getSetKey(exIdx, setIdx);
                     const detail = setDetails[setKey] || {};
                     const isLastSet = setIdx === sets.length - 1;
                     return (
-                      <button key={setIdx} type="button" className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all duration-200 text-left w-full ${set.completed ? 'border-green-500/30 bg-green-500/5' : isLastSet && !set.completed ? 'border-primary/40 bg-primary/5' : 'border-base-300 bg-base-200/30 hover:border-base-content/15'}`} onClick={() => openSetCard(exIdx, setIdx)}>
-                        <div className="flex items-center gap-3">
+                      <button key={setIdx} type="button" className={`flex items-center justify-between p-2.5 rounded-xl border-2 transition-all duration-200 text-left w-full ${set.completed ? 'border-green-500/30 bg-green-500/5' : isLastSet && !set.completed ? 'border-primary/40 bg-primary/5' : 'border-base-300 bg-base-200/30 hover:border-base-content/15'}`} onClick={() => openSetCard(exIdx, setIdx)}>
+                        <div className="flex items-center gap-2.5">
                           {set.completed ? (
-                            <div className="w-7 h-7 rounded-full bg-green-500 flex items-center justify-center"><Check size={14} className="text-white" /></div>
+                            <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center"><Check size={12} className="text-white" /></div>
                           ) : (
-                            <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center ${isLastSet ? 'border-primary' : 'border-base-300'}`}><span className="text-[10px] font-bold text-base-content/40">{set.set_number}</span></div>
+                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${isLastSet ? 'border-primary' : 'border-base-300'}`}><span className="text-[9px] font-bold text-base-content/40">{set.set_number}</span></div>
                           )}
                           <div className="flex flex-col">
-                            <span className={`text-sm font-semibold ${set.completed ? 'text-base-content/30 line-through' : 'text-base-content'}`}>第 {set.set_number} 组</span>
-                            <span className="text-xs text-base-content/30">目标: {set.planned_reps}次</span>
+                            <span className={`text-xs font-semibold ${set.completed ? 'text-base-content/30 line-through' : 'text-base-content'}`}>第 {set.set_number} 组</span>
+                            <span className="text-[10px] text-base-content/30">目标: {set.planned_reps}次</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {detail.rpe !== undefined && <span className={`text-xs font-bold font-mono ${getRpeColor(detail.rpe)}`}>RPE {detail.rpe.toFixed(1)}</span>}
-                          {['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(getRecordingMethod(ex.exercise)) && <span className="text-sm font-mono font-bold text-base-content/50">{set.weight_kg?.toFixed(1) || ex.weight?.toFixed(1)}kg</span>}
-                          {set.completed && <span className="text-sm font-mono font-bold text-green-500">{set.actual_reps ?? set.planned_reps}次</span>}
+                        <div className="flex items-center gap-1.5">
+                          {detail.rpe !== undefined && <span className={`text-[10px] font-bold font-mono ${getRpeColor(detail.rpe)}`}>RPE {detail.rpe.toFixed(1)}</span>}
+                          {['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(getRecordingMethod(ex.exercise)) && <span className="text-xs font-mono font-bold text-base-content/50">{set.weight_kg?.toFixed(1) || ex.weight?.toFixed(1)}kg</span>}
+                          {set.completed && <span className="text-xs font-mono font-bold text-green-500">{set.actual_reps ?? set.planned_reps}次</span>}
                         </div>
                       </button>
                     );
@@ -584,22 +588,22 @@ function TrainSession({
          onTouchEnd={handleSwipeEnd}
     >
       {/* Navbar */}
-      <div className="flex items-center justify-between px-4 py-3 bg-base-100 border-b border-base-300">
-        <button type="button" className="btn btn-ghost h-12 px-4 text-base font-semibold text-base-content/70 hover:text-base-content gap-2 active:scale-95" onClick={onMinimize} aria-label="缩小训练窗口"><Minimize2 size={20} /><span>缩小</span></button>
-        <div className="text-sm font-bold text-base-content pointer-events-none">实时训练中 ({currentDay})</div>
-        <button type="button" className="btn btn-ghost h-12 px-4 text-base font-semibold text-error hover:bg-error/10 gap-2 active:scale-95" onClick={handleAbort} aria-label="放弃训练"><X size={20} /><span>放弃</span></button>
+      <div className="flex items-center justify-between px-4 py-2.5 bg-base-100 border-b border-base-300">
+        <button type="button" className="btn btn-ghost h-10 px-3 text-sm font-semibold text-base-content/70 hover:text-base-content gap-1.5 active:scale-95" onClick={onMinimize} aria-label="缩小训练窗口"><Minimize2 size={18} /><span>缩小</span></button>
+        <div className="text-xs font-bold text-base-content pointer-events-none">实时训练中 ({currentDay})</div>
+        <button type="button" className="btn btn-ghost h-10 px-3 text-sm font-semibold text-error hover:bg-error/10 gap-1.5 active:scale-95" onClick={handleAbort} aria-label="放弃训练"><X size={18} /><span>放弃</span></button>
       </div>
 
       {/* Progress */}
-      <div className="px-4 py-2 bg-base-100 border-b border-base-300">
+      <div className="px-4 py-1.5 bg-base-100 border-b border-base-300">
         <div className="flex items-center gap-3">
-          <progress className="progress progress-primary flex-1 h-2" value={progress} max="100" />
-          <span className="text-xs font-bold font-mono text-base-content/50 w-10 text-right">{progress}%</span>
+          <progress className="progress progress-primary flex-1 h-1.5" value={progress} max="100" />
+          <span className="text-[10px] font-bold font-mono text-base-content/50 w-9 text-right">{progress}%</span>
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 pb-28">
+      <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3 pb-24">
         {renderExerciseList()}
         {isSessionFinished() && (
           <div className="mt-2 animate-fadeIn">

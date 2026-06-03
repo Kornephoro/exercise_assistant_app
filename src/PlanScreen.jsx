@@ -196,7 +196,10 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
           <h3 className="text-lg font-bold text-text-main dark:text-text-main-dark">{p.name}</h3>
           {!up.is_active && up.paused_at
             ? <span className="badge badge-warning badge-sm font-bold">已暂停</span>
-            : <span className="badge badge-primary badge-sm font-bold">进行中</span>}
+            : <span className="badge badge-primary badge-sm font-bold gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                进行中
+              </span>}
         </div>
 
         {isOperationLocked && (
@@ -571,7 +574,10 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
                           <span className="text-base font-bold text-text-main dark:text-text-main-dark">{prog.name}</span>
                           {isPaused
                             ? <span className="badge badge-warning badge-sm font-bold">已暂停</span>
-                            : <span className="badge badge-primary badge-sm font-bold">进行中</span>}
+                            : <span className="badge badge-primary badge-sm font-bold gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                                进行中
+                              </span>}
                         </div>
                         <span className="text-xs text-text-secondary dark:text-text-secondary-dark">
                           {isPaused ? '已暂停' : '当前'}: {up.program_state?.current_day || 'Day1'}

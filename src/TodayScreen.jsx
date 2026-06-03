@@ -53,15 +53,17 @@ function TodayScreen({
   };
 
   const getHeaderTitle = () => {
-    if (isTodayCompleted) {
-      return `${todayWorkoutSummary[0]?.training_day || ''} · 训练完成`;
-    }
-    if (isRestDay) return '今日休息 · 恢复与滋养';
     if (!activeProgram) return '训练助手';
+    if (isSessionActive) {
+      const dayLabel = todayWorkout?.dayLabel || '';
+      return `${dayLabel} 训练中`;
+    }
+    if (isTodayCompleted) {
+      return `${todayWorkoutSummary[0]?.training_day || ''} 训练完成`;
+    }
+    if (isRestDay) return '今日休息';
     const dayLabel = todayWorkout?.dayLabel || '';
-    const firstEx = todayWorkout?.exercises?.[0];
-    const shortName = firstEx ? getExerciseShortName(firstEx.exercise) : '';
-    return shortName ? `${dayLabel} · ${shortName}日` : dayLabel;
+    return `${dayLabel} 训练日`;
   };
 
   // 无活跃计划 → 引导去计划库
@@ -103,15 +105,12 @@ function TodayScreen({
   }
 
   return (
-    <div className="flex flex-col gap-8 animate-fadeIn">
-      {/* 头部 */}
-      <div className="mb-2">
-        <h2 className="text-2xl font-bold tracking-tight text-text-main dark:text-text-main-dark">{getHeaderTitle()}</h2>
-        <p className="text-base text-text-secondary dark:text-text-secondary-dark flex items-center gap-2 mt-2 select-none">
-          <Calendar size={16} className="opacity-70 text-primary" />
-          <span>{getFormattedDate()}</span>
-        </p>
-      </div>
+    <div className="flex flex-col gap-6 animate-fadeIn">
+      {/* 头部：仅日期 */}
+      <p className="text-base text-text-secondary dark:text-text-secondary-dark flex items-center gap-2 select-none">
+        <Calendar size={16} className="opacity-70 text-primary" />
+        <span>{getFormattedDate()}</span>
+      </p>
 
       {/* 计划切换器（多个活跃计划时） */}
       {activeUserPrograms.length > 1 && (
@@ -179,9 +178,21 @@ function TodayScreen({
         ) : daysUntilStart > 0 ? (
           /* 尚未开始 */
           <div className="card !border-primary/20 dark:!border-primary/30">
-            <div className="flex flex-col items-center text-center gap-3 select-none">
+            <div className="flex justify-between items-center mb-3 select-none">
+              <span className="badge badge-primary badge-outline font-bold text-sm">今日安排</span>
+              <span className="text-xs font-semibold text-text-secondary dark:text-text-secondary-dark">未开始</span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap mb-3">
+              <span className="text-xl font-extrabold text-text-main dark:text-text-main-dark">计划尚未开始</span>
+              {activeProgram && (
+                <span className="badge badge-outline font-bold text-xs text-text-secondary dark:text-text-secondary-dark">
+                  {activeProgram.name}
+                </span>
+              )}
+            </div>
+            <div className="border-t border-border-card/50 dark:border-border-card-dark/50 mb-3" />
+            <div className="flex flex-col items-center text-center gap-3 select-none py-4">
               <Calendar className="text-primary" size={48} />
-              <h3 className="text-xl font-bold text-text-main dark:text-text-main-dark">计划尚未开始</h3>
               <p className="text-sm text-text-secondary dark:text-text-secondary-dark">
                 距离开始还有 <span className="text-primary font-bold text-lg">{daysUntilStart}</span> 天
               </p>
@@ -194,9 +205,19 @@ function TodayScreen({
           /* 休息日 */
           <div className="card !border-green-500/10 dark:!border-green-500/20">
             <div className="flex justify-between items-center mb-3 select-none">
-              <span className="badge badge-success badge-outline font-bold text-sm">今日休息</span>
+              <span className="badge badge-primary badge-outline font-bold text-sm">今日安排</span>
               <span className="text-xs font-extrabold tracking-wider text-text-secondary dark:text-text-secondary-dark uppercase opacity-70">Rest & Recover</span>
             </div>
+            <div className="flex items-center gap-2 flex-wrap mb-3">
+              <span className="text-xl font-extrabold text-text-main dark:text-text-main-dark">休息日</span>
+              <span className="badge badge-ghost font-bold text-xs">☕ 休息日</span>
+              {activeProgram && (
+                <span className="badge badge-outline font-bold text-xs text-text-secondary dark:text-text-secondary-dark">
+                  {activeProgram.name}
+                </span>
+              )}
+            </div>
+            <div className="border-t border-border-card/50 dark:border-border-card-dark/50 mb-3" />
             <h3 className="text-xl font-bold text-text-main dark:text-text-main-dark mb-2">让肌肉充分修复</h3>
             <p className="text-sm text-text-secondary dark:text-text-secondary-dark leading-relaxed">
               合理的修整是超量恢复的基石。给肌肉充足的时间重整肌纤维，你将在下一次训练中更加强大！
@@ -209,44 +230,67 @@ function TodayScreen({
         ) : todayWorkout && todayWorkout.exercises ? (
           /* 今日训练 */
           <div className="flex flex-col gap-3">
-            <div className="card hover:border-primary/30 transition-all duration-200 cursor-pointer" onClick={onOpenPreview}>
+            <button
+              type="button"
+              className="card hover:border-primary/30 transition-all duration-200 cursor-pointer text-left w-full"
+              onClick={onOpenPreview}
+            >
               <div className="flex justify-between items-center mb-3 select-none">
                 <span className="badge badge-primary badge-outline font-bold text-sm">今日安排</span>
-                <span className="text-xs font-semibold text-text-secondary dark:text-text-secondary-dark">点击查看详情</span>
+                <span className="text-xs font-semibold text-text-secondary dark:text-text-secondary-dark">点击查看详情 →</span>
               </div>
 
-              <h3 className="text-xl font-extrabold text-text-main dark:text-text-main-dark mb-4">
-                {todayWorkout.dayLabel} 训练日
-              </h3>
+              {/* Day 标签 + 状态徽章 + 计划名 一行 */}
+              <div className="flex items-center gap-2 flex-wrap mb-3">
+                <span className="text-xl font-extrabold text-text-main dark:text-text-main-dark">
+                  {todayWorkout ? `${todayWorkout.dayLabel} 训练日` : '休息日'}
+                </span>
+                {isSessionActive && (
+                  <span className="badge badge-warning badge-outline font-bold text-xs gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse"></span>
+                    进行中
+                  </span>
+                )}
+                {!isSessionActive && isTodayCompleted && (
+                  <span className="badge badge-success badge-outline font-bold text-xs">🎉 已完成</span>
+                )}
+                {!isSessionActive && !isTodayCompleted && (
+                  <span className="badge badge-primary badge-outline font-bold text-xs">⚡ 训练日</span>
+                )}
+                {activeProgram && (
+                  <span className="badge badge-outline font-bold text-xs text-text-secondary dark:text-text-secondary-dark">
+                    {activeProgram.name}
+                  </span>
+                )}
+              </div>
 
-              <div className="flex flex-col gap-5">
-                {todayWorkout.exercises.map((ex, idx) => {
-                  const tc = TIER_COLORS[ex.tier] || TIER_COLORS.T1;
-                  return (
-                    <div key={idx} className="flex items-center justify-between p-2 rounded-xl hover:bg-bg-hover dark:hover:bg-bg-hover-dark transition-colors duration-150">
-                      <div className="flex items-center gap-3">
-                        {ex.tier && (
-                          <span className={`badge ${tc.bg} ${tc.text} ${tc.darkText} ${tc.border} ${tc.darkBorder} font-bold text-xs w-7 h-5 flex items-center justify-center rounded`}>
-                            {ex.tier}
-                          </span>
-                        )}
-                        <div className="flex flex-col">
-                          <span className="text-base font-bold text-text-main dark:text-text-main-dark">
-                            {getExerciseCNName(ex.exercise)}
-                          </span>
-                          <span className="text-sm text-text-secondary dark:text-text-secondary-dark mt-0.5">
-                            {ex.sets}组 &times; {ex.reps}次
-                          </span>
-                        </div>
-                      </div>
-                      <span className="text-lg font-extrabold text-text-main dark:text-text-main-dark font-mono">
-                        {ex.weight?.toFixed(1)}kg
-                      </span>
+              <div className="border-t border-border-card/50 dark:border-border-card-dark/50 mb-3" />
+
+              {(() => {
+                const exercises = todayWorkout.exercises || [];
+                const exCount = exercises.length;
+                const totalWeight = exercises.reduce((sum, ex) => sum + ((ex.weight || 0) * (ex.sets || 0)), 0);
+                // 估算时长：每组约 90s 组间休息 + 30s 动作
+                const totalSets = exercises.reduce((sum, ex) => sum + (ex.sets || 0), 0);
+                const estMinutes = Math.max(15, Math.round(totalSets * 2));
+                return (
+                  <div className="flex flex-col gap-2 text-sm text-text-secondary dark:text-text-secondary-dark">
+                    <div className="flex items-center gap-2">
+                      <span>💪</span>
+                      <span><span className="font-bold text-text-main dark:text-text-main-dark">{exCount}</span> 个动作</span>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
+                    <div className="flex items-center gap-2">
+                      <span>🏋️</span>
+                      <span>总训练量 <span className="font-bold text-text-main dark:text-text-main-dark font-mono">{totalWeight.toFixed(1)}kg</span></span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span>⏱️</span>
+                      <span>预计耗时 <span className="font-bold text-text-main dark:text-text-main-dark">{estMinutes}</span> 分钟</span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </button>
 
             {/* 卡片下方：开始训练 + 跳过 */}
             {!isSessionActive && (
