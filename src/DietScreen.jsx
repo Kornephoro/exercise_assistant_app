@@ -30,6 +30,7 @@ function DietScreen({
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [isSliderLocked, setIsSliderLocked] = useState(true);
 
   // 1. 身体状况参考数据
   const latestWeight = parseFloat(todayBodyMetrics?.weight_kg) || parseFloat(userProfile?.weight_kg) || 70;
@@ -787,10 +788,26 @@ function DietScreen({
 
         {/* 3. 热量赤字调控系数 */}
         <div className="flex flex-col gap-2 mt-2">
-          <div className="flex justify-between items-center select-none text-sm font-bold text-text-secondary dark:text-text-secondary-dark">
-            <span>热量调控系数 (Deficit Slider)</span>
+          <div className="flex justify-between items-center select-none text-sm font-bold text-text-secondary dark:text-text-secondary-dark flex-wrap gap-2">
+            <span className="flex items-center gap-2">
+              <span>热量调控系数 (Deficit Slider)</span>
+              <button
+                type="button"
+                onClick={() => setIsSliderLocked(!isSliderLocked)}
+                className={`badge py-1.5 h-6 text-[10px] sm:text-xs font-bold border transition-all cursor-pointer flex items-center gap-1 select-none active:scale-95 ${
+                  isSliderLocked
+                    ? 'bg-bg-hover text-text-secondary border-border-card dark:border-border-card-dark'
+                    : 'bg-primary text-white border-primary shadow-xs'
+                }`}
+              >
+                {isSliderLocked ? '🔒 防误触锁定' : '🔓 编辑中'}
+              </button>
+            </span>
             <span 
-              onClick={() => setConfigForm(prev => ({ ...prev, deficit_slider: 1.0 }))}
+              onClick={() => {
+                setIsSliderLocked(false);
+                setConfigForm(prev => ({ ...prev, deficit_slider: 1.0 }));
+              }}
               className="text-primary text-base font-black font-mono bg-primary/10 hover:bg-primary/20 px-2 py-0.5 rounded-lg cursor-pointer active:scale-95 transition-all select-none"
               title="点击重置为 100% 保持"
             >
@@ -804,27 +821,37 @@ function DietScreen({
             max="1.2"
             step="0.01"
             value={configForm.deficit_slider}
+            disabled={isSliderLocked}
             onChange={(e) => setConfigForm(prev => ({ ...prev, deficit_slider: parseFloat(e.target.value) }))}
-            className="range range-primary range-sm cursor-pointer"
+            className={`range range-primary range-sm transition-opacity ${isSliderLocked ? 'opacity-35 cursor-not-allowed' : 'cursor-pointer'}`}
           />
           <div className="relative w-full h-5 text-xs text-text-secondary/40 dark:text-text-secondary-dark/40 font-mono font-bold select-none mt-1">
             <span 
               className="absolute left-0 cursor-pointer hover:text-text-secondary active:scale-95 transition-transform"
-              onClick={() => setConfigForm(prev => ({ ...prev, deficit_slider: 0.5 }))}
+              onClick={() => {
+                setIsSliderLocked(false);
+                setConfigForm(prev => ({ ...prev, deficit_slider: 0.5 }));
+              }}
               title="设定为 50%"
             >
               减脂 50%
             </span>
             <span 
               className="absolute left-[71.4%] -translate-x-1/2 cursor-pointer hover:text-text-secondary text-primary/60 active:scale-95 transition-transform"
-              onClick={() => setConfigForm(prev => ({ ...prev, deficit_slider: 1.0 }))}
+              onClick={() => {
+                setIsSliderLocked(false);
+                setConfigForm(prev => ({ ...prev, deficit_slider: 1.0 }));
+              }}
               title="设定为 100%"
             >
               📍 保持 100%
             </span>
             <span 
               className="absolute right-0 cursor-pointer hover:text-text-secondary active:scale-95 transition-transform"
-              onClick={() => setConfigForm(prev => ({ ...prev, deficit_slider: 1.2 }))}
+              onClick={() => {
+                setIsSliderLocked(false);
+                setConfigForm(prev => ({ ...prev, deficit_slider: 1.2 }));
+              }}
               title="设定为 120%"
             >
               增肌 120%
@@ -868,7 +895,7 @@ function DietScreen({
             <button
               key={tab.key}
               type="button"
-              className={`flex items-center justify-center gap-1.5 py-3.5 rounded-xl text-sm md:text-base font-black transition-all ${
+              className={`flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 py-2.5 sm:py-3.5 rounded-xl text-xs sm:text-sm md:text-base font-black transition-all whitespace-nowrap ${
                 configForm.calc_mode === tab.key
                   ? 'bg-primary text-white shadow-sm'
                   : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark'
@@ -887,7 +914,7 @@ function DietScreen({
             <span className="section-subtitle select-none">设定能量占比 (合计必须为 100%)</span>
             <div className="grid grid-cols-3 gap-3">
               <div className="form-control">
-                <label className="section-subtitle select-none">碳水化合物 (%)</label>
+                <label className="section-subtitle select-none">碳水 (%)</label>
                 <input
                   type="number"
                   value={configForm.ratio_carbs}
@@ -896,7 +923,7 @@ function DietScreen({
                 />
               </div>
               <div className="form-control">
-                <label className="section-subtitle select-none">蛋白质 (%)</label>
+                <label className="section-subtitle select-none">蛋白 (%)</label>
                 <input
                   type="number"
                   value={configForm.ratio_protein}
@@ -1604,7 +1631,7 @@ function DietScreen({
                 return (
                   <div className={`border rounded-xl p-3 flex flex-col justify-between ${bgCls}`}>
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm sm:text-base md:text-lg font-black font-sans text-text-main dark:text-text-main-dark">热量核算</span>
+                      <span className="text-sm sm:text-base md:text-lg font-black font-sans text-text-main dark:text-text-main-dark">热量</span>
                       <span className="text-xs md:text-sm font-extrabold px-2 py-0.5 rounded-full bg-current/10 text-current select-none">{tag}</span>
                     </div>
                     <div className="font-mono mt-1">
@@ -1624,7 +1651,7 @@ function DietScreen({
                 return (
                   <div className={`border rounded-xl p-3 flex flex-col justify-between ${bgCls}`}>
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm sm:text-base md:text-lg font-black font-sans text-text-main dark:text-text-main-dark">蛋白质</span>
+                      <span className="text-sm sm:text-base md:text-lg font-black font-sans text-text-main dark:text-text-main-dark">蛋白</span>
                       <span className="text-xs md:text-sm font-extrabold px-2 py-0.5 rounded-full bg-current/10 text-current select-none">{tag}</span>
                     </div>
                     <div className="font-mono mt-1">
@@ -1652,7 +1679,7 @@ function DietScreen({
                 return (
                   <div className={`border rounded-xl p-3 flex flex-col justify-between ${bgCls}`}>
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm sm:text-base md:text-lg font-black font-sans text-text-main dark:text-text-main-dark">碳水化合物</span>
+                      <span className="text-sm sm:text-base md:text-lg font-black font-sans text-text-main dark:text-text-main-dark">碳水</span>
                       <span className="text-xs md:text-sm font-extrabold px-2 py-0.5 rounded-full bg-current/10 text-current select-none">{tag}</span>
                     </div>
                     <div className="font-mono mt-1">
