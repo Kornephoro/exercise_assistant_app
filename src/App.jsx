@@ -392,7 +392,7 @@ function App() {
         training_day: todayWorkout.dayLabel,
         tier,
         exercise: tierEx.exercise,
-        weight_kg: tierEx.weight,
+        weight_kg: (lastSet && lastSet.weight_kg !== undefined && lastSet.weight_kg !== '') ? Number(lastSet.weight_kg) : tierEx.weight,
         program_id: activeProgram.id,
       };
       if (['standard', 'reps_only', 'bodyweight_added', 'bodyweight_assisted'].includes(method)) {

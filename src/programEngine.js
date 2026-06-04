@@ -259,13 +259,13 @@ function gzclpGetTierProgression(exercise, history, schemes, initialWeight, incr
       nextIdx = currentIdx;
     } else {
       // 自定义 chain 没有 fail_to 字段：失败时前进到 chain 下一阶段，末阶段循环
-      if (schemes.length > 1) {
-        nextIdx = (currentIdx + 1) % schemes.length;
+      if (safeSchemes.length > 1) {
+        nextIdx = (currentIdx + 1) % safeSchemes.length;
       }
     }
   }
 
-  const nextScheme = schemes[nextIdx];
+  const nextScheme = safeSchemes[nextIdx];
 
   return {
     weight_kg: roundWeight(nextWeight),
