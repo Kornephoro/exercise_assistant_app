@@ -40,8 +40,8 @@ function DataScreen({ getExerciseCNName, onLatestOneRmChange }) {
   return (
     <div className="flex flex-col gap-5 animate-fadeIn">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight text-text-main dark:text-text-main-dark">数据</h2>
-        <p className="text-base text-text-secondary dark:text-text-secondary-dark mt-1.5">管理并可视化您的身体状态与力量表现</p>
+        <h2 className="page-header">数据</h2>
+        <p className="page-header-desc">管理并可视化您的身体状态与力量表现</p>
       </div>
 
       <SubTabBar active={subTab} onChange={setSubTab} />

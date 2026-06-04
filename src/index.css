@@ -135,6 +135,11 @@
   select option {
     @apply bg-bg-card text-text-main dark:bg-bg-card-dark dark:text-text-main-dark;
   }
+  input::placeholder,
+  textarea::placeholder {
+    font-family: 'Outfit', 'Noto Sans SC', system-ui, -apple-system, sans-serif !important;
+    @apply text-text-secondary/50 dark:text-text-secondary-dark/50 font-normal text-sm;
+  }
 }
 
 @layer components {
@@ -142,7 +147,67 @@
   .card {
     @apply bg-bg-card border border-border-card rounded-[16px] p-[24px] dark:bg-bg-card-dark dark:border-border-card-dark transition-colors duration-200 shadow-sm;
   }
-  
+
+  /* 全局 UI 设计系统标准类 */
+  .page-header {
+    @apply text-2xl md:text-3xl font-extrabold tracking-tight text-text-main dark:text-text-main-dark;
+  }
+
+  .page-header-desc {
+    @apply text-sm md:text-base text-text-secondary dark:text-text-secondary-dark mt-1.5;
+  }
+
+  .card-title-standard {
+    @apply text-base md:text-lg font-bold text-text-main dark:text-text-main-dark flex items-center gap-2 pb-2 border-b border-border-card/50 dark:border-border-card-dark/50 select-none mb-3;
+  }
+
+  .section-subtitle {
+    @apply text-xs font-bold text-text-secondary dark:text-text-secondary-dark uppercase tracking-wider mb-1.5;
+  }
+
+  /* 5级精细化正文分类 */
+  .body-large {
+    @apply text-base md:text-lg font-medium text-text-main dark:text-text-main-dark leading-relaxed;
+  }
+
+  .body-normal {
+    @apply text-sm md:text-base text-text-main dark:text-text-main-dark leading-relaxed font-normal;
+  }
+
+  .body-medium {
+    @apply text-xs md:text-sm font-medium text-text-main dark:text-text-main-dark leading-normal;
+  }
+
+  .body-muted {
+    @apply text-xs md:text-sm text-text-secondary dark:text-text-secondary-dark leading-normal font-normal;
+  }
+
+  .body-caption {
+    @apply text-[10px] md:text-xs text-text-muted dark:text-text-muted-dark leading-normal font-normal;
+  }
+
+  /* 按钮标准 (44px) */
+  .btn-main {
+    @apply h-11 min-h-11 px-5 rounded-xl text-sm font-bold bg-primary text-white flex items-center justify-center gap-1.5 shadow-sm transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none cursor-pointer border-0;
+  }
+
+  .btn-sec {
+    @apply h-11 min-h-11 px-5 rounded-xl text-sm font-semibold border border-border-card dark:border-border-card-dark text-text-main dark:text-text-main-dark bg-transparent hover:bg-bg-hover dark:hover:bg-bg-hover-dark flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer;
+  }
+
+  /* 辅助小按钮 (32px) */
+  .btn-aux {
+    @apply h-8 min-h-8 px-3 rounded-lg text-xs font-medium text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark bg-bg-hover/50 dark:bg-bg-hover-dark/50 hover:bg-bg-hover dark:hover:bg-bg-hover-dark flex items-center justify-center gap-1 transition-all cursor-pointer border-0;
+  }
+
+  /* 表单控件标准 */
+  .input-standard {
+    @apply w-full h-11 text-sm font-mono bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card dark:border-border-card-dark rounded-xl px-3 focus:outline-none focus:border-primary transition-colors text-text-main dark:text-text-main-dark;
+  }
+
+  .select-standard {
+    @apply w-full h-11 text-sm font-semibold bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card dark:border-border-card-dark rounded-xl px-3 focus:outline-none focus:border-primary transition-colors text-text-main dark:text-text-main-dark;
+  }
 
   /* 设计系统标准警告提示容器 */
   .alert-box {

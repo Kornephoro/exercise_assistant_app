@@ -408,7 +408,7 @@ function BodyMetrics() {
       {/* 1. 图表监控画布卡片 */}
       <section className="card flex flex-col gap-3">
         <div className="flex justify-between items-center pb-2 border-b border-border-card dark:border-border-card-dark select-none">
-          <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark flex items-center gap-2">
+          <h3 className="card-title-standard mb-0 border-b-0 pb-0">
             <Activity size={16} className="text-primary" />历史指标监测走势
           </h3>
           <div className="flex gap-1">
@@ -612,18 +612,18 @@ function BodyMetrics() {
 
       {/* 2. 今日身体数据录入表单 */}
       <section className="card flex flex-col gap-3">
-        <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
+        <h3 className="card-title-standard">
           <Heart size={16} className="text-red-500" />今日数据录入
         </h3>
 
         <form onSubmit={handleSave} className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-text-secondary dark:text-text-secondary-dark">记录日期</label>
+          <div className="flex flex-col gap-1">
+            <label className="section-subtitle">记录日期</label>
             <input
               type="date"
               value={form.date}
               onChange={(e) => setForm(prev => ({ ...prev, date: e.target.value }))}
-              className="input input-bordered w-full h-10 text-sm font-mono bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary"
+              className="input-standard"
               required
             />
           </div>
@@ -631,7 +631,7 @@ function BodyMetrics() {
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <div className="flex justify-between items-center select-none">
-                <label className="text-xs font-bold text-text-secondary dark:text-text-secondary-dark">体重 (kg)</label>
+                <label className="section-subtitle">体重 (kg)</label>
                 {liveBmi && (
                   <span className={`badge badge-xs font-black px-1.5 py-0.5 scale-90 origin-right rounded ${liveBmi.badgeColor}`}>
                     {liveBmi.label}
@@ -643,7 +643,7 @@ function BodyMetrics() {
                 step="0.1"
                 value={form.weight}
                 onChange={(e) => setForm(prev => ({ ...prev, weight: e.target.value }))}
-                className="input input-bordered w-full h-10 text-sm font-mono bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary"
+                className="input-standard"
                 placeholder="体重 kg"
                 required
               />
@@ -651,7 +651,7 @@ function BodyMetrics() {
 
             <div className="flex flex-col gap-1">
               <div className="flex justify-between items-center select-none">
-                <label className="text-xs font-bold text-text-secondary dark:text-text-secondary-dark">腰围 (cm)</label>
+                <label className="section-subtitle">腰围 (cm)</label>
                 {liveWhtr && (
                   <span className={`badge badge-xs font-black px-1.5 py-0.5 scale-90 origin-right rounded ${liveWhtr.badgeColor}`}>
                     {liveWhtr.label}
@@ -663,38 +663,38 @@ function BodyMetrics() {
                 step="0.5"
                 value={form.waist}
                 onChange={(e) => setForm(prev => ({ ...prev, waist: e.target.value }))}
-                className="input input-bordered w-full h-10 text-sm font-mono bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary"
+                className="input-standard"
                 placeholder="腰围 cm"
               />
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-text-secondary dark:text-text-secondary-dark">静息心率 (bpm)</label>
+            <div className="flex flex-col gap-1">
+              <label className="section-subtitle">静息心率 (bpm)</label>
               <input
                 type="number"
                 step="1"
                 value={form.hr}
                 onChange={(e) => setForm(prev => ({ ...prev, hr: e.target.value }))}
-                className="input input-bordered w-full h-10 text-sm font-mono bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary"
+                className="input-standard"
                 placeholder="心率 bpm"
               />
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-text-secondary dark:text-text-secondary-dark">睡眠时长 (h)</label>
+            <div className="flex flex-col gap-1">
+              <label className="section-subtitle">睡眠时长 (h)</label>
               <input
                 type="number"
                 step="0.5"
                 value={form.sleep}
                 onChange={(e) => setForm(prev => ({ ...prev, sleep: e.target.value }))}
-                className="input input-bordered w-full h-10 text-sm font-mono bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary"
+                className="input-standard"
                 placeholder="时长 h"
               />
             </div>
           </div>
 
           <div className="flex flex-col gap-1 mt-1">
-            <label className="text-xs font-bold text-text-secondary dark:text-text-secondary-dark flex items-center gap-1 select-none">
+            <label className="section-subtitle flex items-center gap-1">
               <Zap size={11} />主观疲劳度 (1 - 10)
             </label>
             <input
@@ -727,7 +727,7 @@ function BodyMetrics() {
           <button
             type="submit"
             disabled={saving}
-            className="btn btn-primary btn-md w-full font-bold gap-1.5 shadow-md mt-1 cursor-pointer"
+            className="btn-main w-full mt-1"
           >
             {saving && <Loader2 className="animate-spin" size={14} />}
             <span>{saving ? '保存中...' : '提交今日记录'}</span>
@@ -743,7 +743,7 @@ function BodyMetrics() {
 
       {/* 3. 历史记录明细表 */}
       <section className="card flex flex-col gap-3">
-        <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark select-none">
+        <h3 className="card-title-standard">
           历史指标记录明细 (最近 10 次)
         </h3>
 

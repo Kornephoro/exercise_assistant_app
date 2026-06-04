@@ -18,6 +18,12 @@ function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary }) {
 
   return (
     <div className="flex flex-col gap-6 animate-fadeIn">
+      {/* 头部标题与描述 */}
+      <div>
+        <h2 className="page-header">我的</h2>
+        <p className="page-header-desc">管理您的个人画像、系统配色及应用设置。</p>
+      </div>
+
       {/* 用户卡片 */}
       <div className="card flex flex-row items-center gap-4">
         <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-pink-500 flex items-center justify-center text-white text-2xl font-black shadow-md shrink-0">
@@ -37,7 +43,7 @@ function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary }) {
 
       {/* 偏好设置 */}
       <div className="card flex flex-col gap-3">
-        <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
+        <h3 className="card-title-standard">
           <Settings size={16} className="text-primary" />偏好设置
         </h3>
 
@@ -95,7 +101,7 @@ function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary }) {
 
       {/* 训练库 */}
       <div className="card flex flex-col gap-3">
-        <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
+        <h3 className="card-title-standard">
           <BookOpen size={16} className="text-primary" />训练
         </h3>
 
@@ -119,7 +125,7 @@ function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary }) {
 
       {/* 关于 */}
       <div className="card flex flex-col gap-3">
-        <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
+        <h3 className="card-title-standard">
           <Info size={16} className="text-primary" />关于
         </h3>
 

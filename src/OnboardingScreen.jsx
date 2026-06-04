@@ -299,13 +299,13 @@ function OnboardingScreen({ onComplete, onSkip }) {
 
               {/* 昵称 */}
               <div className="form-control w-full">
-                <label className="label py-1 text-sm font-bold text-text-secondary dark:text-text-secondary-dark" htmlFor="ob-nickname">
+                <label className="section-subtitle" htmlFor="ob-nickname">
                   昵称 (选填)
                 </label>
                 <input 
                   type="text" 
                   id="ob-nickname" 
-                  className="input input-bordered w-full h-11 text-base font-bold bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none"
+                  className="input-standard !font-sans !font-bold"
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value)}
                   placeholder="怎么称呼你？"
@@ -315,7 +315,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
 
               {/* 性别选择 */}
               <div className="form-control w-full">
-                <label className="label py-1 text-sm font-bold text-text-secondary dark:text-text-secondary-dark">
+                <label className="section-subtitle select-none">
                   性别
                 </label>
                 <div className="grid grid-cols-3 gap-2">
@@ -339,13 +339,13 @@ function OnboardingScreen({ onComplete, onSkip }) {
               {/* 年龄身高 */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="form-control">
-                  <label className="label py-1 text-sm font-bold text-text-secondary dark:text-text-secondary-dark" htmlFor="ob-age">
+                  <label className="section-subtitle" htmlFor="ob-age">
                     年龄 (岁)
                   </label>
                   <input 
                     type="number" 
                     id="ob-age" 
-                    className="input input-bordered w-full h-11 text-base font-mono font-bold bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none"
+                    className="input-standard font-bold"
                     value={age}
                     onChange={(e) => setAge(e.target.value)}
                     placeholder="25"
@@ -355,13 +355,13 @@ function OnboardingScreen({ onComplete, onSkip }) {
                   />
                 </div>
                 <div className="form-control">
-                  <label className="label py-1 text-sm font-bold text-text-secondary dark:text-text-secondary-dark" htmlFor="ob-height">
+                  <label className="section-subtitle" htmlFor="ob-height">
                     身高 (cm)
                   </label>
                   <input 
                     type="number" 
                     id="ob-height" 
-                    className="input input-bordered w-full h-11 text-base font-mono font-bold bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none"
+                    className="input-standard font-bold"
                     value={height}
                     onChange={(e) => setHeight(e.target.value)}
                     placeholder="175"
@@ -374,7 +374,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
 
               {/* 体重 */}
               <div className="form-control w-full">
-                <label className="label py-1 text-sm font-bold text-text-secondary dark:text-text-secondary-dark" htmlFor="ob-weight">
+                <label className="section-subtitle" htmlFor="ob-weight">
                   当前体重 (kg)
                 </label>
                 <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark px-3 h-11 w-full focus-within:border-primary">
@@ -409,7 +409,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
 
               {/* 训练年限 */}
               <div className="form-control w-full">
-                <label className="label py-1 text-sm font-bold text-text-secondary dark:text-text-secondary-dark">
+                <label className="section-subtitle select-none">
                   训练年限
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -432,7 +432,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
 
               {/* 训练水平 */}
               <div className="form-control w-full">
-                <label className="label py-1 text-sm font-bold text-text-secondary dark:text-text-secondary-dark">
+                <label className="section-subtitle select-none">
                   目前训练水平
                 </label>
                 <div className="grid grid-cols-3 gap-2">
@@ -455,7 +455,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
 
               {/* 主要目标 */}
               <div className="form-control w-full">
-                <label className="label py-1 text-sm font-bold text-text-secondary dark:text-text-secondary-dark">
+                <label className="section-subtitle select-none">
                   主要训练目标
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -479,7 +479,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
               {/* 单次时长 */}
               <div className="form-control w-full mt-1">
                 <div className="flex justify-between items-center mb-1">
-                  <label className="text-sm font-bold text-text-secondary dark:text-text-secondary-dark" htmlFor="ob-duration">
+                  <label className="section-subtitle" htmlFor="ob-duration">
                     每次训练预计时长
                   </label>
                   <span className="text-xs font-extrabold text-primary px-1.5 py-0.5 bg-primary/10 rounded">
@@ -575,9 +575,9 @@ function OnboardingScreen({ onComplete, onSkip }) {
                   </p>
                   
                   <div className="form-control w-full">
-                    <label className="label py-0.5 text-xs font-bold text-text-secondary">目标动作</label>
+                    <label className="section-subtitle select-none">目标动作</label>
                     <select 
-                      className="select select-bordered select-sm w-full h-9 font-bold bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none text-sm"
+                      className="select-standard !h-9 !rounded-lg"
                       value={estimatorTarget} 
                       onChange={(e) => setEstimatorTarget(e.target.value)}
                     >
@@ -590,7 +590,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="form-control">
-                      <label className="label py-0.5 text-xs font-bold text-text-secondary">负重 (kg)</label>
+                      <label className="section-subtitle select-none">负重 (kg)</label>
                       <input 
                         type="number" 
                         className="input input-bordered input-sm h-9 text-center font-mono font-bold bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none text-sm"
@@ -605,7 +605,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
                       />
                     </div>
                     <div className="form-control">
-                      <label className="label py-0.5 text-xs font-bold text-text-secondary">完成次数 (次)</label>
+                      <label className="section-subtitle select-none">完成次数 (次)</label>
                       <input 
                         type="number" 
                         className="input input-bordered input-sm h-9 text-center font-mono font-bold bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none text-sm"
@@ -641,7 +641,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
               {/* 力量基准列表 */}
               <div className="grid grid-cols-2 gap-4 mt-1">
                 <div className="form-control">
-                  <label className="label py-0.5 text-sm font-bold text-text-secondary" htmlFor="ob-squat">
+                  <label className="section-subtitle" htmlFor="ob-squat">
                     深蹲 1RM
                   </label>
                   <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark px-2.5 h-11 w-full focus-within:border-primary">
@@ -658,7 +658,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
                 </div>
                 
                 <div className="form-control">
-                  <label className="label py-0.5 text-sm font-bold text-text-secondary" htmlFor="ob-bench">
+                  <label className="section-subtitle" htmlFor="ob-bench">
                     卧推 1RM
                   </label>
                   <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark px-2.5 h-11 w-full focus-within:border-primary">
@@ -675,7 +675,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
                 </div>
 
                 <div className="form-control">
-                  <label className="label py-0.5 text-sm font-bold text-text-secondary" htmlFor="ob-deadlift">
+                  <label className="section-subtitle" htmlFor="ob-deadlift">
                     硬拉 1RM
                   </label>
                   <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark px-2.5 h-11 w-full focus-within:border-primary">
@@ -692,7 +692,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
                 </div>
 
                 <div className="form-control">
-                  <label className="label py-0.5 text-sm font-bold text-text-secondary" htmlFor="ob-press">
+                  <label className="section-subtitle" htmlFor="ob-press">
                     推举 1RM
                   </label>
                   <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark px-2.5 h-11 w-full focus-within:border-primary">
@@ -777,7 +777,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
 
               {/* 画像信息摘要面板 */}
               <div className="mt-1 p-4 bg-bg-main/30 dark:bg-bg-main-dark/30 rounded-xl border border-border-card/50 flex flex-col gap-2">
-                <h4 className="text-xs font-extrabold text-text-main dark:text-text-main-dark flex items-center gap-1.5 pb-1 border-b border-border-card/50 select-none">
+                <h4 className="section-subtitle flex items-center gap-1.5 pb-1 border-b border-border-card/50 select-none">
                   <Award size={14} className="text-primary" />
                   <span>个人画像摘要核对</span>
                 </h4>

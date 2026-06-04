@@ -212,18 +212,14 @@ function TodayScreen({
 
       return (
         <div className="card flex flex-col gap-3.5 border border-primary/20 dark:border-primary/30">
-          <div className="flex justify-between items-center select-none">
-            <span className="flex items-center gap-1.5 text-base font-extrabold text-text-main dark:text-text-main-dark">
-              <Utensils size={15} className="text-orange-500" />
-              <span>今日饮食对账</span>
-              <span className="badge badge-outline badge-xs text-[11px] font-extrabold rounded-md border-primary/30 text-primary">
-                {isStrengthDay ? '力训日 🏋️' : '休息日 ☕'}
-              </span>
+          <div className="flex justify-between items-center mb-1 select-none">
+            <span className="flex items-center gap-1.5 text-base md:text-lg font-bold text-text-main dark:text-text-main-dark">
+              <Utensils size={15} className="text-orange-500" /><span>今日已录饮食对账</span>
             </span>
             <button
               type="button"
-              className="btn btn-ghost btn-xs text-primary font-bold cursor-pointer hover:bg-bg-hover"
-              onClick={startEditingDiet}
+              className="btn-aux text-primary bg-transparent hover:bg-bg-hover dark:hover:bg-bg-hover-dark font-bold"
+              onClick={() => setIsEditingDiet(true)}
             >
               修改对账
             </button>
@@ -291,15 +287,15 @@ function TodayScreen({
 
     return (
       <div className="card flex flex-col gap-3">
-        <div className="flex justify-between items-center select-none mb-0.5">
-          <span className="flex items-center gap-1.5 text-base font-extrabold text-text-main dark:text-text-main-dark">
+        <div className="flex justify-between items-center select-none mb-1">
+          <span className="flex items-center gap-1.5 text-base md:text-lg font-bold text-text-main dark:text-text-main-dark">
             <Utensils size={15} className="text-orange-500 animate-pulse" />
             <span>录入今日饮食对账</span>
           </span>
           {todayDietLog && (
             <button
               type="button"
-              className="btn btn-ghost btn-xs text-text-secondary font-bold rounded cursor-pointer"
+              className="btn-aux text-text-secondary bg-transparent hover:bg-bg-hover dark:hover:bg-bg-hover-dark font-bold"
               onClick={() => setIsEditingDiet(false)}
             >
               取消
@@ -310,22 +306,22 @@ function TodayScreen({
         <form onSubmit={handleSaveDiet} className="flex flex-col gap-3.5">
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="form-control">
-              <label className="label py-0.5 text-xs font-bold text-text-secondary select-none">今天性质</label>
+              <label className="section-subtitle">今天性质</label>
               <select
                 value={activeDayType}
                 onChange={(e) => setLocalDayType(e.target.value)}
-                className="select select-bordered select-sm w-full h-9 bg-bg-main/10 border-border-card text-xs font-bold focus:outline-none"
+                className="select-standard"
               >
                 <option value="strength_day">力训日 (TDEE较多)</option>
                 <option value="rest_day">休息日 (TDEE较少)</option>
               </select>
             </div>
             <div className="form-control">
-              <label className="label py-0.5 text-xs font-bold text-text-secondary select-none">录入模式</label>
+              <label className="section-subtitle">录入模式</label>
               <select
                 value={entryMode}
                 onChange={(e) => setEntryMode(e.target.value)}
-                className="select select-bordered select-sm w-full h-9 bg-bg-main/10 border-border-card text-xs font-bold focus:outline-none"
+                className="select-standard"
               >
                 <option value="grams">克数直录 (Carbs/Pro/Fat)</option>
                 <option value="ratio">比例折算 (热量加占比)</option>
@@ -336,45 +332,45 @@ function TodayScreen({
           {entryMode === 'grams' ? (
             <div className="grid grid-cols-3 gap-2.5">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-text-secondary select-none">碳水 (g)</label>
+                <label className="section-subtitle text-center">碳水 (g)</label>
                 <input
                   type="number"
                   placeholder={`目标 ${macroTargets.carbs}g`}
                   value={actCarbs}
                   onChange={(e) => setActCarbs(e.target.value)}
-                  className="input input-bordered w-full h-10 text-sm font-mono font-bold text-center bg-bg-main/20 border-border-card focus:border-primary"
+                  className="input-standard text-center"
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-text-secondary select-none">蛋白 (g)</label>
+                <label className="section-subtitle text-center">蛋白 (g)</label>
                 <input
                   type="number"
                   placeholder={`目标 ${macroTargets.protein}g`}
                   value={actProtein}
                   onChange={(e) => setActProtein(e.target.value)}
-                  className="input input-bordered w-full h-10 text-sm font-mono font-bold text-center bg-bg-main/20 border-border-card focus:border-primary"
+                  className="input-standard text-center"
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-text-secondary select-none">脂肪 (g)</label>
+                <label className="section-subtitle text-center">脂肪 (g)</label>
                 <input
                   type="number"
                   placeholder={`目标 ${macroTargets.fat}g`}
                   value={actFat}
                   onChange={(e) => setActFat(e.target.value)}
-                  className="input input-bordered w-full h-10 text-sm font-mono font-bold text-center bg-bg-main/20 border-border-card focus:border-primary"
+                  className="input-standard text-center"
                 />
               </div>
             </div>
           ) : (
             <div className="form-control w-full">
-              <label className="text-xs font-bold text-text-secondary select-none">实际消耗总热量 (kcal)</label>
+              <label className="section-subtitle">实际消耗总热量 (kcal)</label>
               <input
                 type="number"
                 placeholder={`今日预算 ${macroTargets.calories} kcal`}
                 value={actCalories}
                 onChange={(e) => setActCalories(e.target.value)}
-                className="input input-bordered w-full h-10 text-sm font-mono font-bold bg-bg-main/20 border-border-card focus:border-primary"
+                className="input-standard"
               />
             </div>
           )}
@@ -398,7 +394,7 @@ function TodayScreen({
           <button
             type="submit"
             disabled={savingDiet}
-            className="btn btn-primary btn-sm btn-block font-bold shadow-sm cursor-pointer"
+            className="btn-main w-full"
           >
             {savingDiet && <Loader2 className="animate-spin" size={12} />}
             <span>{savingDiet ? '正在对账...' : '提交今日对账'}</span>
@@ -546,12 +542,12 @@ function TodayScreen({
       return (
         <div className="card flex flex-col gap-3.5 border border-success/20 dark:border-success/30">
           <div className="flex justify-between items-center mb-1 select-none">
-            <span className="flex items-center gap-1.5 text-base font-extrabold text-text-main dark:text-text-main-dark">
+            <span className="flex items-center gap-1.5 text-base md:text-lg font-bold text-text-main dark:text-text-main-dark">
               <Heart size={16} className="text-red-500" /><span>今日身体状态</span>
             </span>
             <button
               type="button"
-              className="btn btn-ghost btn-xs text-primary font-bold cursor-pointer hover:bg-bg-hover dark:hover:bg-bg-hover-dark rounded"
+              className="btn-aux text-primary bg-transparent hover:bg-bg-hover dark:hover:bg-bg-hover-dark font-bold"
               onClick={startEditingBody}
             >
               修改记录
@@ -612,13 +608,13 @@ function TodayScreen({
     return (
       <div className="card flex flex-col gap-3">
         <div className="flex justify-between items-center mb-1 select-none">
-          <span className="flex items-center gap-1.5 text-base font-extrabold text-text-main dark:text-text-main-dark">
+          <span className="flex items-center gap-1.5 text-base md:text-lg font-bold text-text-main dark:text-text-main-dark">
             <Heart size={16} className="text-red-500 animate-pulse" /><span>今日身体状态打卡</span>
           </span>
           {todayBodyMetrics && (
             <button
               type="button"
-              className="btn btn-ghost btn-xs text-text-secondary font-bold rounded cursor-pointer"
+              className="btn-aux text-text-secondary bg-transparent hover:bg-bg-hover dark:hover:bg-bg-hover-dark font-bold"
               onClick={() => setIsEditingBody(false)}
             >
               取消
@@ -629,8 +625,8 @@ function TodayScreen({
         <form onSubmit={handleSaveBody} className="flex flex-col gap-3.5">
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
-              <div className="flex justify-between items-center select-none text-xs font-bold text-text-secondary">
-                <label>体重 (kg) *</label>
+              <div className="flex justify-between items-center select-none">
+                <label className="section-subtitle">体重 (kg) *</label>
                 {liveBmi && (
                   <span className={`badge badge-sm font-black scale-90 origin-right rounded ${liveBmi.badgeColor} text-xs`}>
                     {liveBmi.label}
@@ -643,14 +639,14 @@ function TodayScreen({
                 placeholder="体重 kg"
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
-                className="input input-bordered w-full h-10 text-sm font-mono bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary"
+                className="input-standard"
                 required
               />
             </div>
 
             <div className="flex flex-col gap-1">
-              <div className="flex justify-between items-center select-none text-xs font-bold text-text-secondary">
-                <label>腰围 (cm)</label>
+              <div className="flex justify-between items-center select-none">
+                <label className="section-subtitle">腰围 (cm)</label>
                 {liveWhtr && (
                   <span className={`badge badge-sm font-black scale-90 origin-right rounded ${liveWhtr.badgeColor} text-xs`}>
                     {liveWhtr.label}
@@ -663,37 +659,37 @@ function TodayScreen({
                 placeholder="腰围 cm"
                 value={waist}
                 onChange={(e) => setWaist(e.target.value)}
-                className="input input-bordered w-full h-10 text-sm font-mono bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary"
+                className="input-standard"
               />
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-bold text-text-secondary select-none">静息心率 (bpm)</label>
+              <label className="section-subtitle">静息心率 (bpm)</label>
               <input
                 type="number"
                 step="1"
                 placeholder="心率 bpm"
                 value={hr}
                 onChange={(e) => setHr(e.target.value)}
-                className="input input-bordered w-full h-10 text-sm font-mono bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary"
+                className="input-standard"
               />
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-bold text-text-secondary select-none">睡眠时长 (h)</label>
+              <label className="section-subtitle">睡眠时长 (h)</label>
               <input
                 type="number"
                 step="0.5"
                 placeholder="睡眠 h"
                 value={sleep}
                 onChange={(e) => setSleep(e.target.value)}
-                className="input input-bordered w-full h-10 text-sm font-mono bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary"
+                className="input-standard"
               />
             </div>
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-bold text-text-secondary flex items-center gap-1 select-none">
+            <label className="section-subtitle flex items-center gap-1">
               <Zap size={11} />主观疲劳度 (1 - 10)
             </label>
             <input
@@ -713,7 +709,7 @@ function TodayScreen({
           <button
             type="submit"
             disabled={savingBody}
-            className="btn btn-primary btn-sm btn-block font-bold shadow-sm cursor-pointer"
+            className="btn-main w-full"
           >
             {savingBody && <Loader2 className="animate-spin" size={12} />}
             <span>{savingBody ? '正在保存...' : '保存今日身体数据'}</span>
@@ -745,8 +741,8 @@ function TodayScreen({
     return (
       <div className="flex flex-col gap-8 animate-fadeIn">
         <div className="mb-2">
-          <h2 className="text-2xl font-bold tracking-tight text-text-main dark:text-text-main-dark">今日</h2>
-          <p className="text-base text-text-secondary dark:text-text-secondary-dark flex items-center gap-2 mt-2 select-none">
+          <h2 className="page-header">今日</h2>
+          <p className="page-header-desc flex items-center gap-2 mt-2 select-none">
             <Calendar size={16} className="opacity-70 text-primary" />
             <span>{getFormattedDate()}</span>
           </p>
@@ -759,7 +755,7 @@ function TodayScreen({
             <p className="text-sm text-text-secondary dark:text-text-secondary-dark max-w-xs">
               从计划库中选择一个适合你的训练计划，配置好参数就可以开始训练了。
             </p>
-            <button type="button" className="btn btn-primary btn-sm gap-2 font-bold shadow-md">
+            <button type="button" className="btn-main px-6 max-w-max">
               浏览计划库 <ArrowRight size={16} />
             </button>
           </div>
@@ -774,8 +770,8 @@ function TodayScreen({
     <div className="flex flex-col gap-6 animate-fadeIn">
       {/* 头部 */}
       <div>
-        <h2 className="text-2xl font-bold tracking-tight text-text-main dark:text-text-main-dark">今日</h2>
-        <p className="text-base text-text-secondary dark:text-text-secondary-dark flex items-center gap-2 mt-1.5 select-none">
+        <h2 className="page-header">今日</h2>
+        <p className="page-header-desc flex items-center gap-2 select-none">
           <Calendar size={16} className="opacity-70 text-primary" />
           <span>{getFormattedDate()}</span>
         </p>
@@ -785,7 +781,7 @@ function TodayScreen({
       {activeUserPrograms.length > 1 && (
         <div className="relative">
           <button type="button"
-            className="btn btn-ghost btn-sm gap-2 text-xs font-bold cursor-pointer"
+            className="btn-aux text-text-main dark:text-text-main-dark font-bold text-xs"
             onClick={() => setShowProgramSwitcher(prev => !prev)}
           >
             {activeProgram.name} <ChevronDown size={14} />
@@ -965,14 +961,14 @@ function TodayScreen({
             {!isSessionActive && (
               <div className="flex flex-col gap-2">
                 <button type="button"
-                  className="btn btn-primary btn-block btn-lg shadow-md flex items-center justify-center gap-2 cursor-pointer select-none"
+                  className="btn-main w-full"
                   onClick={onStartTrain}
                 >
                   <Play size={18} fill="currentColor" />
                   <span>开始今日训练 ({todayWorkout?.dayLabel || ''})</span>
                 </button>
                 <button type="button"
-                  className="btn btn-ghost btn-block text-text-secondary dark:text-text-secondary-dark border border-border-card dark:border-border-card-dark font-semibold cursor-pointer"
+                  className="btn-sec w-full"
                   onClick={() => setShowSkipModal(true)}
                 >
                   <SkipForward size={16} />
@@ -983,7 +979,7 @@ function TodayScreen({
 
             {isSessionActive && (
               <button type="button"
-                className="btn btn-primary btn-block btn-lg shadow-md flex items-center justify-center gap-2 cursor-pointer select-none animate-bounce"
+                className="btn-main w-full animate-bounce"
                 onClick={onStartTrain}
               >
                 <RotateCcw size={18} />
@@ -1008,11 +1004,11 @@ function TodayScreen({
       {/* 底部按钮 - 休息日加练入口（仅休息日仍保留在底部） */}
       {!isTodayCompleted && isRestDay && !isSessionActive && (
         <div className="mt-4 flex flex-col gap-2">
-          <button type="button" className="btn btn-neutral btn-block btn-lg flex items-center justify-center gap-2 border-border-card dark:border-border-card-dark select-none">
+          <button type="button" className="btn-sec w-full cursor-not-allowed bg-bg-hover dark:bg-bg-hover-dark opacity-60 border-0">
             今日休息中，合理恢复
           </button>
           <button type="button"
-            className="btn btn-ghost btn-block text-text-secondary dark:text-text-secondary-dark border border-border-card dark:border-border-card-dark font-semibold cursor-pointer"
+            className="btn-sec w-full"
             onClick={() => setShowExtraModal(true)}
           >
             <Flag size={16} />
@@ -1041,8 +1037,8 @@ function TodayScreen({
               </div>
             </div>
             <div className="modal-action">
-              <button className="btn btn-ghost" onClick={() => { setShowSkipModal(false); setSkipReason(''); }}>取消</button>
-              <button className="btn btn-primary" onClick={() => { onSkipTraining(skipReason); setShowSkipModal(false); setSkipReason(''); }}>确认跳过</button>
+              <button className="btn-sec px-5" onClick={() => { setShowSkipModal(false); setSkipReason(''); }}>取消</button>
+              <button className="btn-main px-5" onClick={() => { onSkipTraining(skipReason); setShowSkipModal(false); setSkipReason(''); }}>确认跳过</button>
             </div>
           </div>
           <form method="dialog" className="modal-backdrop">
@@ -1058,8 +1054,8 @@ function TodayScreen({
             <h3 className="font-bold text-lg">今天想加练？</h3>
             <p className="py-4 text-sm text-text-secondary">今天是休息日，加练会影响恢复。确定要开始吗？加练后计划将顺延至下一个训练日。</p>
             <div className="modal-action">
-              <button className="btn btn-ghost" onClick={() => setShowExtraModal(false)}>取消</button>
-              <button className="btn btn-primary" onClick={() => { onExtraTraining(); setShowExtraModal(false); }}>确认加练</button>
+              <button className="btn-sec px-5" onClick={() => setShowExtraModal(false)}>取消</button>
+              <button className="btn-main px-5" onClick={() => { onExtraTraining(); setShowExtraModal(false); }}>确认加练</button>
             </div>
           </div>
           <form method="dialog" className="modal-backdrop">

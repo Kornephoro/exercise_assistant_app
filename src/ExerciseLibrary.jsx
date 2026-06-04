@@ -141,7 +141,7 @@ function ExerciseLibrary() {
 
       <div className="flex gap-2">
         <select
-          className="select select-bordered select-sm h-9 font-bold text-xs bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none flex-1"
+          className="select-standard !h-9 !text-xs !rounded-lg flex-1"
           value={filterPattern}
           onChange={(e) => setFilterPattern(e.target.value)}
         >
@@ -152,7 +152,7 @@ function ExerciseLibrary() {
         </select>
 
         <select
-          className="select select-bordered select-sm h-9 font-bold text-xs bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none flex-1"
+          className="select-standard !h-9 !text-xs !rounded-lg flex-1"
           value={filterEquipment}
           onChange={(e) => setFilterEquipment(e.target.value)}
         >
@@ -190,7 +190,7 @@ function ExerciseLibrary() {
         <div className="flex flex-col gap-5">
           {Object.entries(groupedExercises).map(([pattern, exs]) => (
             <div key={pattern} className="flex flex-col gap-2">
-              <h4 className="text-xs font-extrabold text-text-secondary dark:text-text-secondary-dark uppercase tracking-wider px-1 select-none">
+              <h4 className="section-subtitle px-1 select-none">
                 {pattern}
               </h4>
               <div className="flex flex-col gap-2">

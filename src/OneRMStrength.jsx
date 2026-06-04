@@ -143,28 +143,28 @@ function OneRMStrength({ onLatestChange }) {
       {/* 上：手动录入卡 + 4 主项概览 */}
       <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
         <section className="card md:col-span-2 flex flex-col gap-3">
-          <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
+          <h3 className="card-title-standard">
             <Sparkles size={16} className="text-primary" />手动录入测试
           </h3>
 
           <form onSubmit={handleSave} className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm text-text-secondary dark:text-text-secondary-dark">日期</label>
+            <div className="flex flex-col gap-1">
+              <label className="section-subtitle">日期</label>
               <input
                 type="date"
                 value={form.date}
                 onChange={(e) => setForm(prev => ({ ...prev, date: e.target.value }))}
-                className="input input-bordered w-full h-11 text-base font-mono bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary"
+                className="input-standard"
                 required
               />
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm text-text-secondary dark:text-text-secondary-dark">动作</label>
+            <div className="flex flex-col gap-1">
+              <label className="section-subtitle">动作</label>
               <select
                 value={form.exercise}
                 onChange={(e) => setForm(prev => ({ ...prev, exercise: e.target.value }))}
-                className="select select-bordered w-full h-11 text-base font-bold bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary"
+                className="select-standard"
               >
                 {MAIN_LIFTS.map(l => (
                   <option key={l.key} value={l.key}>{l.cn}</option>
@@ -173,21 +173,21 @@ function OneRMStrength({ onLatestChange }) {
             </div>
 
             <div className="grid grid-cols-2 gap-2.5">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm text-text-secondary dark:text-text-secondary-dark">重量 (kg)</label>
+              <div className="flex flex-col gap-1">
+                <label className="section-subtitle">重量 (kg)</label>
                 <input
                   type="number"
                   step="0.5"
                   min="0"
                   value={form.weight}
                   onChange={(e) => setForm(prev => ({ ...prev, weight: e.target.value }))}
-                  className="input input-bordered w-full h-11 text-base font-mono bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary"
+                  className="input-standard"
                   placeholder="100"
                   required
                 />
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm text-text-secondary dark:text-text-secondary-dark">次数</label>
+              <div className="flex flex-col gap-1">
+                <label className="section-subtitle">次数</label>
                 <input
                   type="number"
                   step="1"
@@ -195,7 +195,7 @@ function OneRMStrength({ onLatestChange }) {
                   max="30"
                   value={form.reps}
                   onChange={(e) => setForm(prev => ({ ...prev, reps: e.target.value }))}
-                  className="input input-bordered w-full h-11 text-base font-mono bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary"
+                  className="input-standard"
                   placeholder="5"
                   required
                 />
@@ -212,7 +212,7 @@ function OneRMStrength({ onLatestChange }) {
             <button
               type="submit"
               disabled={saving}
-              className="btn btn-primary btn-lg w-full mt-1 font-bold gap-1.5 shadow-md"
+              className="btn-main w-full mt-1"
             >
               {saving ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
               <span>{saving ? '保存中...' : '保存 1RM 记录'}</span>
@@ -221,7 +221,7 @@ function OneRMStrength({ onLatestChange }) {
         </section>
 
         <section className="card md:col-span-5 flex flex-col gap-3">
-          <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
+          <h3 className="card-title-standard">
             <TrendingUp size={16} className="text-primary" />力量水平概览
           </h3>
 
@@ -263,7 +263,7 @@ function OneRMStrength({ onLatestChange }) {
 
       {/* 下：1RM 历史记录 */}
       <section className="card flex flex-col gap-3">
-        <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark select-none">
+        <h3 className="card-title-standard">
           1RM 历史记录明细
         </h3>
 

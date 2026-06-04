@@ -724,7 +724,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
   return (
     <div className="flex flex-col gap-6 animate-fadeIn">
       <div className="flex items-center gap-3">
-        <button type="button" className="btn btn-ghost btn-circle btn-sm cursor-pointer" onClick={onBack} aria-label="返回"><ArrowLeft size={18} /></button>
+        <button type="button" className="btn-aux w-8 h-8 rounded-full" onClick={onBack} aria-label="返回"><ArrowLeft size={18} /></button>
         <h3 className="text-lg font-bold text-text-main dark:text-text-main-dark">配置 GZCLP</h3>
       </div>
 
@@ -792,7 +792,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-text-main dark:text-text-main-dark">练</span>
               <select
-                className="select select-bordered select-sm h-9 w-16 font-bold text-sm bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none"
+                className="select-standard !h-9 !w-16 !text-xs !rounded-lg"
                 value={trainDays}
                 onChange={(e) => setTrainDays(Number(e.target.value))}
               >
@@ -805,7 +805,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-text-main dark:text-text-main-dark">休</span>
               <select
-                className="select select-bordered select-sm h-9 w-16 font-bold text-sm bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none"
+                className="select-standard !h-9 !w-16 !text-xs !rounded-lg"
                 value={restDays}
                 onChange={(e) => setRestDays(Number(e.target.value))}
               >
@@ -864,7 +864,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
             return (
               <div key={key} className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-text-secondary dark:text-text-secondary-dark">{label}</label>
+                  <label className="section-subtitle select-none">{label}</label>
                   <div className="flex bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card dark:border-border-card-dark rounded overflow-hidden">
                     <button type="button"
                       className={`px-1.5 py-0.5 text-[10px] font-bold transition-all cursor-pointer ${exUnit === 'kg' ? 'bg-primary text-white' : 'text-text-secondary'}`}
@@ -921,7 +921,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
                   <button
                     type="button"
                     onClick={() => applyOneRmToInitial(L.key)}
-                    className="btn btn-primary btn-sm w-full gap-1.5 text-sm font-bold cursor-pointer"
+                    className="btn-main w-full"
                     title={`用 1RM × 0.85 自动填入起始重量`}
                   >
                     <Sparkles size={14} />一键应用 1RM → 起始重量
@@ -930,7 +930,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
                   {/* 1RM 输入 + T1/T2 加重 */}
                   <div className="grid grid-cols-3 gap-3">
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-sm text-text-secondary dark:text-text-secondary-dark">1RM ({exUnit})</label>
+                      <label className="section-subtitle select-none">1RM ({exUnit})</label>
                       <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
                         <input
                           type="number"
@@ -944,7 +944,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
                       </div>
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-sm text-text-secondary dark:text-text-secondary-dark">T1 加重</label>
+                      <label className="section-subtitle select-none">T1 加重</label>
                       <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
                         <input
                           type="number"
@@ -958,7 +958,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
                       </div>
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-sm text-text-secondary dark:text-text-secondary-dark">T2 加重</label>
+                      <label className="section-subtitle select-none">T2 加重</label>
                       <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
                         <input
                           type="number"
@@ -1015,7 +1015,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
                 <span className="text-sm font-bold text-text-main dark:text-text-main-dark">{day.label}</span>
                 <div className="flex items-center gap-1">
                   <button type="button"
-                    className="btn btn-xs btn-outline border-border-card dark:border-border-card-dark text-text-secondary cursor-pointer"
+                    className="btn-aux"
                     onClick={() => {
                       const newTemplate = [...dayTemplate];
                       newTemplate[dayIdx] = { ...day, t3: [...day.t3, ''] };
@@ -1026,7 +1026,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
                     +
                   </button>
                   <button type="button"
-                    className="btn btn-xs btn-outline border-border-card dark:border-border-card-dark text-text-secondary cursor-pointer"
+                    className="btn-aux"
                     onClick={() => {
                       if (day.t3.length <= 1) return;
                       const newTemplate = [...dayTemplate];
@@ -1097,7 +1097,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
                   </div>
                    <div className="grid grid-cols-3 gap-2">
                      <div className="flex flex-col gap-1">
-                       <label className="text-xs text-text-secondary dark:text-text-secondary-dark">起始重量</label>
+                       <label className="section-subtitle select-none">起始重量</label>
                        <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
                          <input type="number" step="0.5" min="0"
                            className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
@@ -1114,7 +1114,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
                        </div>
                      </div>
                      <div className="flex flex-col gap-1">
-                       <label className="text-xs text-text-secondary dark:text-text-secondary-dark">加重步长</label>
+                       <label className="section-subtitle select-none">加重步长</label>
                        <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
                          <input type="number" step="0.5" min="0.5"
                            className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
@@ -1131,7 +1131,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
                        </div>
                      </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs text-text-secondary dark:text-text-secondary-dark">达标门槛</label>
+                      <label className="section-subtitle select-none">达标门槛</label>
                       <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
                         <input type="number" step="1" min="5"
                           className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
@@ -1260,7 +1260,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
       )}
 
       <button type="button"
-        className="btn btn-primary btn-block btn-lg mt-2 mb-8 flex items-center justify-center gap-2 shadow-lg transition-transform hover:-translate-y-0.5 active:translate-y-0 select-none font-bold"
+        className="btn-main w-full mt-2 mb-8"
         onClick={handleSave} disabled={saving}
       >
         {saving
@@ -1408,7 +1408,7 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
   return (
     <div className="flex flex-col gap-5 animate-fadeIn">
       <div className="flex items-center gap-3">
-        <button type="button" className="btn btn-ghost btn-circle btn-sm cursor-pointer" onClick={onBack}>←</button>
+        <button type="button" className="btn-aux w-8 h-8 rounded-full" onClick={onBack}>←</button>
         <h3 className="text-lg font-bold text-text-main dark:text-text-main-dark">配置 {program.name}</h3>
       </div>
 
@@ -1461,7 +1461,7 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-text-main dark:text-text-main-dark">练</span>
               <select
-                className="select select-bordered select-sm h-9 w-16 font-bold text-sm bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none"
+                className="select-standard !h-9 !w-16 !text-xs !rounded-lg"
                 value={trainDays}
                 onChange={(e) => setTrainDays(Number(e.target.value))}
               >
@@ -1474,7 +1474,7 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-text-main dark:text-text-main-dark">休</span>
               <select
-                className="select select-bordered select-sm h-9 w-16 font-bold text-sm bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus:border-primary focus:outline-none"
+                className="select-standard !h-9 !w-16 !text-xs !rounded-lg"
                 value={restDays}
                 onChange={(e) => setRestDays(Number(e.target.value))}
               >
@@ -1493,7 +1493,7 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
         <div className="grid grid-cols-2 gap-3">
           {Array.from(allExercises).map(ex => (
             <div key={ex} className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-text-secondary dark:text-text-secondary-dark">{getCNName(ex, exercisesMap)}</label>
+              <label className="section-subtitle select-none">{getCNName(ex, exercisesMap)}</label>
               <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-9 transition-colors">
                 <input type="number" step="0.5"
                   className="w-full bg-transparent font-mono font-semibold text-sm text-text-main dark:text-text-main-dark focus:outline-none text-right pr-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -1508,7 +1508,7 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
       </div>
 
       <button type="button"
-        className="btn btn-primary btn-block btn-lg mt-2 mb-8 flex items-center justify-center gap-2 shadow-lg font-bold"
+        className="btn-main w-full mt-2 mb-8"
         onClick={handleSave} disabled={saving}
       >
         {saving

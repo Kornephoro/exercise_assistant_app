@@ -555,8 +555,8 @@ function DietScreen({
     <div className="flex flex-col gap-8 animate-fadeIn pb-12">
       {/* 头部标题与描述 */}
       <div>
-        <h2 className="text-2xl md:text-3xl font-black tracking-tight text-text-main dark:text-text-main-dark">饮食与能量代谢</h2>
-        <p className="text-sm md:text-base text-text-secondary dark:text-text-secondary-dark mt-2">配置专属 of TDEE 能量预算，并核算宏量配比。</p>
+        <h2 className="page-header">饮食与能量代谢</h2>
+        <p className="page-header-desc">配置专属 TDEE 能量预算，并核算宏量配比。</p>
       </div>
 
       {errorMsg && (
@@ -574,7 +574,7 @@ function DietScreen({
 
       {/* 1. TDEE 基础参数配置卡片 */}
       <section className="card p-5 md:p-6 flex flex-col gap-5 rounded-2xl shadow-sm">
-        <h3 className="text-lg font-black text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2">
+        <h3 className="card-title-standard">
           <Flame size={18} className="text-primary" />1. TDEE 日能耗核算配置
         </h3>
 
@@ -611,11 +611,11 @@ function DietScreen({
         {/* 力量消耗等级与分日/统一计划选择 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="form-control w-full">
-            <label className="label py-1 text-sm md:text-base font-bold text-text-secondary dark:text-text-secondary-dark">力量训练消耗级别</label>
+            <label className="section-subtitle select-none">力量训练消耗级别</label>
             <select
               value={configForm.strength_level}
               onChange={(e) => setConfigForm(prev => ({ ...prev, strength_level: e.target.value }))}
-              className="select select-bordered select-sm w-full h-11 bg-bg-main dark:bg-bg-main-dark border-border-card dark:border-border-card-dark focus:border-primary text-base font-bold focus:outline-none rounded-xl"
+              className="select-standard"
             >
               <option value="none">无力训 (0 kcal)</option>
               <option value="beginner">初学力训 ({userGender === 'female' ? '100' : '150'} kcal)</option>
@@ -626,11 +626,11 @@ function DietScreen({
           </div>
 
           <div className="form-control w-full">
-            <label className="label py-1 text-sm md:text-base font-bold text-text-secondary dark:text-text-secondary-dark">热量调控方案</label>
+            <label className="section-subtitle select-none">热量调控方案</label>
             <select
               value={configForm.plan_type}
               onChange={(e) => setConfigForm(prev => ({ ...prev, plan_type: e.target.value }))}
-              className="select select-bordered select-sm w-full h-11 bg-bg-main dark:bg-bg-main-dark border-border-card dark:border-border-card-dark focus:border-primary text-base font-bold focus:outline-none rounded-xl"
+              className="select-standard"
             >
               <option value="split">分日计划 (Split - 碳水热量循环)</option>
               <option value="unified">统一计划 (Unified - 每日预算均等)</option>
@@ -641,7 +641,7 @@ function DietScreen({
         {/* 自定义力训能耗输入 */}
         {configForm.strength_level === 'custom' && (
           <div className="form-control w-full animate-fadeIn">
-            <label className="label py-1 text-sm font-bold text-text-secondary dark:text-text-secondary-dark">自定义力训单次消耗 (kcal)</label>
+            <label className="section-subtitle select-none">自定义力训单次消耗 (kcal)</label>
             <input
               type="number"
               value={configForm.custom_strength_kcal}
@@ -663,11 +663,11 @@ function DietScreen({
           <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card/60 dark:border-border-card-dark/60 rounded-xl p-3 md:p-4 flex flex-col gap-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
-                <label className="text-sm font-bold text-text-secondary dark:text-text-secondary-dark">有氧项目大类</label>
+                <label className="section-subtitle select-none">有氧项目大类</label>
                 <select
                   value={calcCategory}
                   onChange={(e) => handleCalcCategoryChange(e.target.value)}
-                  className="select select-bordered select-sm w-full h-10 text-sm md:text-base bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark font-bold focus:outline-none rounded-lg"
+                  className="select-standard"
                 >
                   {categoryMap.map((c) => (
                     <option key={c.raw} value={c.raw}>{c.clean}</option>
@@ -676,11 +676,11 @@ function DietScreen({
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-sm font-bold text-text-secondary dark:text-text-secondary-dark">有氧强度/速度</label>
+                <label className="section-subtitle select-none">有氧强度/速度</label>
                 <select
                   value={calcSubtype}
                   onChange={(e) => setCalcSubtype(e.target.value)}
-                  className="select select-bordered select-sm w-full h-10 text-sm md:text-base bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark font-bold focus:outline-none rounded-lg"
+                  className="select-standard"
                 >
                   {subtypes.map((sub) => (
                     <option key={sub} value={sub}>
@@ -693,7 +693,7 @@ function DietScreen({
 
             <div className="grid grid-cols-3 gap-3 items-end">
               <div className="flex flex-col gap-1 col-span-1">
-                <label className="text-xs font-bold text-text-secondary dark:text-text-secondary-dark">
+                <label className="section-subtitle select-none">
                   {calcSubtype === '每走一万步' ? '步数' : '时长 (分钟)'}
                 </label>
                 <input
@@ -706,7 +706,7 @@ function DietScreen({
               </div>
 
               <div className="flex flex-col gap-1 col-span-1">
-                <label className="text-xs font-bold text-text-secondary dark:text-text-secondary-dark">每周频次 (次)</label>
+                <label className="section-subtitle select-none">每周频次 (次)</label>
                 <input
                   type="number"
                   value={calcFrequency}
@@ -811,7 +811,7 @@ function DietScreen({
 
       {/* 2. 三大营养素配比方案配置卡片 */}
       <section className="card p-5 md:p-6 flex flex-col gap-5 rounded-2xl shadow-sm">
-        <h3 className="text-lg font-black text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2">
+        <h3 className="card-title-standard">
           <Utensils size={18} className="text-primary" />2. 三大营养素配比方案
         </h3>
 
@@ -860,10 +860,10 @@ function DietScreen({
         {/* 模式 1: 热量占比输入 */}
         {configForm.calc_mode === 'ratio' && (
           <div className="flex flex-col gap-4 border border-dashed border-border-card/60 dark:border-border-card-dark/60 p-4 rounded-xl bg-bg-main/5 dark:bg-bg-main-dark/5 animate-fadeIn">
-            <span className="text-sm font-extrabold text-text-secondary dark:text-text-secondary-dark select-none">设定能量占比 (合计必须为 100%)</span>
+            <span className="section-subtitle select-none">设定能量占比 (合计必须为 100%)</span>
             <div className="grid grid-cols-3 gap-3">
               <div className="form-control">
-                <label className="label py-1 text-xs md:text-sm font-bold text-text-secondary dark:text-text-secondary-dark">碳水化合物 (%)</label>
+                <label className="section-subtitle select-none">碳水化合物 (%)</label>
                 <input
                   type="number"
                   value={configForm.ratio_carbs}
@@ -872,7 +872,7 @@ function DietScreen({
                 />
               </div>
               <div className="form-control">
-                <label className="label py-1 text-xs md:text-sm font-bold text-text-secondary dark:text-text-secondary-dark">蛋白质 (%)</label>
+                <label className="section-subtitle select-none">蛋白质 (%)</label>
                 <input
                   type="number"
                   value={configForm.ratio_protein}
@@ -881,7 +881,7 @@ function DietScreen({
                 />
               </div>
               <div className="form-control">
-                <label className="label py-1 text-xs md:text-sm font-bold text-text-secondary dark:text-text-secondary-dark">脂肪 (%)</label>
+                <label className="section-subtitle select-none">脂肪 (%)</label>
                 <input
                   type="number"
                   value={configForm.ratio_fat}
@@ -896,11 +896,11 @@ function DietScreen({
         {/* 模式 2: 体重倍数输入 */}
         {configForm.calc_mode === 'weight_multiple' && (
           <div className="flex flex-col gap-4 border border-dashed border-border-card/60 dark:border-border-card-dark/60 p-4 rounded-xl bg-bg-main/5 dark:bg-bg-main-dark/5 animate-fadeIn">
-            <span className="text-sm font-extrabold text-text-secondary dark:text-text-secondary-dark select-none">每公斤体重克数配比 (g/kg)</span>
+            <span className="section-subtitle select-none">每公斤体重克数配比 (g/kg)</span>
             
             {/* 力量日 */}
             <div className="flex flex-col gap-3 pb-3 border-b border-border-card/45 dark:border-border-card-dark/45">
-              <span className="text-xs md:text-sm font-bold text-primary select-none flex items-center gap-1">🏋️ 力训日倍数：</span>
+              <span className="section-subtitle select-none flex items-center gap-1 text-primary">🏋️ 力训日倍数：</span>
               <div className="grid grid-cols-3 gap-3">
                 <div className="flex flex-col gap-1">
                   <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-semibold text-center">碳水 g/kg</span>
@@ -959,7 +959,7 @@ function DietScreen({
             {/* 休息日 */}
             {configForm.plan_type === 'split' && (
               <div className="flex flex-col gap-3">
-                <span className="text-xs md:text-sm font-bold text-text-secondary dark:text-text-secondary-dark select-none flex items-center gap-1">☕ 休息日倍数：</span>
+                <span className="section-subtitle select-none flex items-center gap-1">☕ 休息日倍数：</span>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="flex flex-col gap-1">
                     <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-semibold text-center">碳水 g/kg</span>
@@ -1021,11 +1021,11 @@ function DietScreen({
         {/* 模式 3: 进阶自定义克数输入 */}
         {configForm.calc_mode === 'custom' && (
           <div className="flex flex-col gap-4 border border-dashed border-border-card/60 dark:border-border-card-dark/60 p-4 rounded-xl bg-bg-main/5 dark:bg-bg-main-dark/5 animate-fadeIn">
-            <span className="text-sm font-extrabold text-text-secondary dark:text-text-secondary-dark select-none">设定固定克数目标 (g)</span>
+            <span className="section-subtitle select-none">设定固定克数目标 (g)</span>
             
             {/* 力量日 */}
             <div className="flex flex-col gap-3 pb-3 border-b border-border-card/45 dark:border-border-card-dark/45">
-              <span className="text-xs md:text-sm font-bold text-primary select-none flex items-center gap-1">🏋️ 力训日目标：</span>
+              <span className="section-subtitle select-none flex items-center gap-1 text-primary">🏋️ 力训日目标：</span>
               <div className="grid grid-cols-3 gap-3">
                 <div className="flex flex-col gap-1">
                   <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-semibold text-center">碳水 g</span>
@@ -1081,7 +1081,7 @@ function DietScreen({
             {/* 休息日 */}
             {configForm.plan_type === 'split' && (
               <div className="flex flex-col gap-3">
-                <span className="text-xs md:text-sm font-bold text-text-secondary dark:text-text-secondary-dark select-none flex items-center gap-1">☕ 休息日目标：</span>
+                <span className="section-subtitle select-none flex items-center gap-1">☕ 休息日目标：</span>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="flex flex-col gap-1">
                     <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-semibold text-center">碳水 g</span>
@@ -1247,7 +1247,7 @@ function DietScreen({
 
       {/* 4. AI 饮食反馈与微调配置面板 */}
       <section className="card p-5 md:p-6 flex flex-col gap-4 bg-primary/5 dark:bg-primary/10 border border-primary/10 dark:border-primary/20 rounded-2xl shadow-sm">
-        <h3 className="text-base md:text-lg font-black text-primary flex items-center gap-1.5 select-none">
+        <h3 className="card-title-standard !text-primary !border-primary/20">
           <Sparkles size={16} className="animate-pulse" />AI 饮食体感优化调校
         </h3>
         <p className="text-xs md:text-sm text-text-secondary dark:text-text-secondary-dark leading-normal">
@@ -1288,7 +1288,7 @@ function DietScreen({
               </span>
               <button
                 type="button"
-                className="btn btn-primary text-white rounded-xl font-black cursor-pointer h-11 px-4 text-sm md:text-base shadow-xs"
+                className="btn-main px-4"
                 onClick={applyAiTuneResult}
               >
                 一键应用推荐值
@@ -1303,15 +1303,15 @@ function DietScreen({
         type="button"
         disabled={saving}
         onClick={handleSaveConfig}
-        className="btn btn-primary btn-block btn-lg shadow-md flex items-center justify-center gap-2 cursor-pointer select-none rounded-2xl h-14 text-sm md:text-base font-black"
+        className="btn-main w-full"
       >
-        {saving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+        {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
         <span>{saving ? '保存方案中...' : '确认激活并应用此饮食方案'}</span>
       </button>
 
       {/* 5. 每日实际摄入对账面板 (Expected vs. Actual) */}
       <section className="card p-5 md:p-6 flex flex-col gap-5 rounded-2xl shadow-sm">
-        <h3 className="text-lg font-black text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2">
+        <h3 className="card-title-standard">
           <Calendar size={18} className="text-primary" />3. 每日饮食实际摄入对账
         </h3>
 
@@ -1319,7 +1319,7 @@ function DietScreen({
           {/* 日期选择与当天性质 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex flex-col gap-1">
-              <label className="text-xs md:text-sm font-bold text-text-secondary dark:text-text-secondary-dark">核算日期</label>
+              <label className="section-subtitle select-none">核算日期</label>
               <input
                 type="date"
                 value={auditDate}
@@ -1330,7 +1330,7 @@ function DietScreen({
 
             {configForm.plan_type !== 'unified' && (
               <div className="flex flex-col gap-1">
-                <label className="text-xs md:text-sm font-bold text-text-secondary dark:text-text-secondary-dark">当天性质</label>
+                <label className="section-subtitle select-none">当天性质</label>
                 <div className="grid grid-cols-2 gap-1 bg-bg-main/30 dark:bg-bg-main-dark/30 p-1 rounded-xl border border-border-card dark:border-border-card-dark h-12 items-center">
                   <button
                     type="button"
@@ -1429,7 +1429,7 @@ function DietScreen({
             {inputMode === 'grams' ? (
               <div className="grid grid-cols-3 gap-3 animate-fadeIn">
                 <div className="flex flex-col gap-1">
-                  <label className="text-base font-extrabold text-text-main dark:text-text-main-dark text-center">实际碳水 (g)</label>
+                  <label className="section-subtitle text-center select-none">实际碳水 (g)</label>
                   <input
                     type="number"
                     value={actualCarbs}
@@ -1439,7 +1439,7 @@ function DietScreen({
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-base font-extrabold text-text-main dark:text-text-main-dark text-center">实际蛋白 (g)</label>
+                  <label className="section-subtitle text-center select-none">实际蛋白 (g)</label>
                   <input
                     type="number"
                     value={actualProtein}
@@ -1449,7 +1449,7 @@ function DietScreen({
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-base font-extrabold text-text-main dark:text-text-main-dark text-center">实际脂肪 (g)</label>
+                  <label className="section-subtitle text-center select-none">实际脂肪 (g)</label>
                   <input
                     type="number"
                     value={actualFat}
@@ -1464,7 +1464,7 @@ function DietScreen({
               <div className="flex flex-col gap-3 animate-fadeIn">
                 <div className="grid grid-cols-4 gap-2">
                   <div className="flex flex-col gap-1">
-                    <label className="text-base font-extrabold text-text-main dark:text-text-main-dark text-center">实际热量</label>
+                    <label className="section-subtitle text-center select-none">实际热量</label>
                     <input
                       type="number"
                       value={actualCaloriesInput}
@@ -1474,7 +1474,7 @@ function DietScreen({
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-base font-extrabold text-text-main dark:text-text-main-dark text-center">碳水 (%)</label>
+                    <label className="section-subtitle text-center select-none">碳水 (%)</label>
                     <input
                       type="number"
                       value={actualCarbRatio}
@@ -1485,7 +1485,7 @@ function DietScreen({
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-base font-extrabold text-text-main dark:text-text-main-dark text-center">蛋白 (%)</label>
+                    <label className="section-subtitle text-center select-none">蛋白 (%)</label>
                     <input
                       type="number"
                       value={actualProteinRatio}
@@ -1496,7 +1496,7 @@ function DietScreen({
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-base font-extrabold text-text-main dark:text-text-main-dark text-center">脂肪 (%)</label>
+                    <label className="section-subtitle text-center select-none">脂肪 (%)</label>
                     <input
                       type="number"
                       value={actualFatRatio}
@@ -1532,13 +1532,13 @@ function DietScreen({
 
             {/* 备注 */}
             <div className="flex flex-col gap-1 mt-1">
-              <label className="text-base font-extrabold text-text-main dark:text-text-main-dark">饮食备注 (大餐聚会、干净饮食等)</label>
+              <label className="section-subtitle select-none">饮食备注 (大餐聚会、干净饮食等)</label>
               <input
                 type="text"
                 value={actualRemarks}
                 onChange={(e) => setActualRemarks(e.target.value)}
                 placeholder="录入该日的备注明细..."
-                className="input input-bordered w-full h-12 text-base font-semibold rounded-xl bg-bg-main/10 dark:bg-bg-main-dark/10 border-border-card dark:border-border-card-dark focus:border-primary"
+                className="input-standard !font-sans !font-bold"
               />
             </div>
           </div>
@@ -1659,7 +1659,7 @@ function DietScreen({
               onClick={handleSaveAuditLog}
               disabled={syncLoading}
               type="button"
-              className="w-full sm:flex-1 h-14 flex items-center justify-center gap-2 rounded-xl bg-primary hover:opacity-90 text-white font-black text-base transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer shadow-md"
+              className="btn-main w-full sm:flex-1"
             >
               {syncLoading ? <Loader2 className="animate-spin" size={16} /> : <FileText size={16} />}
               <span>{syncLoading ? '对账同步中...' : '记录并保存饮食对账'}</span>
@@ -1669,7 +1669,7 @@ function DietScreen({
               onClick={() => handleDeleteAuditLog(auditDate)}
               disabled={syncLoading}
               type="button"
-              className="w-full sm:w-auto sm:px-8 h-14 flex items-center justify-center gap-2 rounded-xl border border-error bg-bg-card dark:bg-bg-card-dark hover:bg-error/5 text-error font-black text-base transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+              className="btn-sec border-error! text-error! hover:bg-error/5! w-full sm:w-auto sm:px-8"
             >
               <Trash2 size={16} />
               <span>删除对账</span>
@@ -1680,7 +1680,7 @@ function DietScreen({
 
       {/* 6. 最近 7 天饮食对账历史对账单 */}
       <section className="card p-5 md:p-6 flex flex-col gap-4 rounded-2xl shadow-sm">
-        <h3 className="text-lg font-black text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2">
+        <h3 className="card-title-standard">
           <Calendar size={18} className="text-primary" />4. 最近 7 天饮食对账历史对账单
         </h3>
 

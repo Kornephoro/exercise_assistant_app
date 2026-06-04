@@ -32,8 +32,8 @@ function ConfirmModal({ isOpen, title, message, onConfirm, onCancel, confirmText
         <h3 className="font-bold text-lg">{title}</h3>
         <p className="py-4 text-sm text-text-secondary dark:text-text-secondary-dark">{message}</p>
         <div className="modal-action">
-          <button className="btn btn-ghost" onClick={onCancel}>取消</button>
-          <button className={`btn ${confirmClass}`} onClick={onConfirm}>{confirmText}</button>
+          <button className="btn-sec px-5" onClick={onCancel}>取消</button>
+          <button className={`btn-main px-5 ${confirmClass.includes('error') || confirmClass.includes('alert') ? 'bg-error!' : ''}`} onClick={onConfirm}>{confirmText}</button>
         </div>
       </div>
       <form method="dialog" className="modal-backdrop">
@@ -187,7 +187,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
     return (
       <div className="flex flex-col gap-5 animate-fadeIn">
         <div className="flex items-center gap-3">
-          <button type="button" className="btn btn-ghost btn-circle btn-sm cursor-pointer" onClick={() => setSelectedActiveProgramId(null)}>
+          <button type="button" className="btn-aux w-8 h-8 rounded-full" onClick={() => setSelectedActiveProgramId(null)}>
             ←
           </button>
           <h3 className="text-lg font-bold text-text-main dark:text-text-main-dark">{p.name}</h3>
@@ -276,7 +276,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
         <div className="flex flex-col gap-2">
           <button
             type="button"
-            className="btn btn-lg btn-block btn-primary font-bold shadow-lg"
+            className="btn-main w-full"
             onClick={() => { setConfigProgram(p); setSelectedActiveProgramId(null); }}
           >
             <Settings size={16} />
@@ -285,7 +285,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
           {!up.is_active && up.paused_at ? (
             <button
               type="button"
-              className="btn btn-lg btn-block btn-primary font-bold shadow-lg"
+              className="btn-main w-full"
               onClick={() => handleResumeProgram(up.id)}
             >
               <Play size={16} />
@@ -294,7 +294,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
           ) : (
             <button
               type="button"
-              className="btn btn-lg btn-block btn-ghost text-text-secondary dark:text-text-secondary-dark border border-border-card dark:border-border-card-dark font-semibold"
+              className="btn-sec w-full"
               onClick={() => openPauseConfirm(up.id)}
             >
               <Pause size={16} />
@@ -303,7 +303,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
           )}
           <button
             type="button"
-            className="btn btn-lg btn-block btn-ghost text-error border border-error/30 font-semibold"
+            className="btn-sec text-error! border-error/30! hover:bg-error/5! w-full"
             onClick={() => openEndConfirm(up.id)}
           >
             <StopCircle size={16} />
@@ -343,7 +343,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
     return (
       <div className="flex flex-col gap-5 animate-fadeIn">
         <div className="flex items-center gap-3">
-          <button type="button" className="btn btn-ghost btn-circle btn-sm cursor-pointer" onClick={() => setSelectedProgram(null)}>
+          <button type="button" className="btn-aux w-8 h-8 rounded-full" onClick={() => setSelectedProgram(null)}>
             ←
           </button>
           <h3 className="text-lg font-bold text-text-main dark:text-text-main-dark">{p.name}</h3>
@@ -376,7 +376,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
 
           {p.config?.day_map && (
             <div className="flex flex-col gap-2">
-              <h4 className="text-xs font-bold text-text-secondary dark:text-text-secondary-dark">训练日安排</h4>
+              <h4 className="section-subtitle select-none">训练日安排</h4>
               {Object.entries(p.config.day_map).map(([day, exercises]) => {
                 let summary;
                 if (Array.isArray(exercises)) {
@@ -408,7 +408,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
         <div className="flex flex-col gap-2">
           <button
             type="button"
-            className={`btn btn-lg btn-block font-bold shadow-lg ${active ? 'btn-primary' : 'btn-primary'}`}
+            className="btn-main w-full"
             onClick={() => handleStartProgram(p)}
           >
             {active ? '更改配置' : '开始此计划'}
@@ -416,7 +416,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
           {active && (
             <button
               type="button"
-              className="btn btn-lg btn-block btn-ghost text-text-secondary dark:text-text-secondary-dark border border-border-card dark:border-border-card-dark font-semibold"
+              className="btn-sec w-full"
               onClick={() => {
                 const up = userPrograms.find(u => u.program_id === p.id && u.is_active);
                 if (up) openPauseConfirm(up.id);
@@ -451,10 +451,9 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
 
   return (
     <div className="flex flex-col gap-6 animate-fadeIn">
-      <div className="mb-1">
-        <h2 className="text-2xl font-bold tracking-tight text-text-main dark:text-text-main-dark">
-          训练安排
-        </h2>
+      <div>
+        <h2 className="page-header">训练安排</h2>
+        <p className="page-header-desc">选择或切换适合您的训练计划，并管理当前的训练进程。</p>
       </div>
 
       <div className="tabs tabs-boxed bg-bg-card/80 dark:bg-bg-card-dark/80 backdrop-blur-md border border-border-card dark:border-border-card-dark p-1.5 mb-1">
@@ -550,7 +549,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
 
           {userPrograms.filter(up => up.is_active || up.paused_at).length > 0 && (
             <div className="flex flex-col gap-2">
-              <h4 className="text-xs font-extrabold text-text-secondary dark:text-text-secondary-dark uppercase tracking-wider px-1 select-none">
+              <h4 className="section-subtitle px-1 select-none">
                 正在进行计划
               </h4>
               {userPrograms.filter(up => up.is_active || up.paused_at).map(up => {
@@ -591,7 +590,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
           )}
 
           <div className="flex flex-col gap-2">
-            <h4 className="text-xs font-extrabold text-text-secondary dark:text-text-secondary-dark uppercase tracking-wider px-1 select-none">
+            <h4 className="section-subtitle px-1 select-none">
               全部计划
             </h4>
             {filteredPrograms.map(p => {
