@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Sun, Moon, Settings, BookOpen, RotateCcw, Info, ChevronRight, Dumbbell } from 'lucide-react';
 
-function MyPage({ theme, onThemeToggle, onReOnboard, onOpenLibrary }) {
+function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary }) {
   const [nickname] = useState(() => localStorage.getItem('user_nickname') || '');
   const [daysSince] = useState(() => {
     const completedAt = localStorage.getItem('onboarding_completed_at');
@@ -42,24 +42,36 @@ function MyPage({ theme, onThemeToggle, onReOnboard, onOpenLibrary }) {
         </h3>
 
         {/* 主题切换 */}
-        <div className="flex items-center justify-between p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50">
-          <div className="flex items-center gap-3 min-w-0">
-            {theme === 'dark' ? <Moon size={18} className="text-primary" /> : <Sun size={18} className="text-primary" />}
+        <div className="flex flex-col gap-2.5 p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50">
+          <div className="flex items-center gap-3 min-w-0 mb-1 select-none">
+            {themeMode === 'dark' ? <Moon size={18} className="text-primary" /> : <Sun size={18} className="text-primary" />}
             <div className="flex flex-col min-w-0">
-              <span className="text-base font-bold text-text-main dark:text-text-main-dark">主题</span>
+              <span className="text-base font-bold text-text-main dark:text-text-main-dark">主题配色</span>
               <span className="text-xs text-text-secondary dark:text-text-secondary-dark mt-0.5">
-                {theme === 'dark' ? '暗色模式' : '亮色模式'}
+                {themeMode === 'system' ? '跟随系统' : themeMode === 'dark' ? '深色模式' : '浅色模式'}
               </span>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onThemeToggle}
-            className="flex items-center bg-bg-main/40 dark:bg-bg-main-dark/40 border border-border-card/50 dark:border-border-card-dark/50 rounded-lg overflow-hidden h-10 shrink-0"
-          >
-            <span className={`px-3 h-full flex items-center text-sm font-bold transition-all ${theme === 'light' ? 'bg-primary text-white' : 'text-text-secondary dark:text-text-secondary-dark'}`}>亮</span>
-            <span className={`px-3 h-full flex items-center text-sm font-bold transition-all border-l border-border-card/50 dark:border-border-card-dark/50 ${theme === 'dark' ? 'bg-primary text-white' : 'text-text-secondary dark:text-text-secondary-dark'}`}>暗</span>
-          </button>
+          <div className="grid grid-cols-3 bg-bg-main/40 dark:bg-bg-main-dark/40 border border-border-card/50 dark:border-border-card-dark/50 rounded-lg p-0.5 gap-0.5 select-none">
+            {[
+              { key: 'light', label: '浅色' },
+              { key: 'dark', label: '深色' },
+              { key: 'system', label: '跟随系统' }
+            ].map(item => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => onThemeModeChange(item.key)}
+                className={`py-1.5 rounded text-xs font-bold transition-all ${
+                  themeMode === item.key
+                    ? 'bg-primary text-white shadow-sm'
+                    : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* 重新进入训练画像 */}

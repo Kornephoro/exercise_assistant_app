@@ -7,6 +7,7 @@ import TodayScreen from './TodayScreen';
 import PlanScreen from './PlanScreen';
 import DataScreen from './DataScreen';
 import MyPage from './MyPage';
+import DietScreen from './DietScreen';
 import TrainSession from './TrainSession';
 import FloatingBall from './FloatingBall';
 import OnboardingScreen from './OnboardingScreen';
@@ -23,9 +24,9 @@ import {
 function App() {
   const [activeTab, setActiveTab] = useState('today');
 
-  const [theme, setTheme] = useState(() => {
-    const savedTheme = localStorage.getItem('theme');
-    return savedTheme || 'dark';
+  const [themeMode, setThemeMode] = useState(() => {
+    const savedThemeMode = localStorage.getItem('theme_mode');
+    return savedThemeMode || 'system';
   });
 
   const [loading, setLoading] = useState(true);
@@ -48,6 +49,14 @@ function App() {
   const [isTodayCompleted, setIsTodayCompleted] = useState(false);
   const [todayWorkoutSummary, setTodayWorkoutSummary] = useState([]);
 
+  // 用户画像与今日身体数据
+  const [userProfile, setUserProfile] = useState(null);
+  const [todayBodyMetrics, setTodayBodyMetrics] = useState(null);
+
+  // 用户饮食配置与今日对账单
+  const [userNutritionConfig, setUserNutritionConfig] = useState(null);
+  const [todayDietLog, setTodayDietLog] = useState(null);
+
   // 日程计算结果
   const [isRestDayValue, setIsRestDayValue] = useState(false);
   const [nextTrainingDateValue, setNextTrainingDateValue] = useState('');
@@ -67,14 +76,30 @@ function App() {
   const isOperationLocked = sessionState.isActive || previewOpen;
 
   useEffect(() => {
-    localStorage.setItem('theme', theme);
-    document.documentElement.setAttribute('data-theme', theme);
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+    const applyTheme = () => {
+      let activeTheme = themeMode;
+      if (themeMode === 'system') {
+        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        activeTheme = systemPrefersDark ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', activeTheme);
+      if (activeTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    };
+
+    localStorage.setItem('theme_mode', themeMode);
+    applyTheme();
+
+    if (themeMode === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const listener = () => applyTheme();
+      mediaQuery.addEventListener('change', listener);
+      return () => mediaQuery.removeEventListener('change', listener);
     }
-  }, [theme]);
+  }, [themeMode]);
 
   useEffect(() => {
     if (toast) {
@@ -92,12 +117,18 @@ function App() {
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
-      const [programsRes, userProgramsRes, exercisesRes, todayWorkoutsRes, profileRes] = await Promise.all([
+      const d = new Date();
+      const todayISOString = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+      const [programsRes, userProgramsRes, exercisesRes, todayWorkoutsRes, profileRes, bodyMetricsRes, nutritionConfigRes, dietLogsRes] = await Promise.all([
         supabase.from('programs').select('*').eq('is_active', true).order('name'),
         supabase.from('user_programs').select('*'),
         supabase.from('exercises').select('*'),
         supabase.from('workouts').select('*').gte('created_at', todayStart.toISOString()).order('created_at'),
-        supabase.from('user_profiles').select('*').limit(1)
+        supabase.from('user_profiles').select('*').limit(1),
+        supabase.from('body_metrics').select('*').eq('date', todayISOString).limit(1),
+        supabase.from('user_nutrition_configs').select('*').eq('is_active', true).limit(1),
+        supabase.from('diet_logs').select('*').eq('date', todayISOString).limit(1)
       ]);
 
       if (programsRes.error) throw programsRes.error;
@@ -121,10 +152,36 @@ function App() {
       const allUserPrograms = userProgramsRes.data || [];
       setUserPrograms(allUserPrograms);
 
+      // 解析今日饮食记录 (安全处理表不存在的情况)
+      if (dietLogsRes && !dietLogsRes.error && dietLogsRes.data && dietLogsRes.data.length > 0) {
+        setTodayDietLog(dietLogsRes.data[0]);
+      } else {
+        setTodayDietLog(null);
+      }
+
+      // 解析用户饮食配置 (安全处理表不存在的情况)
+      if (nutritionConfigRes && !nutritionConfigRes.error && nutritionConfigRes.data && nutritionConfigRes.data.length > 0) {
+        setUserNutritionConfig(nutritionConfigRes.data[0]);
+      } else {
+        setUserNutritionConfig(null);
+      }
+
       // 解析用户画像
       const profileData = profileRes.data || [];
-      if (profileData.length > 0 && profileData[0].training_days) {
-        try { JSON.parse(profileData[0].training_days); } catch { /* ignore */ }
+      if (profileData.length > 0) {
+        setUserProfile(profileData[0]);
+        if (profileData[0].training_days) {
+          try { JSON.parse(profileData[0].training_days); } catch { /* ignore */ }
+        }
+      } else {
+        setUserProfile(null);
+      }
+
+      // 解析今日身体记录（安全处理表未创建时的错误）
+      if (bodyMetricsRes && !bodyMetricsRes.error && bodyMetricsRes.data && bodyMetricsRes.data.length > 0) {
+        setTodayBodyMetrics(bodyMetricsRes.data[0]);
+      } else {
+        setTodayBodyMetrics(null);
       }
       setUserNickname(localStorage.getItem('user_nickname') || '');
 
@@ -641,7 +698,7 @@ function App() {
   return (
     <div className="min-h-screen flex flex-col max-w-[480px] w-full mx-auto bg-bg-main dark:bg-bg-main-dark text-text-main dark:text-text-main-dark border-x border-border-card dark:border-border-card-dark shadow-2xl relative transition-colors duration-200">
       {toast && (
-        <div className="toast toast-top toast-center z-[9999] min-w-[320px] max-w-[440px] px-4" style={{ top: '4.5rem' }}>
+        <div className="toast toast-top toast-center z-[9999] min-w-[320px] max-w-[440px] px-4" style={{ top: '1.5rem' }}>
           <div className={`shadow-lg rounded-xl px-4 py-3 flex items-center gap-3 border ${
             toast.type === 'success' ? 'bg-success-bg border-success/40 text-success' :
             toast.type === 'error' ? 'bg-error-bg border-error/40 text-error' :
@@ -657,36 +714,7 @@ function App() {
         </div>
       )}
 
-      <div className="navbar sticky top-0 z-50 bg-bg-card/90 dark:bg-bg-card-dark/90 border-b border-border-card dark:border-border-card-dark backdrop-blur px-4">
-        <div className="flex-1 flex items-center gap-2">
-          <Dumbbell size={20} className="text-primary filter drop-shadow-[0_0_8px_rgba(255,107,53,0.4)]" />
-          <span className="text-base font-extrabold tracking-wide bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
-            训练助手
-          </span>
-          {getActiveProgram() && (
-            <span className="text-[10px] font-bold text-primary px-2 py-0.5 bg-primary/10 rounded-full border border-primary/20 ml-1">
-              {getActiveProgram().name}
-            </span>
-          )}
-          {userNickname && (
-            <span className="text-[10px] font-semibold text-text-secondary dark:text-text-secondary-dark px-2 py-0.5 bg-bg-hover dark:bg-bg-hover-dark rounded-full ml-1">
-              {userNickname}
-            </span>
-          )}
-        </div>
-        <div className="flex-none">
-          <button
-            type="button"
-            className="btn btn-ghost btn-circle text-text-secondary dark:text-text-secondary-dark hover:bg-bg-hover dark:hover:bg-bg-hover-dark"
-            onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
-            aria-label="切换配色模式"
-          >
-            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-        </div>
-      </div>
-
-      <main className="flex-1 pt-6 pb-24 px-5 w-full flex flex-col gap-6">
+      <main className="flex-1 pt-8 pb-24 px-5 w-full flex flex-col gap-6">
 
         {/* TAB 1: 今日训练 */}
         <div style={{ display: activeTab === 'today' ? 'block' : 'none' }}>
@@ -724,6 +752,13 @@ function App() {
               onSkipTraining={handleSkipTraining}
               onExtraTraining={handleExtraTraining}
               daysUntilStart={daysUntilStartValue}
+              userProfile={userProfile}
+              todayBodyMetrics={todayBodyMetrics}
+              onRefreshBodyMetrics={loadWorkoutData}
+              userNutritionConfig={userNutritionConfig}
+              todayDietLog={todayDietLog}
+              onRefreshDiet={loadWorkoutData}
+              isRestDayValue={isRestDayValue}
             />
           )}
         </div>
@@ -764,16 +799,27 @@ function App() {
           />
         </div>
 
-        {/* TAB 3: 数据 */}
+        {/* TAB 3: 饮食 */}
+        <div style={{ display: activeTab === 'diet' ? 'block' : 'none' }}>
+          <DietScreen
+            userProfile={userProfile}
+            userNutritionConfig={userNutritionConfig}
+            todayBodyMetrics={todayBodyMetrics}
+            isRestDay={isRestDayValue}
+            onRefreshDiet={loadWorkoutData}
+          />
+        </div>
+
+        {/* TAB 4: 数据 */}
         <div style={{ display: activeTab === 'data' ? 'block' : 'none' }}>
           <DataScreen getExerciseCNName={getExerciseCNName} />
         </div>
 
-        {/* TAB 4: 我的 */}
+        {/* TAB 5: 我的 */}
         <div style={{ display: activeTab === 'me' ? 'block' : 'none' }}>
           <MyPage
-            theme={theme}
-            onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+            themeMode={themeMode}
+            onThemeModeChange={setThemeMode}
             onReOnboard={() => setShowOnboarding(true)}
             onOpenLibrary={() => setActiveTab('plan')}
           />
@@ -794,7 +840,14 @@ function App() {
           onClick={() => setActiveTab('plan')}
         >
           <span className="text-xl">📋</span>
-          <span className="dock-label text-xs font-bold">计划库</span>
+          <span className="dock-label text-xs font-bold">训练</span>
+        </button>
+        <button type="button"
+          className={`transition-all duration-200 ${activeTab === 'diet' ? 'dock-active text-primary font-bold bg-transparent' : 'text-text-secondary dark:text-text-secondary-dark'}`}
+          onClick={() => setActiveTab('diet')}
+        >
+          <span className="text-xl">🍎</span>
+          <span className="dock-label text-xs font-bold">饮食</span>
         </button>
         <button type="button"
           className={`transition-all duration-200 ${activeTab === 'data' ? 'dock-active text-primary font-bold bg-transparent' : 'text-text-secondary dark:text-text-secondary-dark'}`}

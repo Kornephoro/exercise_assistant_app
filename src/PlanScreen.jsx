@@ -453,7 +453,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
     <div className="flex flex-col gap-6 animate-fadeIn">
       <div className="mb-1">
         <h2 className="text-2xl font-bold tracking-tight text-text-main dark:text-text-main-dark">
-          计划库
+          训练安排
         </h2>
       </div>
 
@@ -467,7 +467,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
           onClick={() => setActiveSubTab('programs')}
         >
           <Zap size={14} />
-          <span>训练计划</span>
+          <span>计划库</span>
         </button>
         <button type="button"
           className={`tab flex-1 transition-all duration-200 py-2 text-sm flex items-center justify-center gap-1.5 cursor-pointer ${

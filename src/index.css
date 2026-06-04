@@ -132,6 +132,9 @@
     font-family: 'Outfit', 'Noto Sans SC', system-ui, -apple-system, sans-serif;
     @apply bg-bg-main text-text-main dark:bg-bg-main-dark dark:text-text-main-dark transition-colors duration-200;
   }
+  select option {
+    @apply bg-bg-card text-text-main dark:bg-bg-card-dark dark:text-text-main-dark;
+  }
 }
 
 @layer components {
