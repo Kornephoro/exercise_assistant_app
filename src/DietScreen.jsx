@@ -827,7 +827,8 @@ function DietScreen({
           />
           <div className="relative w-full h-5 text-xs text-text-secondary/40 dark:text-text-secondary-dark/40 font-mono font-bold select-none mt-1">
             <span 
-              className="absolute left-0 cursor-pointer hover:text-text-secondary active:scale-95 transition-transform"
+              className="absolute left-0 cursor-pointer hover:text-text-secondary active:scale-95 transition-transform whitespace-nowrap"
+              style={{ whiteSpace: 'nowrap' }}
               onClick={() => {
                 setIsSliderLocked(false);
                 setConfigForm(prev => ({ ...prev, deficit_slider: 0.5 }));
@@ -837,7 +838,8 @@ function DietScreen({
               减脂 50%
             </span>
             <span 
-              className="absolute left-[71.4%] -translate-x-1/2 cursor-pointer hover:text-text-secondary text-primary/60 active:scale-95 transition-transform"
+              className="absolute left-[71.4%] -translate-x-1/2 cursor-pointer hover:text-text-secondary text-primary/60 active:scale-95 transition-transform whitespace-nowrap"
+              style={{ whiteSpace: 'nowrap' }}
               onClick={() => {
                 setIsSliderLocked(false);
                 setConfigForm(prev => ({ ...prev, deficit_slider: 1.0 }));
@@ -847,7 +849,8 @@ function DietScreen({
               📍 保持 100%
             </span>
             <span 
-              className="absolute right-0 cursor-pointer hover:text-text-secondary active:scale-95 transition-transform"
+              className="absolute right-0 cursor-pointer hover:text-text-secondary active:scale-95 transition-transform whitespace-nowrap"
+              style={{ whiteSpace: 'nowrap' }}
               onClick={() => {
                 setIsSliderLocked(false);
                 setConfigForm(prev => ({ ...prev, deficit_slider: 1.2 }));
@@ -1613,7 +1616,7 @@ function DietScreen({
           {/* 实时对比偏差看板 (Expected vs. Actual) */}
           <div className="border-t border-border-card/20 dark:border-border-card-dark/20 pt-4 flex flex-col gap-3 select-none">
             <span className="block text-base md:text-lg font-extrabold text-text-main dark:text-text-main-dark">⚖️ 今日摄入偏差核算 (预计 ➔ 实际)</span>
-            <div className="grid grid-cols-2 gap-3.5">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3.5">
               {/* 热量偏差 */}
               {(() => {
                 const diff = actualValues.calories - expectedValues.calories;
@@ -1629,14 +1632,18 @@ function DietScreen({
                   tag = '超标';
                 }
                 return (
-                  <div className={`border rounded-xl p-3 flex flex-col justify-between ${bgCls}`}>
+                  <div className={`border rounded-xl p-2.5 sm:p-3 flex flex-col justify-between ${bgCls}`}>
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-sm sm:text-base md:text-lg font-black font-sans text-text-main dark:text-text-main-dark">热量</span>
                       <span className="text-xs md:text-sm font-extrabold px-2 py-0.5 rounded-full bg-current/10 text-current select-none">{tag}</span>
                     </div>
                     <div className="font-mono mt-1">
-                      <p className="text-sm md:text-base font-bold text-text-main dark:text-text-main-dark/95">{expectedValues.calories} ➔ <strong className="text-text-main dark:text-text-main-dark font-black">{actualValues.calories}</strong> kcal</p>
-                      <p className="text-base md:text-lg font-bold mt-1.5 font-sans">偏差: <span className="text-lg md:text-xl font-black font-mono">{diff > 0 ? `+${diff}` : diff}</span> kcal</p>
+                      <p className="text-[10.5px] sm:text-sm md:text-base font-bold text-text-main dark:text-text-main-dark/95 whitespace-nowrap" style={{ whiteSpace: 'nowrap' }}>
+                        {expectedValues.calories}➔<strong className="text-text-main dark:text-text-main-dark font-black">{actualValues.calories}</strong> kcal
+                      </p>
+                      <p className="text-[11.5px] sm:text-base font-bold mt-1.5 font-sans whitespace-nowrap" style={{ whiteSpace: 'nowrap' }}>
+                        偏差: <span className="text-sm sm:text-lg font-black font-mono">{diff > 0 ? `+${diff}` : diff}</span> kcal
+                      </p>
                     </div>
                   </div>
                 );
@@ -1649,14 +1656,18 @@ function DietScreen({
                 const bgCls = isAdequate ? 'bg-success/10 dark:bg-success/20 border-success/20 dark:border-success/30 text-success' : 'bg-warning/10 dark:bg-warning/20 border-warning/20 dark:border-warning/30 text-warning';
                 const tag = isAdequate ? '充足' : '不足';
                 return (
-                  <div className={`border rounded-xl p-3 flex flex-col justify-between ${bgCls}`}>
+                  <div className={`border rounded-xl p-2.5 sm:p-3 flex flex-col justify-between ${bgCls}`}>
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-sm sm:text-base md:text-lg font-black font-sans text-text-main dark:text-text-main-dark">蛋白</span>
                       <span className="text-xs md:text-sm font-extrabold px-2 py-0.5 rounded-full bg-current/10 text-current select-none">{tag}</span>
                     </div>
                     <div className="font-mono mt-1">
-                      <p className="text-sm md:text-base font-bold text-text-main dark:text-text-main-dark/95">{expectedValues.protein} ➔ <strong className="text-text-main dark:text-text-main-dark font-black">{actualValues.protein}</strong> g</p>
-                      <p className="text-base md:text-lg font-bold mt-1.5 font-sans">偏差: <span className="text-lg md:text-xl font-black font-mono">{diff > 0 ? `+${diff}` : diff}</span> g</p>
+                      <p className="text-[10.5px] sm:text-sm md:text-base font-bold text-text-main dark:text-text-main-dark/95 whitespace-nowrap" style={{ whiteSpace: 'nowrap' }}>
+                        {expectedValues.protein}➔<strong className="text-text-main dark:text-text-main-dark font-black">{actualValues.protein}</strong> g
+                      </p>
+                      <p className="text-[11.5px] sm:text-base font-bold mt-1.5 font-sans whitespace-nowrap" style={{ whiteSpace: 'nowrap' }}>
+                        偏差: <span className="text-sm sm:text-lg font-black font-mono">{diff > 0 ? `+${diff}` : diff}</span> g
+                      </p>
                     </div>
                   </div>
                 );
@@ -1677,14 +1688,18 @@ function DietScreen({
                   tag = '过量';
                 }
                 return (
-                  <div className={`border rounded-xl p-3 flex flex-col justify-between ${bgCls}`}>
+                  <div className={`border rounded-xl p-2.5 sm:p-3 flex flex-col justify-between ${bgCls}`}>
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-sm sm:text-base md:text-lg font-black font-sans text-text-main dark:text-text-main-dark">碳水</span>
                       <span className="text-xs md:text-sm font-extrabold px-2 py-0.5 rounded-full bg-current/10 text-current select-none">{tag}</span>
                     </div>
                     <div className="font-mono mt-1">
-                      <p className="text-sm md:text-base font-bold text-text-main dark:text-text-main-dark/95">{expectedValues.carbs} ➔ <strong className="text-text-main dark:text-text-main-dark font-black">{actualValues.carbs}</strong> g</p>
-                      <p className="text-base md:text-lg font-bold mt-1.5 font-sans">偏差: <span className="text-lg md:text-xl font-black font-mono">{diff > 0 ? `+${diff}` : diff}</span> g</p>
+                      <p className="text-[10.5px] sm:text-sm md:text-base font-bold text-text-main dark:text-text-main-dark/95 whitespace-nowrap" style={{ whiteSpace: 'nowrap' }}>
+                        {expectedValues.carbs}➔<strong className="text-text-main dark:text-text-main-dark font-black">{actualValues.carbs}</strong> g
+                      </p>
+                      <p className="text-[11.5px] sm:text-base font-bold mt-1.5 font-sans whitespace-nowrap" style={{ whiteSpace: 'nowrap' }}>
+                        偏差: <span className="text-sm sm:text-lg font-black font-mono">{diff > 0 ? `+${diff}` : diff}</span> g
+                      </p>
                     </div>
                   </div>
                 );
@@ -1705,14 +1720,18 @@ function DietScreen({
                   tag = '过量';
                 }
                 return (
-                  <div className={`border rounded-xl p-3 flex flex-col justify-between ${bgCls}`}>
+                  <div className={`border rounded-xl p-2.5 sm:p-3 flex flex-col justify-between ${bgCls}`}>
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-sm sm:text-base md:text-lg font-black font-sans text-text-main dark:text-text-main-dark">脂肪</span>
                       <span className="text-xs md:text-sm font-extrabold px-2 py-0.5 rounded-full bg-current/10 text-current select-none">{tag}</span>
                     </div>
                     <div className="font-mono mt-1">
-                      <p className="text-sm md:text-base font-bold text-text-main dark:text-text-main-dark/95">{expectedValues.fat} ➔ <strong className="text-text-main dark:text-text-main-dark font-black">{actualValues.fat}</strong> g</p>
-                      <p className="text-base md:text-lg font-bold mt-1.5 font-sans">偏差: <span className="text-lg md:text-xl font-black font-mono">{diff > 0 ? `+${diff}` : diff}</span> g</p>
+                      <p className="text-[10.5px] sm:text-sm md:text-base font-bold text-text-main dark:text-text-main-dark/95 whitespace-nowrap" style={{ whiteSpace: 'nowrap' }}>
+                        {expectedValues.fat}➔<strong className="text-text-main dark:text-text-main-dark font-black">{actualValues.fat}</strong> g
+                      </p>
+                      <p className="text-[11.5px] sm:text-base font-bold mt-1.5 font-sans whitespace-nowrap" style={{ whiteSpace: 'nowrap' }}>
+                        偏差: <span className="text-sm sm:text-lg font-black font-mono">{diff > 0 ? `+${diff}` : diff}</span> g
+                      </p>
                     </div>
                   </div>
                 );
