@@ -719,7 +719,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
     );
   }
 
-  const inputClass = "w-full bg-transparent font-mono font-semibold text-base text-text-main dark:text-text-main-dark focus:outline-none text-right pr-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
+  const inputClass = "w-full bg-transparent font-mono font-semibold text-sm md:text-base text-text-main dark:text-text-main-dark focus:outline-none text-right pr-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
   return (
     <div className="flex flex-col gap-6 animate-fadeIn">

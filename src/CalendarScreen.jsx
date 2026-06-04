@@ -365,17 +365,18 @@ function CalendarScreen({ getExerciseCNName }) {
 
                     <div className="grid grid-cols-3 gap-2">
                       {/* 完成负重 */}
-                      <div className="flex flex-col gap-0.5 bg-bg-main/10 dark:bg-bg-main-dark/10 p-2 rounded-lg border border-border-card/45 dark:border-border-card-dark/45 text-center">
-                        <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-bold select-none">完成负重</span>
-                        <span className="font-mono font-bold text-base text-text-main dark:text-text-main-dark">
-                          {log.weight_kg.toFixed(1)} <small className="text-xs text-text-secondary font-bold select-none">kg</small>
+                      <div className="flex flex-col gap-0.5 bg-bg-main/10 dark:bg-bg-main-dark/10 p-2 rounded-lg border border-border-card/45 dark:border-border-card-dark/45 text-center items-center justify-center">
+                        <span className="text-[10px] sm:text-xs text-text-secondary dark:text-text-secondary-dark font-bold select-none">完成负重</span>
+                        <span className="font-mono font-bold text-sm sm:text-base text-text-main dark:text-text-main-dark mt-0.5 leading-none block">
+                          {log.weight_kg.toFixed(1)}
                         </span>
+                        <span className="text-[9px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90">kg</span>
                       </div>
 
                       {/* 动作方案 */}
-                      <div className="flex flex-col gap-0.5 bg-bg-main/10 dark:bg-bg-main-dark/10 p-2 rounded-lg border border-border-card/45 dark:border-border-card-dark/45 text-center">
-                        <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-bold select-none">动作方案</span>
-                        <span className="font-bold text-sm text-text-main dark:text-text-main-dark py-0.5 truncate select-none" title={
+                      <div className="flex flex-col gap-0.5 bg-bg-main/10 dark:bg-bg-main-dark/10 p-2 rounded-lg border border-border-card/45 dark:border-border-card-dark/45 text-center items-center justify-center">
+                        <span className="text-[10px] sm:text-xs text-text-secondary dark:text-text-secondary-dark font-bold select-none">动作方案</span>
+                        <span className="font-bold text-xs sm:text-sm text-text-main dark:text-text-main-dark mt-1 truncate select-none leading-none block w-full" title={
                           log.tier === 'T1' ? (
                             log.planned_reps === 3 ? '5 组 × 3 次' :
                             log.planned_reps === 2 ? '6 组 × 2 次' : '10 组 × 1 次'
@@ -392,14 +393,16 @@ function CalendarScreen({ getExerciseCNName }) {
                             log.planned_reps === 8 ? '3×8' : '3×6'
                           ) : '3×15'}
                         </span>
+                        <span className="text-[9px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90">组×次</span>
                       </div>
 
                       {/* 最后一组次数 */}
-                      <div className="flex flex-col gap-0.5 bg-bg-main/10 dark:bg-bg-main-dark/10 p-2 rounded-lg border border-border-card/45 dark:border-border-card-dark/45 text-center">
-                        <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-bold select-none">末组次数</span>
-                        <span className="font-mono font-bold text-base text-primary">
-                          {log.actual_last_set_reps} <small className="text-xs text-text-secondary font-bold select-none">次</small>
+                      <div className="flex flex-col gap-0.5 bg-bg-main/10 dark:bg-bg-main-dark/10 p-2 rounded-lg border border-border-card/45 dark:border-border-card-dark/45 text-center items-center justify-center">
+                        <span className="text-[10px] sm:text-xs text-text-secondary dark:text-text-secondary-dark font-bold select-none">末组次数</span>
+                        <span className="font-mono font-bold text-sm sm:text-base text-primary mt-0.5 leading-none block">
+                          {log.actual_last_set_reps}
                         </span>
+                        <span className="text-[9px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90">次</span>
                       </div>
                     </div>
                   </div>

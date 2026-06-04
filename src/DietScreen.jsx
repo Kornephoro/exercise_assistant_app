@@ -691,8 +691,8 @@ function DietScreen({
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 items-end">
-              <div className="flex flex-col gap-1 col-span-1">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 items-end">
+              <div className="flex flex-col gap-1">
                 <label className="section-subtitle select-none">
                   {calcSubtype === '每走一万步' ? '步数' : '时长 (分钟)'}
                 </label>
@@ -701,25 +701,25 @@ function DietScreen({
                   value={calcDuration}
                   onChange={(e) => setCalcDuration(e.target.value)}
                   placeholder={calcSubtype === '每走一万步' ? '如 10000' : '如 45'}
-                  className="input input-bordered h-11 text-base font-mono font-bold rounded-xl w-full text-center bg-bg-main/10 dark:bg-bg-main-dark/10 border-border-card dark:border-border-card-dark focus:border-primary"
+                  className="input-standard !text-center"
                 />
               </div>
 
-              <div className="flex flex-col gap-1 col-span-1">
+              <div className="flex flex-col gap-1">
                 <label className="section-subtitle select-none">每周频次 (次)</label>
                 <input
                   type="number"
                   value={calcFrequency}
                   onChange={(e) => setCalcFrequency(e.target.value)}
                   placeholder="如 3"
-                  className="input input-bordered h-11 text-base font-mono font-bold rounded-xl w-full text-center bg-bg-main/10 dark:bg-bg-main-dark/10 border-border-card dark:border-border-card-dark focus:border-primary"
+                  className="input-standard !text-center"
                 />
               </div>
 
               <button
                 type="button"
                 onClick={handleAddAerobicItem}
-                className="h-11 text-sm md:text-base font-black rounded-xl bg-primary hover:opacity-90 active:scale-[0.98] transition-all text-white cursor-pointer shadow-xs"
+                className="btn-main w-full col-span-2 md:col-span-1"
               >
                 + 加入计划
               </button>
@@ -789,7 +789,11 @@ function DietScreen({
         <div className="flex flex-col gap-2 mt-2">
           <div className="flex justify-between items-center select-none text-sm font-bold text-text-secondary dark:text-text-secondary-dark">
             <span>热量调控系数 (Deficit Slider)</span>
-            <span className="text-primary text-base font-black font-mono bg-primary/10 px-2 py-0.5 rounded-lg">
+            <span 
+              onClick={() => setConfigForm(prev => ({ ...prev, deficit_slider: 1.0 }))}
+              className="text-primary text-base font-black font-mono bg-primary/10 hover:bg-primary/20 px-2 py-0.5 rounded-lg cursor-pointer active:scale-95 transition-all select-none"
+              title="点击重置为 100% 保持"
+            >
               {Math.round(configForm.deficit_slider * 100)}% 
               ({configForm.deficit_slider === 1.0 ? '保持' : configForm.deficit_slider < 1.0 ? `缺口 ${Math.round((1 - configForm.deficit_slider)*100)}%` : `盈余 ${Math.round((configForm.deficit_slider - 1)*100)}%`})
             </span>
@@ -803,8 +807,28 @@ function DietScreen({
             onChange={(e) => setConfigForm(prev => ({ ...prev, deficit_slider: parseFloat(e.target.value) }))}
             className="range range-primary range-sm cursor-pointer"
           />
-          <div className="flex justify-between text-xs text-text-secondary/40 dark:text-text-secondary-dark/40 font-mono font-bold px-1 select-none">
-            <span>减脂 50%</span><span>保持 100%</span><span>增肌 120%</span>
+          <div className="relative w-full h-5 text-xs text-text-secondary/40 dark:text-text-secondary-dark/40 font-mono font-bold select-none mt-1">
+            <span 
+              className="absolute left-0 cursor-pointer hover:text-text-secondary active:scale-95 transition-transform"
+              onClick={() => setConfigForm(prev => ({ ...prev, deficit_slider: 0.5 }))}
+              title="设定为 50%"
+            >
+              减脂 50%
+            </span>
+            <span 
+              className="absolute left-[71.4%] -translate-x-1/2 cursor-pointer hover:text-text-secondary text-primary/60 active:scale-95 transition-transform"
+              onClick={() => setConfigForm(prev => ({ ...prev, deficit_slider: 1.0 }))}
+              title="设定为 100%"
+            >
+              📍 保持 100%
+            </span>
+            <span 
+              className="absolute right-0 cursor-pointer hover:text-text-secondary active:scale-95 transition-transform"
+              onClick={() => setConfigForm(prev => ({ ...prev, deficit_slider: 1.2 }))}
+              title="设定为 120%"
+            >
+              增肌 120%
+            </span>
           </div>
         </div>
       </section>
@@ -1153,32 +1177,36 @@ function DietScreen({
               </div>
               <div className="grid grid-cols-4 gap-2 text-center">
                 {/* 热量格子 */}
-                <div className="bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-xl p-2.5 flex flex-col justify-center shadow-xs">
+                <div className="bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-xl p-2.5 flex flex-col items-center justify-center shadow-xs">
                   <span className="text-xs md:text-sm text-text-secondary dark:text-text-secondary-dark font-sans font-bold">热量</span>
-                  <span className="text-base md:text-lg font-black text-primary font-mono mt-0.5">
-                    {strengthDayStats.macros.calories}<span className="text-xs font-normal font-sans ml-0.5">kcal</span>
+                  <span className="text-sm md:text-lg font-black text-primary font-mono mt-0.5 leading-none block">
+                    {strengthDayStats.macros.calories}
                   </span>
+                  <span className="text-[10px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90">kcal</span>
                 </div>
                 {/* 碳水格子 */}
-                <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50 rounded-xl p-2.5 flex flex-col justify-center shadow-xs">
+                <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50 rounded-xl p-2.5 flex flex-col items-center justify-center shadow-xs">
                   <span className="text-xs md:text-sm text-text-secondary dark:text-text-secondary-dark font-sans font-bold">碳水</span>
-                  <span className="text-base md:text-lg font-black text-text-main dark:text-text-main-dark font-mono mt-0.5">
-                    {strengthDayStats.macros.carbs}<span className="text-xs font-normal font-sans ml-0.5">g</span>
+                  <span className="text-sm md:text-lg font-black text-text-main dark:text-text-main-dark font-mono mt-0.5 leading-none block">
+                    {strengthDayStats.macros.carbs}
                   </span>
+                  <span className="text-[10px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90">g</span>
                 </div>
                 {/* 蛋白格子 */}
-                <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50 rounded-xl p-2.5 flex flex-col justify-center shadow-xs">
+                <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50 rounded-xl p-2.5 flex flex-col items-center justify-center shadow-xs">
                   <span className="text-xs md:text-sm text-text-secondary dark:text-text-secondary-dark font-sans font-bold">蛋白</span>
-                  <span className="text-base md:text-lg font-black text-text-main dark:text-text-main-dark font-mono mt-0.5">
-                    {strengthDayStats.macros.protein}<span className="text-xs font-normal font-sans ml-0.5">g</span>
+                  <span className="text-sm md:text-lg font-black text-text-main dark:text-text-main-dark font-mono mt-0.5 leading-none block">
+                    {strengthDayStats.macros.protein}
                   </span>
+                  <span className="text-[10px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90">g</span>
                 </div>
                 {/* 脂肪格子 */}
-                <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50 rounded-xl p-2.5 flex flex-col justify-center shadow-xs">
+                <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50 rounded-xl p-2.5 flex flex-col items-center justify-center shadow-xs">
                   <span className="text-xs md:text-sm text-text-secondary dark:text-text-secondary-dark font-sans font-bold">脂肪</span>
-                  <span className="text-base md:text-lg font-black text-text-main dark:text-text-main-dark font-mono mt-0.5">
-                    {strengthDayStats.macros.fat}<span className="text-xs font-normal font-sans ml-0.5">g</span>
+                  <span className="text-sm md:text-lg font-black text-text-main dark:text-text-main-dark font-mono mt-0.5 leading-none block">
+                    {strengthDayStats.macros.fat}
                   </span>
+                  <span className="text-[10px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90">g</span>
                 </div>
               </div>
             </div>
@@ -1192,32 +1220,36 @@ function DietScreen({
                 </div>
                 <div className="grid grid-cols-4 gap-2 text-center">
                   {/* 热量格子 */}
-                  <div className="bg-success/5 dark:bg-success/10 border border-success/20 rounded-xl p-2.5 flex flex-col justify-center shadow-xs">
+                  <div className="bg-success/5 dark:bg-success/10 border border-success/20 rounded-xl p-2.5 flex flex-col items-center justify-center shadow-xs">
                     <span className="text-xs md:text-sm text-text-secondary dark:text-text-secondary-dark font-sans font-bold">热量</span>
-                    <span className="text-base md:text-lg font-black text-success font-mono mt-0.5">
-                      {restDayStats.macros.calories}<span className="text-xs font-normal font-sans ml-0.5">kcal</span>
+                    <span className="text-sm md:text-lg font-black text-success font-mono mt-0.5 leading-none block">
+                      {restDayStats.macros.calories}
                     </span>
+                    <span className="text-[10px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90">kcal</span>
                   </div>
                   {/* 碳水格子 */}
-                  <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50 rounded-xl p-2.5 flex flex-col justify-center shadow-xs">
+                  <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50 rounded-xl p-2.5 flex flex-col items-center justify-center shadow-xs">
                     <span className="text-xs md:text-sm text-text-secondary dark:text-text-secondary-dark font-sans font-bold">碳水</span>
-                    <span className="text-base md:text-lg font-black text-text-main dark:text-text-main-dark font-mono mt-0.5">
-                      {restDayStats.macros.carbs}<span className="text-xs font-normal font-sans ml-0.5">g</span>
+                    <span className="text-sm md:text-lg font-black text-text-main dark:text-text-main-dark font-mono mt-0.5 leading-none block">
+                      {restDayStats.macros.carbs}
                     </span>
+                    <span className="text-[10px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90">g</span>
                   </div>
                   {/* 蛋白格子 */}
-                  <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50 rounded-xl p-2.5 flex flex-col justify-center shadow-xs">
+                  <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50 rounded-xl p-2.5 flex flex-col items-center justify-center shadow-xs">
                     <span className="text-xs md:text-sm text-text-secondary dark:text-text-secondary-dark font-sans font-bold">蛋白</span>
-                    <span className="text-base md:text-lg font-black text-text-main dark:text-text-main-dark font-mono mt-0.5">
-                      {restDayStats.macros.protein}<span className="text-xs font-normal font-sans ml-0.5">g</span>
+                    <span className="text-sm md:text-lg font-black text-text-main dark:text-text-main-dark font-mono mt-0.5 leading-none block">
+                      {restDayStats.macros.protein}
                     </span>
+                    <span className="text-[10px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90">g</span>
                   </div>
                   {/* 脂肪格子 */}
-                  <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50 rounded-xl p-2.5 flex flex-col justify-center shadow-xs">
+                  <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50 rounded-xl p-2.5 flex flex-col items-center justify-center shadow-xs">
                     <span className="text-xs md:text-sm text-text-secondary dark:text-text-secondary-dark font-sans font-bold">脂肪</span>
-                    <span className="text-base md:text-lg font-black text-text-main dark:text-text-main-dark font-mono mt-0.5">
-                      {restDayStats.macros.fat}<span className="text-xs font-normal font-sans ml-0.5">g</span>
+                    <span className="text-sm md:text-lg font-black text-text-main dark:text-text-main-dark font-mono mt-0.5 leading-none block">
+                      {restDayStats.macros.fat}
                     </span>
+                    <span className="text-[10px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90">g</span>
                   </div>
                 </div>
               </div>
@@ -1263,15 +1295,15 @@ function DietScreen({
             <button
               key={feedback.key}
               type="button"
-              className={`btn rounded-2xl h-12 text-sm md:text-base font-black border transition-all ${
+              className={`flex flex-col items-center justify-center p-2 rounded-2xl h-16 border transition-all cursor-pointer ${
                 aiFeedbackType === feedback.key
-                  ? 'btn-primary text-white shadow-sm'
-                  : 'btn-ghost border-border-card/50 dark:border-border-card-dark text-text-secondary dark:text-text-secondary-dark hover:text-text-main bg-bg-card dark:bg-bg-card-dark'
+                  ? 'bg-primary border-primary text-white shadow-sm'
+                  : 'bg-bg-card dark:bg-bg-card-dark border-border-card/50 dark:border-border-card-dark text-text-secondary dark:text-text-secondary-dark hover:text-text-main hover:bg-bg-hover/30'
               }`}
               onClick={() => handleAiTuneRequest(feedback.key)}
             >
-              <span>{feedback.icon}</span>
-              <span>{feedback.label}</span>
+              <span className="text-lg md:text-xl">{feedback.icon}</span>
+              <span className="text-[10px] sm:text-xs md:text-sm font-bold mt-1 text-center whitespace-normal leading-tight">{feedback.label}</span>
             </button>
           ))}
         </div>
@@ -1375,22 +1407,30 @@ function DietScreen({
                 基准：{configForm.calc_mode === 'ratio' ? '热量占比' : configForm.calc_mode === 'weight_multiple' ? '体重倍数' : '自定义克数'}
               </span>
             </div>
-            <div className="grid grid-cols-4 gap-2 text-center font-mono">
-              <div className="flex flex-col">
-                <span className="text-sm md:text-base text-text-main dark:text-text-main-dark font-sans font-extrabold">预计热量</span>
-                <span className="text-base md:text-lg font-black text-primary mt-0.5">{expectedValues.calories} kcal</span>
+            <div className="grid grid-cols-4 gap-2 text-center">
+              {/* 预计热量 */}
+              <div className="bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-xl p-2 flex flex-col items-center justify-center shadow-xs">
+                <span className="text-xs md:text-sm text-text-secondary dark:text-text-secondary-dark font-sans font-bold select-none">预计热量</span>
+                <span className="text-sm md:text-lg font-black text-primary font-mono mt-0.5 leading-none block">{expectedValues.calories}</span>
+                <span className="text-[10px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90">kcal</span>
               </div>
-              <div className="flex flex-col">
-                <span className="text-sm md:text-base text-text-main dark:text-text-main-dark font-sans font-extrabold">预计碳水</span>
-                <span className="text-base md:text-lg font-black text-text-main dark:text-text-main-dark mt-0.5">{expectedValues.carbs}g <span className="text-[11px] font-normal font-sans">({expectedRatios.carbs}%)</span></span>
+              {/* 预计碳水 */}
+              <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50 rounded-xl p-2 flex flex-col items-center justify-center shadow-xs">
+                <span className="text-xs md:text-sm text-text-secondary dark:text-text-secondary-dark font-sans font-bold select-none">预计碳水</span>
+                <span className="text-sm md:text-lg font-black text-text-main dark:text-text-main-dark font-mono mt-0.5 leading-none block">{expectedValues.carbs}</span>
+                <span className="text-[10px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90">g <span className="text-[9px] font-normal font-sans">({expectedRatios.carbs}%)</span></span>
               </div>
-              <div className="flex flex-col">
-                <span className="text-sm md:text-base text-text-main dark:text-text-main-dark font-sans font-extrabold">预计蛋白</span>
-                <span className="text-base md:text-lg font-black text-text-main dark:text-text-main-dark mt-0.5">{expectedValues.protein}g <span className="text-[11px] font-normal font-sans">({expectedRatios.protein}%)</span></span>
+              {/* 预计蛋白 */}
+              <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50 rounded-xl p-2 flex flex-col items-center justify-center shadow-xs">
+                <span className="text-xs md:text-sm text-text-secondary dark:text-text-secondary-dark font-sans font-bold select-none">预计蛋白</span>
+                <span className="text-sm md:text-lg font-black text-text-main dark:text-text-main-dark font-mono mt-0.5 leading-none block">{expectedValues.protein}</span>
+                <span className="text-[10px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90">g <span className="text-[9px] font-normal font-sans">({expectedRatios.protein}%)</span></span>
               </div>
-              <div className="flex flex-col">
-                <span className="text-sm md:text-base text-text-main dark:text-text-main-dark font-sans font-extrabold">预计脂肪</span>
-                <span className="text-base md:text-lg font-black text-text-main dark:text-text-main-dark mt-0.5">{expectedValues.fat}g <span className="text-[11px] font-normal font-sans">({expectedRatios.fat}%)</span></span>
+              {/* 预计脂肪 */}
+              <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50 rounded-xl p-2 flex flex-col items-center justify-center shadow-xs">
+                <span className="text-xs md:text-sm text-text-secondary dark:text-text-secondary-dark font-sans font-bold select-none">预计脂肪</span>
+                <span className="text-sm md:text-lg font-black text-text-main dark:text-text-main-dark font-mono mt-0.5 leading-none block">{expectedValues.fat}</span>
+                <span className="text-[10px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90">g <span className="text-[9px] font-normal font-sans">({expectedRatios.fat}%)</span></span>
               </div>
             </div>
           </div>
@@ -1564,12 +1604,12 @@ function DietScreen({
                 return (
                   <div className={`border rounded-xl p-3 flex flex-col justify-between ${bgCls}`}>
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-base md:text-lg font-black font-sans text-text-main dark:text-text-main-dark">热量核算</span>
+                      <span className="text-sm sm:text-base md:text-lg font-black font-sans text-text-main dark:text-text-main-dark">热量核算</span>
                       <span className="text-xs md:text-sm font-extrabold px-2 py-0.5 rounded-full bg-current/10 text-current select-none">{tag}</span>
                     </div>
                     <div className="font-mono mt-1">
                       <p className="text-sm md:text-base font-bold text-text-main dark:text-text-main-dark/95">{expectedValues.calories} ➔ <strong className="text-text-main dark:text-text-main-dark font-black">{actualValues.calories}</strong> kcal</p>
-                      <p className="text-base md:text-lg font-bold mt-1.5">偏差: <span className="text-lg md:text-xl font-black">{diff > 0 ? `+${diff}` : diff}</span> kcal</p>
+                      <p className="text-base md:text-lg font-bold mt-1.5 font-sans">偏差: <span className="text-lg md:text-xl font-black font-mono">{diff > 0 ? `+${diff}` : diff}</span> kcal</p>
                     </div>
                   </div>
                 );
@@ -1584,12 +1624,12 @@ function DietScreen({
                 return (
                   <div className={`border rounded-xl p-3 flex flex-col justify-between ${bgCls}`}>
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-base md:text-lg font-black font-sans text-text-main dark:text-text-main-dark">蛋白质</span>
+                      <span className="text-sm sm:text-base md:text-lg font-black font-sans text-text-main dark:text-text-main-dark">蛋白质</span>
                       <span className="text-xs md:text-sm font-extrabold px-2 py-0.5 rounded-full bg-current/10 text-current select-none">{tag}</span>
                     </div>
                     <div className="font-mono mt-1">
                       <p className="text-sm md:text-base font-bold text-text-main dark:text-text-main-dark/95">{expectedValues.protein} ➔ <strong className="text-text-main dark:text-text-main-dark font-black">{actualValues.protein}</strong> g</p>
-                      <p className="text-base md:text-lg font-bold mt-1.5">偏差: <span className="text-lg md:text-xl font-black">{diff > 0 ? `+${diff}` : diff}</span> g</p>
+                      <p className="text-base md:text-lg font-bold mt-1.5 font-sans">偏差: <span className="text-lg md:text-xl font-black font-mono">{diff > 0 ? `+${diff}` : diff}</span> g</p>
                     </div>
                   </div>
                 );
@@ -1612,12 +1652,12 @@ function DietScreen({
                 return (
                   <div className={`border rounded-xl p-3 flex flex-col justify-between ${bgCls}`}>
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-base md:text-lg font-black font-sans text-text-main dark:text-text-main-dark">碳水化合物</span>
+                      <span className="text-sm sm:text-base md:text-lg font-black font-sans text-text-main dark:text-text-main-dark">碳水化合物</span>
                       <span className="text-xs md:text-sm font-extrabold px-2 py-0.5 rounded-full bg-current/10 text-current select-none">{tag}</span>
                     </div>
                     <div className="font-mono mt-1">
                       <p className="text-sm md:text-base font-bold text-text-main dark:text-text-main-dark/95">{expectedValues.carbs} ➔ <strong className="text-text-main dark:text-text-main-dark font-black">{actualValues.carbs}</strong> g</p>
-                      <p className="text-base md:text-lg font-bold mt-1.5">偏差: <span className="text-lg md:text-xl font-black">{diff > 0 ? `+${diff}` : diff}</span> g</p>
+                      <p className="text-base md:text-lg font-bold mt-1.5 font-sans">偏差: <span className="text-lg md:text-xl font-black font-mono">{diff > 0 ? `+${diff}` : diff}</span> g</p>
                     </div>
                   </div>
                 );
@@ -1640,12 +1680,12 @@ function DietScreen({
                 return (
                   <div className={`border rounded-xl p-3 flex flex-col justify-between ${bgCls}`}>
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-base md:text-lg font-black font-sans text-text-main dark:text-text-main-dark">脂肪</span>
+                      <span className="text-sm sm:text-base md:text-lg font-black font-sans text-text-main dark:text-text-main-dark">脂肪</span>
                       <span className="text-xs md:text-sm font-extrabold px-2 py-0.5 rounded-full bg-current/10 text-current select-none">{tag}</span>
                     </div>
                     <div className="font-mono mt-1">
                       <p className="text-sm md:text-base font-bold text-text-main dark:text-text-main-dark/95">{expectedValues.fat} ➔ <strong className="text-text-main dark:text-text-main-dark font-black">{actualValues.fat}</strong> g</p>
-                      <p className="text-base md:text-lg font-bold mt-1.5">偏差: <span className="text-lg md:text-xl font-black">{diff > 0 ? `+${diff}` : diff}</span> g</p>
+                      <p className="text-base md:text-lg font-bold mt-1.5 font-sans">偏差: <span className="text-lg md:text-xl font-black font-mono">{diff > 0 ? `+${diff}` : diff}</span> g</p>
                     </div>
                   </div>
                 );

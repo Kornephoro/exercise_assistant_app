@@ -138,7 +138,7 @@
   input::placeholder,
   textarea::placeholder {
     font-family: 'Outfit', 'Noto Sans SC', system-ui, -apple-system, sans-serif !important;
-    @apply text-text-secondary/50 dark:text-text-secondary-dark/50 font-normal text-sm;
+    @apply text-text-secondary/50 dark:text-text-secondary-dark/50 font-normal text-xs md:text-sm;
   }
 }
 

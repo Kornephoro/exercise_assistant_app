@@ -165,3 +165,53 @@ graph TD
 
 1. **新文件开发**：凡是新添加的页面或模态框，必须全量使用上述各标准类。
 2. **样式覆盖**：禁止在组件内部为按钮 and 表单编写局部的 `h-[XXpx]` 高度重写，如特殊排版需要，必须优先使用 flex/grid 容器对齐或通过标准类定制。
+
+---
+
+## 🚫 8. 特殊场景字体例外说明 (Typography Exceptions)
+
+为了在极高数据密度、特定图表以及框架外壳中提供最佳的用户体验，以下 4 类特殊场景允许使用独立自定义样式，并已在系统中进行了豁免登记：
+
+### 8.1 折线图与数据看板数据 (Data Charts & Dense Metrics)
+*   **适用场景**：[BodyMetrics.jsx](file:///d:/vibe-coding/training-assistant-app/src/BodyMetrics.jsx) 折线图坐标刻度、悬浮框 Tooltip 及数据历史汇总栏。
+*   **具体说明**：
+    *   SVG 图表坐标轴标签使用极其微小的 `text-[9px] font-mono`，确保在图表空间有限时数字不折行、不错位。
+    *   汇总栏中的最高/最低/均值纯数字直接采用 `font-mono font-extrabold` 进行单项加粗，便于表格排版对齐。
+
+### 8.2 系统外壳与框架元素 (App Shell & Navigation UI)
+*   **适用场景**：[App.jsx](file:///d:/vibe-coding/training-assistant-app/src/App.jsx) 的 Toast 弹出通知与底部 Dock 导航栏。
+*   **具体说明**：
+    *   Toast 提示消息采用 `text-sm font-semibold` 独立封装，不受页面卡片样式变化的影响。
+    *   底部主 Tab 栏文字采用 `dock-label text-xs font-bold` 以配合小图标紧凑展示。
+
+### 8.3 用户个性化展示大标题 (User Nicknames)
+*   **适用场景**：[MyPage.jsx](file:///d:/vibe-coding/training-assistant-app/src/MyPage.jsx) 页面顶部的个人昵称与新手步骤页眉。
+*   **具体说明**：
+    *   用户个人昵称使用 `text-xl font-extrabold`，作为个人页面的核心视觉锚点予以突出展示。
+
+### 8.4 微型进度悬浮球 (Circular Progress overlays)
+*   **适用场景**：[FloatingBall.jsx](file:///d:/vibe-coding/training-assistant-app/src/FloatingBall.jsx) 悬浮球内的当前进行组次状态文字。
+*   **具体说明**：
+    *   悬浮计时球由于整体宽度限制在 40px~50px 左右，必须强行使用微型字号 `text-[10px] font-bold` 与 `text-[11px] font-mono font-semibold` 展示组次比（如 `3/4`），以防止内容溢出圆形边界。
+
+---
+
+## 📱 9. 移动端窄屏响应式规范 (Mobile Responsiveness Standards)
+
+为应对超窄屏幕设备（如宽度 320px - 360px 的移动设备）并提高触屏友好度，制定以下界面排版与交互补充规范：
+
+### 9.1 数值与单位垂直堆叠化 (Vertical Unit Stacking)
+*   **适用场景**：多列网格布局中的数据概览、对账目标面板、历史单日总结单元格等（通常为 3 列或 4 列网格）。
+*   **规范定义**：数值与单位禁止横向并排显示（如 `72.5 kg` 或 `1862 kcal`）。必须采用**垂直堆叠布局**：数字字号大且采用等宽 `font-mono`，单位小字（`kg` / `kcal` / `g` / `次`）放在数字正下方。
+*   **样式推荐**：
+    *   数字：`text-sm sm:text-base md:text-lg font-black font-mono mt-0.5 leading-none block`
+    *   单位：`text-[9px] sm:text-[10px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90`
+
+### 9.2 全局表单与占位符防溢出 (Form Controls Overflow Prevention)
+*   **占位符字号**：所有 `input` 与 `textarea` 占位符必须统一使用自适应字号 `.placeholder:text-xs md:placeholder:text-sm`，防止长提示词在窄屏下遭到截断。
+*   **横向并排按钮**：当周一至周日或多个小块按钮在移动端并排（如 4 列）时，字体与内边距必须使用自适应声明 `text-xs sm:text-sm px-1.5 sm:px-3`，杜绝中文两字折行。
+*   **进阶输入框字号**：进阶面板及表单数值输入框字体定义为 `text-sm md:text-base`，保留对单位的兼容性。
+
+### 9.3 触控吸附与容错交互 (Touch Snapping Sliders)
+*   **刻度可点击**：所有的滑动条（Ranger Sliders）下方标注的数字或中文刻度（如热量百分比、主观疲劳度 1/5/10、训练时长），必须全部设置为可点击状态（`cursor-pointer`），并绑定点击事件直接吸附到对应数值。这可在大指头触屏操作时作为拖拽的高效容错备用手段。
+

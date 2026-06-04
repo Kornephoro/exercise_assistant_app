@@ -497,11 +497,11 @@ function OnboardingScreen({ onComplete, onSkip }) {
                   onChange={(e) => setSessionDurationMin(parseInt(e.target.value, 10))}
                 />
                 <div className="w-full flex justify-between text-xs text-text-secondary/50 font-mono mt-1 select-none">
-                  <span>20m</span>
-                  <span>60m</span>
-                  <span>100m</span>
-                  <span>140m</span>
-                  <span>180m</span>
+                  <span className="cursor-pointer hover:text-primary transition-colors animate-fadeIn" onClick={() => setSessionDurationMin(20)}>20m</span>
+                  <span className="cursor-pointer hover:text-primary transition-colors animate-fadeIn" onClick={() => setSessionDurationMin(60)}>60m</span>
+                  <span className="cursor-pointer hover:text-primary transition-colors animate-fadeIn" onClick={() => setSessionDurationMin(100)}>100m</span>
+                  <span className="cursor-pointer hover:text-primary transition-colors animate-fadeIn" onClick={() => setSessionDurationMin(140)}>140m</span>
+                  <span className="cursor-pointer hover:text-primary transition-colors animate-fadeIn" onClick={() => setSessionDurationMin(180)}>180m</span>
                 </div>
               </div>
             </div>
@@ -738,7 +738,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
                       <button
                         key={day.key}
                         type="button"
-                        className={`btn btn-sm h-10 rounded-xl font-bold flex items-center gap-1 cursor-pointer transition-all border text-sm ${
+                        className={`btn btn-sm h-10 rounded-xl font-bold flex items-center gap-1 cursor-pointer transition-all border text-xs sm:text-sm px-1.5 sm:px-3 ${
                           isSelected 
                             ? 'btn-primary text-white shadow-sm' 
                             : 'btn-outline border-border-card dark:border-border-card-dark text-text-secondary hover:bg-bg-hover dark:hover:bg-bg-hover-dark'

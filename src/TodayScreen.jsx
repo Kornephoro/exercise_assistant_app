@@ -243,38 +243,47 @@ function TodayScreen({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2.5 text-xs leading-relaxed">
+          <div className="grid grid-cols-3 gap-2 text-xs leading-relaxed">
             <div className="bg-bg-main/15 dark:bg-bg-main-dark/15 p-2 rounded-lg border border-border-card/25 flex flex-col gap-1">
               <div className="flex justify-between items-center font-bold text-text-secondary select-none">
                 <span>🌾 碳水</span>
-                <span>{progressCarbs}%</span>
+                <span className="scale-90 origin-right">{progressCarbs}%</span>
               </div>
               <progress className="progress progress-info w-full h-1" value={progressCarbs} max="100"></progress>
-              <span className="font-mono font-bold text-text-main mt-0.5 text-xs">
-                {todayDietLog.actual_carbs_g.toFixed(0)} / {macroTargets.carbs}g
-              </span>
+              <div className="flex items-baseline font-mono text-text-main mt-0.5">
+                <span className="font-bold text-[11px] sm:text-xs leading-none">
+                  {todayDietLog.actual_carbs_g.toFixed(0)}/{macroTargets.carbs}
+                </span>
+                <span className="text-[9px] text-text-secondary/70 font-normal font-sans ml-0.5">g</span>
+              </div>
             </div>
 
             <div className="bg-bg-main/15 dark:bg-bg-main-dark/15 p-2 rounded-lg border border-border-card/25 flex flex-col gap-1">
               <div className="flex justify-between items-center font-bold text-text-secondary select-none">
                 <span>🥩 蛋白</span>
-                <span>{progressProtein}%</span>
+                <span className="scale-90 origin-right">{progressProtein}%</span>
               </div>
               <progress className="progress progress-success w-full h-1" value={progressProtein} max="100"></progress>
-              <span className="font-mono font-bold text-text-main mt-0.5 text-xs">
-                {todayDietLog.actual_protein_g.toFixed(0)} / {macroTargets.protein}g
-              </span>
+              <div className="flex items-baseline font-mono text-text-main mt-0.5">
+                <span className="font-bold text-[11px] sm:text-xs leading-none">
+                  {todayDietLog.actual_protein_g.toFixed(0)}/{macroTargets.protein}
+                </span>
+                <span className="text-[9px] text-text-secondary/70 font-normal font-sans ml-0.5">g</span>
+              </div>
             </div>
 
             <div className="bg-bg-main/15 dark:bg-bg-main-dark/15 p-2 rounded-lg border border-border-card/25 flex flex-col gap-1">
               <div className="flex justify-between items-center font-bold text-text-secondary select-none">
                 <span>🥑 脂肪</span>
-                <span>{progressFat}%</span>
+                <span className="scale-90 origin-right">{progressFat}%</span>
               </div>
               <progress className="progress progress-warning w-full h-1" value={progressFat} max="100"></progress>
-              <span className="font-mono font-bold text-text-main mt-0.5 text-xs">
-                {todayDietLog.actual_fat_g.toFixed(0)} / {macroTargets.fat}g
-              </span>
+              <div className="flex items-baseline font-mono text-text-main mt-0.5">
+                <span className="font-bold text-[11px] sm:text-xs leading-none">
+                  {todayDietLog.actual_fat_g.toFixed(0)}/{macroTargets.fat}
+                </span>
+                <span className="text-[9px] text-text-secondary/70 font-normal font-sans ml-0.5">g</span>
+              </div>
             </div>
           </div>
         </div>
@@ -561,7 +570,7 @@ function TodayScreen({
                 {todayBodyMetrics.weight_kg.toFixed(1)} <small className="text-xs font-bold text-text-secondary">kg</small>
               </strong>
               {bmi && (
-                <span className={`badge badge-sm font-black mt-1 py-0.5 max-w-max rounded text-xs ${bmi.badgeColor}`}>
+                <span className={`badge badge-sm font-black mt-1 py-0.5 max-w-max rounded text-[10px] sm:text-xs ${bmi.badgeColor}`}>
                   BMI: {bmi.bmi} · {bmi.label}
                 </span>
               )}
@@ -573,7 +582,7 @@ function TodayScreen({
                 {todayBodyMetrics.waist_cm ? `${todayBodyMetrics.waist_cm.toFixed(1)} cm` : '未录入'}
               </strong>
               {whtr && (
-                <span className={`badge badge-sm font-black mt-1 py-0.5 max-w-max rounded text-xs ${whtr.badgeColor}`}>
+                <span className={`badge badge-sm font-black mt-1 py-0.5 max-w-max rounded text-[10px] sm:text-xs ${whtr.badgeColor}`}>
                   WHtR: {whtr.whtr} · {whtr.label}
                 </span>
               )}
@@ -702,7 +711,9 @@ function TodayScreen({
               className="range range-primary range-xs cursor-pointer"
             />
             <div className="flex justify-between text-xs text-text-secondary/40 font-mono font-bold px-1 select-none">
-              <span>充沛 1</span><span>5</span><span>疲惫 10</span>
+              <span className="cursor-pointer hover:text-primary transition-colors" onClick={() => setFatigue('1')}>充沛 1</span>
+              <span className="cursor-pointer hover:text-primary transition-colors" onClick={() => setFatigue('5')}>5</span>
+              <span className="cursor-pointer hover:text-primary transition-colors" onClick={() => setFatigue('10')}>疲惫 10</span>
             </div>
           </div>
 

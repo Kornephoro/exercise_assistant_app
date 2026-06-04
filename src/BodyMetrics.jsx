@@ -707,7 +707,9 @@ function BodyMetrics() {
               className="range range-primary range-xs cursor-pointer"
             />
             <div className="flex justify-between text-[10px] text-text-secondary/40 font-mono font-bold px-1 select-none">
-              <span>充沛 1</span><span>5</span><span>疲惫 10</span>
+              <span className="cursor-pointer hover:text-primary transition-colors" onClick={() => setForm(prev => ({ ...prev, fatigue: '1' }))}>充沛 1</span>
+              <span className="cursor-pointer hover:text-primary transition-colors" onClick={() => setForm(prev => ({ ...prev, fatigue: '5' }))}>5</span>
+              <span className="cursor-pointer hover:text-primary transition-colors" onClick={() => setForm(prev => ({ ...prev, fatigue: '10' }))}>疲惫 10</span>
             </div>
           </div>
 
