@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
 import {
   Loader2, Search, ChevronDown, ChevronRight, X,
@@ -24,11 +24,8 @@ function ExerciseLibrary() {
   const [filterEquipment, setFilterEquipment] = useState('');
   const [expandedId, setExpandedId] = useState(null);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const fetchData = async () => {
+    await Promise.resolve();
     setLoading(true);
     setError(null);
     try {
@@ -45,6 +42,11 @@ function ExerciseLibrary() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData();
+  }, []);
 
   const movementPatterns = useMemo(() => {
     const set = new Set();

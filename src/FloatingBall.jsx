@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
 
 /**
@@ -14,8 +14,15 @@ function FloatingBall({ progress, onRestore, onCancel }) {
   // 悬浮球的宽高度
   const BALL_SIZE = 64;
   
-  // 悬浮球的位置 (x, y)
-  const [position, setPosition] = useState({ x: 0, y: 0 });
+  // 初始化悬浮球位置到右下角 (避开底部 Tab 导航)
+  const [position, setPosition] = useState(() => {
+    const initX = window.innerWidth - 64 - 20;
+    const initY = window.innerHeight - 64 - 120;
+    return {
+      x: Math.max(10, initX),
+      y: Math.max(10, initY)
+    };
+  });
   // 抓取按压状态 - 用于触发物理缩放反馈
   const [isMouseDown, setIsMouseDown] = useState(false);
   
@@ -24,16 +31,6 @@ function FloatingBall({ progress, onRestore, onCancel }) {
   const dragStart = useRef({ x: 0, y: 0 });
   const ballStart = useRef({ x: 0, y: 0 });
   const wasDragged = useRef(false); // 用于区分点击和拖动
-
-  // 初始化悬浮球位置到右下角 (避开底部 Tab 导航)
-  useEffect(() => {
-    const initX = window.innerWidth - BALL_SIZE - 20;
-    const initY = window.innerHeight - BALL_SIZE - 120;
-    setPosition({
-      x: Math.max(10, initX),
-      y: Math.max(10, initY)
-    });
-  }, []);
 
   // 视口大小改变时，修正悬浮球位置防止出界
   useEffect(() => {
@@ -60,7 +57,7 @@ function FloatingBall({ progress, onRestore, onCancel }) {
   };
 
   // 拖拽移动中
-  const moveDrag = (clientX, clientY) => {
+  const moveDrag = useCallback((clientX, clientY) => {
     if (!isDragging.current) return;
     
     const deltaX = clientX - dragStart.current.x;
@@ -82,13 +79,13 @@ function FloatingBall({ progress, onRestore, onCancel }) {
     nextY = Math.max(10, Math.min(nextY, maxY));
 
     setPosition({ x: nextX, y: nextY });
-  };
+  }, []);
 
   // 结束拖拽
-  const endDrag = () => {
+  const endDrag = useCallback(() => {
     isDragging.current = false;
     setIsMouseDown(false);
-  };
+  }, []);
 
   // 绑定全局鼠标和触控移动/抬起事件，防止手势滑出悬浮球导致中断
   useEffect(() => {
@@ -125,7 +122,7 @@ function FloatingBall({ progress, onRestore, onCancel }) {
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [position]); // 依赖当前 position
+  }, [moveDrag, endDrag]); // 依赖当前 position
 
   // 处理点击球体
   const handleBallClick = () => {

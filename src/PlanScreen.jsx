@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { supabase } from './supabaseClient';
-import { Loader2, Search, ChevronRight, X, Users, Calendar, Zap, Target, BookOpen, Pause, Play, StopCircle, Settings, AlertTriangle } from 'lucide-react';
+import { Search, ChevronRight, X, Users, Calendar, Zap, Target, BookOpen, Pause, Play, StopCircle, Settings, AlertTriangle } from 'lucide-react';
 import ProgramConfigScreen from './ProgramConfigScreen';
 import ExerciseLibrary from './ExerciseLibrary';
 import { getCNName, FEATURE_LABELS } from './exerciseNames';
@@ -47,7 +47,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
   const [activeSubTab, setActiveSubTab] = useState('programs');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProgram, setSelectedProgram] = useState(null);
-  const [selectedActiveProgram, setSelectedActiveProgram] = useState(null);
+  const [selectedActiveProgramId, setSelectedActiveProgramId] = useState(null);
   const [configProgram, setConfigProgram] = useState(null);
 
   // 筛选器
@@ -60,16 +60,15 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [pendingUserProgramId, setPendingUserProgramId] = useState(null);
 
-  // 同步 selectedActiveProgram 中的 userProgram 与 props.userPrograms，
-  // 避免陈旧引用（loadWorkoutData / 乐观更新后，detail 页面仍持有旧对象）
-  useEffect(() => {
-    if (selectedActiveProgram) {
-      const latest = userPrograms.find(u => u.id === selectedActiveProgram.userProgram.id);
-      if (latest && latest !== selectedActiveProgram.userProgram) {
-        setSelectedActiveProgram(prev => prev ? { ...prev, userProgram: latest } : prev);
-      }
-    }
-  }, [userPrograms]);
+  // 用 selectedActiveProgramId 和 useMemo 代替 useEffect 同步 state，彻底避免同步 setState 警告与陈旧引用问题
+  const selectedActiveProgram = useMemo(() => {
+    if (!selectedActiveProgramId) return null;
+    const up = userPrograms.find(u => u.id === selectedActiveProgramId);
+    if (!up) return null;
+    const prog = programs.find(p => p.id === up.program_id);
+    if (!prog) return null;
+    return { program: prog, userProgram: up };
+  }, [selectedActiveProgramId, userPrograms, programs]);
 
   const filteredPrograms = programs.filter(p => {
     if (searchQuery.trim()) {
@@ -116,10 +115,8 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
       onProgramError?.('请先完成或放弃训练后再管理计划');
       return;
     }
-    // ① 立即就地乐观更新 detail 页面 userProgram，按钮立刻变 "暂停计划"
-    setSelectedActiveProgram(prev =>
-      prev ? { ...prev, userProgram: { ...prev.userProgram, is_active: true, paused_at: null } } : prev
-    );
+    // ① 立即通过父级乐观更新属性，单源真相
+    optimisticUpdateUserProgram(userProgramId, { is_active: true, paused_at: null });
     // ② 异步写库 + 父级联动（切 today tab + loadWorkoutData）
     const { error } = await supabase
       .from('user_programs')
@@ -139,7 +136,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
       return;
     }
     setShowEndConfirm(false);
-    setSelectedActiveProgram(null);
+    setSelectedActiveProgramId(null);
     const { error } = await supabase
       .from('user_programs')
       .update({ is_active: false, ended_at: new Date().toISOString() })
@@ -184,14 +181,13 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
   // 活跃计划详情页
   if (selectedActiveProgram) {
     const { program: p, userProgram: up } = selectedActiveProgram;
-    const diff = DIFFICULTY_MAP[p.difficulty];
     const engineType = p.config?.engine_type;
     const isPlaceholder = engineType === 'starting_strength' && p.config?.note;
 
     return (
       <div className="flex flex-col gap-5 animate-fadeIn">
         <div className="flex items-center gap-3">
-          <button type="button" className="btn btn-ghost btn-circle btn-sm cursor-pointer" onClick={() => setSelectedActiveProgram(null)}>
+          <button type="button" className="btn btn-ghost btn-circle btn-sm cursor-pointer" onClick={() => setSelectedActiveProgramId(null)}>
             ←
           </button>
           <h3 className="text-lg font-bold text-text-main dark:text-text-main-dark">{p.name}</h3>
@@ -281,7 +277,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
           <button
             type="button"
             className="btn btn-lg btn-block btn-primary font-bold shadow-lg"
-            onClick={() => { setConfigProgram(p); setSelectedActiveProgram(null); }}
+            onClick={() => { setConfigProgram(p); setSelectedActiveProgramId(null); }}
           >
             <Settings size={16} />
             <span>更改配置</span>
@@ -567,7 +563,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
                       ? 'border-l-warning opacity-90 hover:opacity-100 hover:border-warning/60'
                       : 'border-l-primary hover:border-primary/60'
                   }`}
-                    onClick={() => setSelectedActiveProgram({ program: prog, userProgram: up })}
+                    onClick={() => setSelectedActiveProgramId(up.id)}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col gap-1">

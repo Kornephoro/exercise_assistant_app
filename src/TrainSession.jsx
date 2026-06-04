@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Minimize2, X, Check, Sparkles, Clock, SkipForward, Plus, FastForward } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Minimize2, X, Check, Sparkles, SkipForward, Plus, FastForward } from 'lucide-react';
 
 const DEFAULT_REST_SECONDS = 90;
 
@@ -12,6 +12,52 @@ const TEMPO_PRESETS = [
 ];
 
 const TEMPO_LABELS = ['离心', '底部', '向心', '顶部'];
+
+// ============ FIELD INPUT GROUP (hoisted outside) ============
+const FieldInput = ({ kind, value, onChange, placeholder = '' }) => {
+  const isInt = kind === 'reps' || kind === 'duration';
+  const maxLen = { reps: 4, duration: 4, weight: 5, distance: 6 }[kind];
+  return (
+    <input
+      type="text"
+      inputMode={isInt ? 'numeric' : 'decimal'}
+      pattern={isInt ? '[0-9]*' : undefined}
+      maxLength={maxLen}
+      placeholder={placeholder}
+      className="input input-bordered text-center !text-center font-mono text-2xl font-bold w-full h-12 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      value={value ?? ''}
+      onChange={(e) => {
+        const raw = e.target.value.replace(isInt ? /\D/g : /[^\d.]/g, '');
+        const cleaned = !isInt && raw.split('.').length > 2
+          ? raw.slice(0, raw.lastIndexOf('.'))
+          : raw;
+        onChange(cleaned === '' ? '' : (isInt ? parseInt(cleaned, 10) : parseFloat(cleaned)));
+      }}
+      onFocus={(e) => requestAnimationFrame(() => e.target.select())}
+      onClick={(e) => e.target.select()}
+      onTouchStart={(e) => e.target.select()}
+      onPaste={(e) => {
+        const raw = (e.clipboardData.getData('text') || '').replace(isInt ? /\D/g : /[^\d.]/g, '').slice(0, maxLen);
+        e.preventDefault();
+        onChange(raw === '' ? '' : (isInt ? parseInt(raw, 10) : parseFloat(raw)));
+      }}
+    />
+  );
+};
+
+const FieldInputGroup = ({ fields, valueMap, onChangeMap, fieldLabel, placeholderMap = {} }) => {
+  if (!fields || fields.length === 0) return null;
+  return (
+    <div className={fields.length === 1 ? 'flex flex-col gap-1' : 'grid grid-cols-2 gap-2.5'}>
+      {fields.map((kind) => (
+        <div key={kind} className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-base-content/50">{fieldLabel[kind]}</label>
+          <FieldInput kind={kind} value={valueMap[kind]} onChange={onChangeMap[kind]} placeholder={placeholderMap[kind] || ''} />
+        </div>
+      ))}
+    </div>
+  );
+};
 
 function TrainSession({
   currentDay,
@@ -31,11 +77,16 @@ function TrainSession({
   const [restTimer, setRestTimer] = useState({
     active: false,
     total: DEFAULT_REST_SECONDS,
-    remaining: DEFAULT_REST_SECONDS
+    remaining: DEFAULT_REST_SECONDS,
+    endTime: null
   });
 
   const [setDetails, setSetDetails] = useState({});
   const [customRestSeconds, setCustomRestSeconds] = useState(DEFAULT_REST_SECONDS);
+
+  // 移到上方避免 hoisting 问题
+  const openSetCard = (exerciseIdx, setIdx) => { setFocusedSet({ exerciseIdx, setIdx }); setShowSetCard(true); };
+  const closeSetCard = () => { setShowSetCard(false); setFocusedSet(null); };
 
   const adjustCustomRest = (delta) => {
     setCustomRestSeconds(prev => Math.max(0, prev + delta));
@@ -44,6 +95,12 @@ function TrainSession({
   const audioContextRef = useRef(null);
   const restTimerRef = useRef(null);
   const swipeStartRef = useRef(null);
+
+  // 用 Ref 维护定时器内部需要读取的易变状态，避免频繁重置定时器
+  const timerStateRef = useRef({ focusedSet, exercises: todayWorkout?.exercises, setsData: sessionState.setsData });
+  useEffect(() => {
+    timerStateRef.current = { focusedSet, exercises: todayWorkout?.exercises, setsData: sessionState.setsData };
+  }, [focusedSet, todayWorkout, sessionState.setsData]);
 
   // 全屏左滑手势 → 触发 onMinimize（非破坏性操作）
   const handleSwipeStart = (e) => {
@@ -87,7 +144,7 @@ function TrainSession({
       gain.gain.setValueAtTime(0.3, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur / 1000);
       osc.start(ctx.currentTime); osc.stop(ctx.currentTime + dur / 1000);
-    } catch (e) { /* ignore */ }
+    } catch { /* ignore */ }
   }, []);
 
   const playRestEndSound = useCallback(() => {
@@ -97,97 +154,187 @@ function TrainSession({
   }, [playBeep]);
 
   useEffect(() => {
-    if (restTimer.active && restTimer.remaining > 0) {
+    if (restTimer.active && restTimer.endTime) {
       restTimerRef.current = setInterval(() => {
+        const now = Date.now();
+        const diff = Math.max(0, Math.round((restTimer.endTime - now) / 1000));
+
         setRestTimer(prev => {
-          if (prev.remaining <= 1) { 
+          if (diff <= 0) { 
             clearInterval(restTimerRef.current); 
             playRestEndSound(); 
             setShowRestCard(false);
+            
             // 自动打开下一组
-            if (focusedSet) {
-              const { exerciseIdx, setIdx } = focusedSet;
-              const ex = todayWorkout.exercises[exerciseIdx];
-              const totalSets = sessionState.setsData[exerciseIdx].length;
-              if (setIdx === totalSets - 1 && exerciseIdx < todayWorkout.exercises.length - 1) {
+            const currentFocused = timerStateRef.current.focusedSet;
+            const currentExercises = timerStateRef.current.exercises;
+            const currentSetsData = timerStateRef.current.setsData;
+            if (currentFocused && currentExercises && currentSetsData) {
+              const { exerciseIdx, setIdx } = currentFocused;
+              const totalSets = currentSetsData[exerciseIdx].length;
+              if (setIdx === totalSets - 1 && exerciseIdx < currentExercises.length - 1) {
                 openSetCard(exerciseIdx + 1, 0);
               } else if (setIdx < totalSets - 1) {
                 openSetCard(exerciseIdx, setIdx + 1);
               }
             }
-            return { ...prev, active: false, remaining: 0 }; 
+            return { ...prev, active: false, remaining: 0, endTime: null }; 
           }
-          return { ...prev, remaining: prev.remaining - 1 };
+          return { ...prev, remaining: diff };
         });
       }, 1000);
     }
     return () => { if (restTimerRef.current) clearInterval(restTimerRef.current); };
-  }, [restTimer.active, playRestEndSound]);
+  }, [restTimer.active, restTimer.endTime, playRestEndSound]);
 
   const handleToggleSet = (exIndex, setIndex) => {
-    const updated = { ...sessionState.setsData };
-    const target = updated[exIndex][setIndex];
-    target.completed = !target.completed;
-    if (target.completed && (target.actual_reps === '' || target.actual_reps === undefined)) target.actual_reps = target.planned_reps;
-    setSessionState(prev => ({ ...prev, setsData: updated }));
+    setSessionState(prev => {
+      const nextSets = (prev.setsData[exIndex] || []).map((set, sIdx) => {
+        if (sIdx === setIndex) {
+          const completed = !set.completed;
+          const actual_reps = (completed && (set.actual_reps === '' || set.actual_reps === undefined))
+            ? set.planned_reps
+            : set.actual_reps;
+          return { ...set, completed, actual_reps };
+        }
+        return set;
+      });
+      return {
+        ...prev,
+        setsData: { ...prev.setsData, [exIndex]: nextSets }
+      };
+    });
   };
 
   const handleRepsChange = (exIndex, setIndex, value) => {
-    const updated = { ...sessionState.setsData };
-    updated[exIndex][setIndex].actual_reps = value === '' ? '' : parseInt(value, 10);
-    setSessionState(prev => ({ ...prev, setsData: updated }));
+    setSessionState(prev => {
+      const nextSets = (prev.setsData[exIndex] || []).map((set, sIdx) => {
+        if (sIdx === setIndex) {
+          return { ...set, actual_reps: value === '' ? '' : parseInt(value, 10) };
+        }
+        return set;
+      });
+      return {
+        ...prev,
+        setsData: { ...prev.setsData, [exIndex]: nextSets }
+      };
+    });
   };
 
   const handleWeightChange = (exIndex, setIndex, value) => {
-    const updated = { ...sessionState.setsData };
-    updated[exIndex][setIndex].weight_kg = value === '' ? 0 : parseFloat(value);
-    setSessionState(prev => ({ ...prev, setsData: updated }));
+    setSessionState(prev => {
+      const nextSets = (prev.setsData[exIndex] || []).map((set, sIdx) => {
+        if (sIdx === setIndex) {
+          return { ...set, weight_kg: value === '' ? 0 : parseFloat(value) };
+        }
+        return set;
+      });
+      return {
+        ...prev,
+        setsData: { ...prev.setsData, [exIndex]: nextSets }
+      };
+    });
   };
 
   const handleDurationChange = (exIndex, setIndex, value) => {
-    const updated = { ...sessionState.setsData };
-    updated[exIndex][setIndex].duration_seconds = value === '' ? 0 : parseInt(value, 10);
-    setSessionState(prev => ({ ...prev, setsData: updated }));
+    setSessionState(prev => {
+      const nextSets = (prev.setsData[exIndex] || []).map((set, sIdx) => {
+        if (sIdx === setIndex) {
+          return { ...set, duration_seconds: value === '' ? 0 : parseInt(value, 10) };
+        }
+        return set;
+      });
+      return {
+        ...prev,
+        setsData: { ...prev.setsData, [exIndex]: nextSets }
+      };
+    });
   };
 
   const handleDistanceChange = (exIndex, setIndex, value) => {
-    const updated = { ...sessionState.setsData };
-    updated[exIndex][setIndex].distance_meters = value === '' ? 0 : parseFloat(value);
-    setSessionState(prev => ({ ...prev, setsData: updated }));
+    setSessionState(prev => {
+      const nextSets = (prev.setsData[exIndex] || []).map((set, sIdx) => {
+        if (sIdx === setIndex) {
+          return { ...set, distance_meters: value === '' ? 0 : parseFloat(value) };
+        }
+        return set;
+      });
+      return {
+        ...prev,
+        setsData: { ...prev.setsData, [exIndex]: nextSets }
+      };
+    });
   };
-
-  const openSetCard = (exerciseIdx, setIdx) => { setFocusedSet({ exerciseIdx, setIdx }); setShowSetCard(true); };
-  const closeSetCard = () => { setShowSetCard(false); setFocusedSet(null); };
 
   const completeSet = () => {
     if (!focusedSet) return;
     const { exerciseIdx, setIdx } = focusedSet;
-    const ex = todayWorkout.exercises[exerciseIdx];
     handleToggleSet(exerciseIdx, setIdx);
     closeSetCard();
+
+    // 解决异步状态更新滞后问题：提前预测并计算完成状态
+    const targetSet = sessionState.setsData[exerciseIdx]?.[setIdx];
+    if (!targetSet) return;
+    const willBeCompleted = !targetSet.completed; // 点击后的新状态
+
+    let completedCount = 0;
+    let totalCount = 0;
+    Object.keys(sessionState.setsData).forEach(exKey => {
+      const sets = sessionState.setsData[exKey] || [];
+      totalCount += sets.length;
+      sets.forEach((set, sIdx) => {
+        const isCurrent = Number(exKey) === exerciseIdx && sIdx === setIdx;
+        const isCompleted = isCurrent ? willBeCompleted : set.completed;
+        if (isCompleted) completedCount++;
+      });
+    });
+
+    const isSessionFinishedNew = totalCount > 0 && completedCount === totalCount;
     const totalSets = sessionState.setsData[exerciseIdx].length;
     const isLastExercise = exerciseIdx === todayWorkout.exercises.length - 1;
     const isLastSet = setIdx === totalSets - 1;
-    if (!(isSessionFinished() || (isLastSet && isLastExercise))) {
-      setRestTimer({ active: true, total: customRestSeconds, remaining: customRestSeconds });
+
+    if (!(isSessionFinishedNew || (isLastSet && isLastExercise))) {
+      setRestTimer({
+        active: true,
+        total: customRestSeconds,
+        remaining: customRestSeconds,
+        endTime: Date.now() + customRestSeconds * 1000
+      });
       setShowRestCard(true);
     }
   };
 
   const skipRest = () => {
     setShowRestCard(false);
-    setRestTimer({ active: false, total: DEFAULT_REST_SECONDS, remaining: DEFAULT_REST_SECONDS });
+    setRestTimer({
+      active: false,
+      total: DEFAULT_REST_SECONDS,
+      remaining: DEFAULT_REST_SECONDS,
+      endTime: null
+    });
     if (restTimerRef.current) clearInterval(restTimerRef.current);
     if (focusedSet) {
       const { exerciseIdx, setIdx } = focusedSet;
-      const ex = todayWorkout.exercises[exerciseIdx];
       const totalSets = sessionState.setsData[exerciseIdx].length;
       if (setIdx === totalSets - 1 && exerciseIdx < todayWorkout.exercises.length - 1) openSetCard(exerciseIdx + 1, 0);
       else if (setIdx < totalSets - 1) openSetCard(exerciseIdx, setIdx + 1);
     }
   };
 
-  const addRestTime = (seconds) => setRestTimer(prev => ({ ...prev, remaining: prev.remaining + seconds, total: prev.total + seconds }));
+  const addRestTime = (seconds) => {
+    setRestTimer(prev => {
+      const nextRemaining = prev.remaining + seconds;
+      const nextTotal = prev.total + seconds;
+      const nextEndTime = prev.endTime ? prev.endTime + seconds * 1000 : null;
+      return {
+        ...prev,
+        remaining: Math.max(0, nextRemaining),
+        total: Math.max(0, nextTotal),
+        endTime: nextEndTime
+      };
+    });
+  };
   const updateSetDetail = (key, field, value) => setSetDetails(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
 
   const applyTempoPreset = (key, presetValues) => {
@@ -199,51 +346,7 @@ function TrainSession({
   const getRpeColor = (v) => v <= 4 ? 'text-green-500' : v <= 7 ? 'text-yellow-500' : 'text-red-500';
   const handleAbort = () => onCancel();
 
-  // ============ FIELD INPUT GROUP (method-aware inputs) ============
-  const FieldInput = ({ kind, value, onChange, placeholder = '' }) => {
-    const isInt = kind === 'reps' || kind === 'duration';
-    const maxLen = { reps: 4, duration: 4, weight: 5, distance: 6 }[kind];
-    return (
-      <input
-        type="text"
-        inputMode={isInt ? 'numeric' : 'decimal'}
-        pattern={isInt ? '[0-9]*' : undefined}
-        maxLength={maxLen}
-        placeholder={placeholder}
-        className="input input-bordered text-center !text-center font-mono text-2xl font-bold w-full h-12 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-        value={value ?? ''}
-        onChange={(e) => {
-          const raw = e.target.value.replace(isInt ? /\D/g : /[^\d.]/g, '');
-          const cleaned = !isInt && raw.split('.').length > 2
-            ? raw.slice(0, raw.lastIndexOf('.'))
-            : raw;
-          onChange(cleaned === '' ? '' : (isInt ? parseInt(cleaned, 10) : parseFloat(cleaned)));
-        }}
-        onFocus={(e) => requestAnimationFrame(() => e.target.select())}
-        onClick={(e) => e.target.select()}
-        onTouchStart={(e) => e.target.select()}
-        onPaste={(e) => {
-          const raw = (e.clipboardData.getData('text') || '').replace(isInt ? /\D/g : /[^\d.]/g, '').slice(0, maxLen);
-          e.preventDefault();
-          onChange(raw === '' ? '' : (isInt ? parseInt(raw, 10) : parseFloat(raw)));
-        }}
-      />
-    );
-  };
-
-  const FieldInputGroup = ({ fields, valueMap, onChangeMap, fieldLabel, placeholderMap = {} }) => {
-    if (!fields || fields.length === 0) return null;
-    return (
-      <div className={fields.length === 1 ? 'flex flex-col gap-1' : 'grid grid-cols-2 gap-2.5'}>
-        {fields.map((kind) => (
-          <div key={kind} className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-base-content/50">{fieldLabel[kind]}</label>
-            <FieldInput kind={kind} value={valueMap[kind]} onChange={onChangeMap[kind]} placeholder={placeholderMap[kind] || ''} />
-          </div>
-        ))}
-      </div>
-    );
-  };
+  // ============ FIELD INPUT GROUP (hoisted outside) ============
 
   // ============ SET DETAIL CARD (floating centered) ============
   const renderSetCard = () => {

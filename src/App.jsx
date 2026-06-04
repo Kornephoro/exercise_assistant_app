@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import { getNextWorkout, getNextDay, isTodayTrainingDay, getNextTrainingDate, getDaysUntilStart } from './programEngine';
 import { calcE1RM } from './oneRmUtils';
 import { getCNName } from './exerciseNames';
 import TodayScreen from './TodayScreen';
 import PlanScreen from './PlanScreen';
-import CalendarScreen from './CalendarScreen';
 import DataScreen from './DataScreen';
 import MyPage from './MyPage';
 import TrainSession from './TrainSession';
@@ -18,19 +17,8 @@ import {
   AlertTriangle,
   Sun,
   Moon,
-  SkipForward,
-  Flag
+  SkipForward
 } from 'lucide-react';
-
-const getWeekdayEnglish = (date) => {
-  const weekdaysEng = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  return weekdaysEng[date.getDay()];
-};
-
-const getWeekdayCN = (date) => {
-  const weekdaysCN = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
-  return weekdaysCN[date.getDay()];
-};
 
 function App() {
   const [activeTab, setActiveTab] = useState('today');
@@ -41,18 +29,13 @@ function App() {
   });
 
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
 
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [trainingDays, setTrainingDays] = useState(null);
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    return localStorage.getItem('onboarding_completed') !== 'true';
+  });
   const [userNickname, setUserNickname] = useState(() => localStorage.getItem('user_nickname') || '');
-
-  useEffect(() => {
-    const completed = localStorage.getItem('onboarding_completed') === 'true';
-    if (!completed) setShowOnboarding(true);
-  }, []);
 
   // 新架构：programs + user_programs
   const [programs, setPrograms] = useState([]);
@@ -101,7 +84,8 @@ function App() {
   }, [toast]);
 
   // 核心数据加载
-  const loadWorkoutData = async () => {
+  const loadWorkoutData = async (overrideActiveProgramId) => {
+    await Promise.resolve();
     setLoading(true);
     setError(null);
     try {
@@ -139,37 +123,43 @@ function App() {
 
       // 解析用户画像
       const profileData = profileRes.data || [];
-      let trainingDaysArray = null;
       if (profileData.length > 0 && profileData[0].training_days) {
-        try { trainingDaysArray = JSON.parse(profileData[0].training_days); } catch (e) { /* ignore */ }
+        try { JSON.parse(profileData[0].training_days); } catch { /* ignore */ }
       }
-      setTrainingDays(trainingDaysArray);
       setUserNickname(localStorage.getItem('user_nickname') || '');
-
-      // 解析今日打卡状态
-      const todayWorkouts = todayWorkoutsRes.data || [];
-      setIsTodayCompleted(todayWorkouts.length > 0);
-      setTodayWorkoutSummary(todayWorkouts);
 
       // 确定当前活跃计划
       const activeUps = allUserPrograms.filter(up => up.is_active);
-      let currentActiveId = activeProgramId;
+      let currentActiveId = overrideActiveProgramId !== undefined ? overrideActiveProgramId : activeProgramId;
       if (activeUps.length > 0 && !activeUps.find(u => u.id === currentActiveId)) {
         currentActiveId = activeUps[0].id;
       }
       if (activeUps.length === 0) currentActiveId = null;
       setActiveProgramId(currentActiveId);
 
+      // 解析今日打卡状态 (按当前选择的活跃计划的 program_id 隔离)
+      let currentProgramId = null;
+      if (currentActiveId) {
+        const activeUP = activeUps.find(u => u.id === currentActiveId);
+        currentProgramId = activeUP?.program_id;
+      }
+
+      const todayWorkouts = todayWorkoutsRes.data || [];
+      const filteredTodayWorkouts = todayWorkouts.filter(w => w.program_id === currentProgramId);
+      setIsTodayCompleted(filteredTodayWorkouts.length > 0);
+      setTodayWorkoutSummary(filteredTodayWorkouts);
+
       // 用引擎计算今日训练
       if (currentActiveId) {
         const activeUP = activeUps.find(u => u.id === currentActiveId);
         const activeProgram = allPrograms.find(p => p.id === activeUP.program_id);
         if (activeProgram) {
-          // 获取该计划所有相关动作的历史
+          // 获取该计划所有相关动作的历史 (添加 gte 隔离不同计划订阅周期的数据)
           const { data: historyData } = await supabase
             .from('workouts')
             .select('*')
             .eq('program_id', activeProgram.id)
+            .gte('created_at', activeUP.started_at || activeUP.created_at)
             .order('created_at', { ascending: true });
 
           // 按 exercise+tier 分组历史
@@ -208,12 +198,15 @@ function App() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadWorkoutData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 切换活跃计划
   const switchActiveProgram = (programId) => {
     setActiveProgramId(programId);
+    loadWorkoutData(programId);
   };
 
   // 乐观更新：立刻把 userPrograms state 中的某条记录打补丁，并同步联动 activeProgramId / todayWorkout
@@ -293,7 +286,7 @@ function App() {
     }
 
     const schedule = activeUP.schedule || {};
-    const nextDay = getNextDay(activeProgram, todayWorkout.dayLabel, schedule, activeUP.program_state?.last_training_date);
+    const nextDay = getNextDay(activeProgram, todayWorkout.dayLabel, schedule, activeUP.program_state?.last_training_date, activeUP.program_state?.start_date);
     
     const newState = {
       ...activeUP.program_state,
@@ -303,7 +296,7 @@ function App() {
         date: new Date().toISOString(),
         day_label: todayWorkout.dayLabel,
         reason: reason || '未记录'
-      }]
+      }].slice(-100)
     };
     
     await supabase.from('user_programs').update({ program_state: newState, updated_at: new Date().toISOString() }).eq('id', activeUP.id);
@@ -327,7 +320,7 @@ function App() {
     }
 
     const schedule = activeUP.schedule || {};
-    const nextDay = getNextDay(activeProgram, todayWorkout.dayLabel, schedule, activeUP.program_state?.last_training_date);
+    const nextDay = getNextDay(activeProgram, todayWorkout.dayLabel, schedule, activeUP.program_state?.last_training_date, activeUP.program_state?.start_date);
     
     const newState = {
       ...activeUP.program_state,
@@ -378,18 +371,20 @@ function App() {
 
     const setsToInsert = [];
     const workoutRecords = [];
+    let hasValidationError = false;
 
-    (todayWorkout.exercises || []).forEach((tierEx, exIdx) => {
+    for (const [exIdx, tierEx] of (todayWorkout.exercises || []).entries()) {
       const tier = tierEx.tier || 'T1';
       const sets = setsData[exIdx] || [];
-      if (sets.length === 0) return;
+      if (sets.length === 0) continue;
 
       const method = getRecordingMethod(tierEx.exercise);
       const lastSet = sets[sets.length - 1];
 
       if (!validateLastSet(lastSet, method)) {
         setToast({ type: 'error', message: `打卡保存失败：${tier} 最后一组必须填写有效数据` });
-        return;
+        hasValidationError = true;
+        break;
       }
 
       // workout summary record
@@ -417,7 +412,7 @@ function App() {
       workoutRecords.push(record);
 
       // workout_sets detail records
-      sets.forEach((s, setIdx) => {
+      for (const [setIdx, s] of sets.entries()) {
         const setKey = `${tier}_${exIdx}_${setIdx}`;
         const detail = setDetails[setKey] || {};
         const base = {
@@ -453,24 +448,40 @@ function App() {
           base.actual_reps = getFinalReps(s);
         }
         setsToInsert.push(base);
-      });
-    });
+      }
+    }
 
-    setSaving(true);
+    if (hasValidationError) return;
+
     try {
-      const [insertWorkoutsRes, insertSetsRes] = await Promise.all([
-        supabase.from('workouts').insert(workoutRecords),
-        supabase.from('workout_sets').insert(setsToInsert)
-      ]);
+      // 先插入 workouts，以便获取返回的 id 并关联到 workout_sets 和 one_rm_records
+      const { data: createdWorkouts, error: insertWorkoutsErr } = await supabase
+        .from('workouts')
+        .insert(workoutRecords)
+        .select('id, exercise, tier');
 
-      if (insertWorkoutsRes.error) throw insertWorkoutsRes.error;
-      if (insertSetsRes.error) throw insertSetsRes.error;
+      if (insertWorkoutsErr) throw insertWorkoutsErr;
+
+      const updatedSetsToInsert = setsToInsert.map(s => {
+        const parent = (createdWorkouts || []).find(w => w.exercise === s.exercise && w.tier === s.tier);
+        return {
+          ...s,
+          workout_id: parent?.id || null
+        };
+      });
+
+      const { error: insertSetsErr } = await supabase
+        .from('workout_sets')
+        .insert(updatedSetsToInsert);
+
+      if (insertSetsErr) throw insertSetsErr;
 
       // ============== 任务 6: 自动推算 + 写入 one_rm_records ==============
       // 规则: 4 个主项 (squat/bench/deadlift/press) T1 高强度组 (reps ≤ 5) 自动推算 1RM
       // 过滤: 如果新 e1rm < 当前 latest × 0.9, 视为脏数据跳过
       const MAIN_LIFTS = ['squat', 'bench', 'deadlift', 'press'];
-      const todayISO = new Date().toISOString().split('T')[0];
+      const d = new Date();
+      const todayISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
       // 收集符合条件的主项 e1rm 候选
       const candidates = [];
@@ -511,33 +522,41 @@ function App() {
 
           if (latestErr) throw latestErr;
 
-          // 同一主项取 date 最大的那条 (按 e1rm_kg 也 fallback 取 max)
+          // 修正 Bug：按最新 date 取出每一个 exercise 的记录
           const latestByLift = {};
           (latestData || []).forEach(r => {
-            if (!latestByLift[r.exercise] || r.e1rm_kg > latestByLift[r.exercise].e1rm_kg) {
+            // 因为 SQL 中已经是 order('date', { ascending: false })，所以第一条遇到的就是最新的记录
+            if (!latestByLift[r.exercise]) {
               latestByLift[r.exercise] = r;
             }
           });
 
+          // 计算两个 YYYY-MM-DD 字符串之间的天数差
+          const getDaysBetween = (d1Str, d2Str) => {
+            if (!d1Str || !d2Str) return 0;
+            const d1 = new Date(d1Str);
+            const d2 = new Date(d2Str);
+            d1.setHours(0, 0, 0, 0);
+            d2.setHours(0, 0, 0, 0);
+            return Math.abs(Math.floor((d1 - d2) / (1000 * 60 * 60 * 24)));
+          };
+
           // 过滤: 新 e1rm ≥ current × 90% 才写入
+          // 重新设计：如果与最近的一条记录相差 > 15 天，认为可能处于停练/力量衰退，直接通过不拦截；在 15 天以内，则应用 0.9 过滤以防输入失误。
           const filtered = candidates.filter(c => {
             const cur = latestByLift[c.exercise];
             if (!cur) return true; // 无历史，直接写入
+            
+            const daysDiff = getDaysBetween(c.date, cur.date);
+            if (daysDiff > 15) {
+              return true; // 超过 15 天，退化保护激活，免于 0.9 过滤限制
+            }
             return c.e1rm_kg >= cur.e1rm_kg * 0.9;
           });
 
           if (filtered.length > 0) {
-            // 获取刚插入的 workouts 行的 id (按 exercise + tier + set_number 顺序)
-            // 这里直接用今天日期 + 动作做反查
-            const { data: todayWorkouts } = await supabase
-              .from('workouts')
-              .select('id, exercise, created_at')
-              .eq('program_id', activeProgram.id)
-              .gte('created_at', todayStart.toISOString())
-              .in('exercise', filtered.map(c => c.exercise));
-
             const workoutMap = {};
-            (todayWorkouts || []).forEach(w => {
+            (createdWorkouts || []).forEach(w => {
               if (!workoutMap[w.exercise]) workoutMap[w.exercise] = w.id;
             });
 
@@ -562,7 +581,7 @@ function App() {
 
       // 更新 user_programs 的 program_state
       const schedule = activeUP.schedule || {};
-      const nextDay = getNextDay(activeProgram, todayWorkout.dayLabel, schedule, activeUP.program_state?.last_training_date);
+      const nextDay = getNextDay(activeProgram, todayWorkout.dayLabel, schedule, activeUP.program_state?.last_training_date, activeUP.program_state?.start_date);
       const newState = {
         ...activeUP.program_state,
         current_day: nextDay,
@@ -588,20 +607,20 @@ function App() {
       console.error('保存训练记录失败：', err);
       setToast({ type: 'error', message: '保存记录失败：' + err.message });
     } finally {
-      setSaving(false);
+      // no-op
     }
   };
 
   const getSessionProgress = (setsData) => {
     if (!setsData) return '';
-    const keys = Object.keys(setsData).sort((a, b) => Number(a) - Number(b));
-    for (const key of keys) {
+    let completed = 0;
+    let total = 0;
+    Object.keys(setsData).forEach(key => {
       const sets = setsData[key] || [];
-      const completedCount = sets.filter(s => s.completed).length;
-      if (completedCount < sets.length) return `${completedCount}/${sets.length}`;
-    }
-    const total = keys.reduce((sum, k) => sum + (setsData[k]?.length || 0), 0);
-    return `${total}/${total}`;
+      total += sets.length;
+      completed += sets.filter(s => s.completed).length;
+    });
+    return `${completed}/${total}`;
   };
 
   const getExerciseCNName = (exercise) => getCNName(exercise, exercisesMap);
@@ -725,19 +744,19 @@ function App() {
             onProgramPaused={(userProgramId) => {
               optimisticUpdateUserProgram(userProgramId, { is_active: false, paused_at: new Date().toISOString() });
               setToast({ type: 'info', message: '计划已暂停。' });
-              loadWorkoutData();
+              loadWorkoutData(null);
             }}
             onProgramResumed={(userProgramId) => {
               optimisticUpdateUserProgram(userProgramId, { is_active: true, paused_at: null });
               setToast({ type: 'success', message: '计划已恢复。' });
               setActiveTab('today');
-              loadWorkoutData();
+              loadWorkoutData(userProgramId);
             }}
             onProgramEnded={(userProgramId) => {
               optimisticUpdateUserProgram(userProgramId, { is_active: false, ended_at: new Date().toISOString() });
               setToast({ type: 'info', message: '计划已结束，训练历史已保留。' });
               setActiveTab('plan');
-              loadWorkoutData();
+              loadWorkoutData(null);
             }}
             onProgramError={(message) => {
               setToast({ type: 'error', message });

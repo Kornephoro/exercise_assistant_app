@@ -18,7 +18,7 @@ function roundWeight(weight) {
  * @param {string} lastTrainingDate - 上次训练日期 ISO string
  * @returns {string} 下一个训练日标签
  */
-function gzclpGetNextDay(config, lastDay, schedule, lastTrainingDate) {
+function gzclpGetNextDay(config, lastDay, schedule, lastTrainingDate, startDate) {
   const days = Object.keys(config.day_map);
   if (!lastDay || !days.includes(lastDay)) return days[0];
 
@@ -28,7 +28,6 @@ function gzclpGetNextDay(config, lastDay, schedule, lastTrainingDate) {
     // 练 N 休 M 轮转模式
     const trainDays = schedule?.trainDays || 1;
     const restDays = schedule?.restDays || 1;
-    const cycleLength = trainDays + restDays;
 
     // 计算从上次训练到今天经过了多少天
     if (lastTrainingDate) {
@@ -39,25 +38,24 @@ function gzclpGetNextDay(config, lastDay, schedule, lastTrainingDate) {
       const daysSinceLast = Math.floor((today - lastDate) / (1000 * 60 * 60 * 24));
 
       if (daysSinceLast > 0) {
-        // 计算应该前进多少个训练日
-        // 每 (trainDays + restDays) 天完成一个完整轮转
         const totalCycleDays = trainDays + restDays;
-        const cyclesCompleted = Math.floor(daysSinceLast / totalCycleDays);
-        const remainingDays = daysSinceLast % totalCycleDays;
+        
+        // 计算锚定基准位置
+        const baseDate = startDate || lastTrainingDate;
+        const base = new Date(baseDate);
+        base.setHours(0, 0, 0, 0);
+        const lastPosition = Math.floor((lastDate - base) / (1000 * 60 * 60 * 24)) % totalCycleDays;
 
-        // 计算当前在轮转中的位置
         const lastDayIdx = days.indexOf(lastDay);
         let currentIdx = lastDayIdx;
 
-        // 根据剩余天数推进
-        for (let i = 0; i < remainingDays; i++) {
-          // 判断当前是训练日还是休息日
-          const positionInCycle = (lastDayIdx + i) % totalCycleDays;
+        // 根据剩余天数推进：每一天的位置
+        for (let i = 1; i <= daysSinceLast; i++) {
+          const positionInCycle = (lastPosition + i) % totalCycleDays;
           if (positionInCycle < trainDays) {
-            // 这是训练日，推进到下一个训练日
+            // 这是训练日，推进到下一个训练日标签
             currentIdx = (currentIdx + 1) % days.length;
           }
-          // 休息日不推进训练日索引
         }
 
         return days[currentIdx];
@@ -76,7 +74,7 @@ function gzclpGetNextDay(config, lastDay, schedule, lastTrainingDate) {
       return days[(lastDayIdx + skipDays + 1) % days.length];
     }
   } else {
-    // 每周固定几天模式（原有逻辑）
+    // 每每周固定几天模式（原有逻辑）
     const idx = days.indexOf(lastDay);
     return days[(idx + 1) % days.length];
   }
@@ -160,13 +158,12 @@ function getNextTrainingDate(schedule, lastTrainingDate, startDate) {
     const trainingDays = schedule?.training_days || [];
     if (trainingDays.length === 0) return '';
     const weekdaysEng = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const todayWeekday = weekdaysEng[today.getDay()];
     const targetIndices = trainingDays.map(day => weekdaysEng.indexOf(day)).filter(idx => idx !== -1);
     if (targetIndices.length === 0) return '';
     
     const todayIdx = today.getDay();
     let nextDayIdx = targetIndices.find(idx => idx > todayIdx);
-    let daysDiff = 0;
+    let daysDiff;
     if (nextDayIdx !== undefined) {
       daysDiff = nextDayIdx - todayIdx;
     } else {
@@ -205,8 +202,12 @@ function gzclpGetTierProgression(exercise, history, schemes, initialWeight, incr
     : 20.0;
   const step = Number(increment);
 
+  const safeSchemes = (schemes && schemes.length > 0)
+    ? schemes
+    : [{ sets: 3, reps: 5, amrap_last: true }];
+
   if (!history || history.length === 0) {
-    const scheme = schemes[0];
+    const scheme = safeSchemes[0];
     return {
       weight_kg: roundWeight(defaultWeight),
       planned_reps: scheme.reps,
@@ -221,11 +222,11 @@ function gzclpGetTierProgression(exercise, history, schemes, initialWeight, incr
   const lastActual = Number(last.actual_last_set_reps);
 
   // 找到当前方案：先按 reps 匹配，匹配不到则 fallback 到第一阶段
-  let currentIdx = schemes.findIndex(s => s.reps === lastPlannedReps);
+  let currentIdx = safeSchemes.findIndex(s => s.reps === lastPlannedReps);
   if (currentIdx === -1) currentIdx = 0;
-  const currentScheme = schemes[currentIdx];
+  const currentScheme = safeSchemes[currentIdx];
 
-  let nextWeight = lastWeight;
+  let nextWeight;
   let nextIdx = currentIdx;
 
   // 判断成功/失败
@@ -383,7 +384,7 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier) {
   return {
     exercises,
     dayLabel: currentDay,
-    nextDay: gzclpGetNextDay(config, currentDay, schedule, lastTrainingDate)
+    nextDay: gzclpGetNextDay(config, currentDay, schedule, lastTrainingDate, state.start_date)
   };
 }
 
@@ -428,7 +429,7 @@ function gzclpCalculateProgression(config, userProgram, exercise, tier, complete
 
 // ==================== Starting Strength 引擎（占位）====================
 
-function ssGetNextWorkout(config, userProgram, historyByExercise) {
+function ssGetNextWorkout(config, userProgram) {
   const state = userProgram.program_state || {};
   const lastWorkout = state.last_workout || null;
   const cycleLength = config.cycle_length || 2;
@@ -476,7 +477,7 @@ const engines = {
   starting_strength: {
     getNextWorkout: ssGetNextWorkout,
     calculateProgression: () => ({ success: true, note: 'SS 进阶逻辑待实现' }),
-    getNextDay: (config, lastDay, schedule, lastTrainingDate) => {
+    getNextDay: (config, lastDay) => {
       const keys = Object.keys(config.day_map);
       if (!lastDay) return keys[0];
       const idx = keys.indexOf(lastDay);
@@ -501,10 +502,10 @@ export function calculateProgression(program, userProgram, exercise, tier, compl
   return engine.calculateProgression(program.config, userProgram, exercise, tier, completedSets);
 }
 
-export function getNextDay(program, lastDay, schedule, lastTrainingDate) {
+export function getNextDay(program, lastDay, schedule, lastTrainingDate, startDate) {
   const engine = engines[program.config?.engine_type];
   if (!engine) return 'Day1';
-  return engine.getNextDay(program.config, lastDay, schedule, lastTrainingDate);
+  return engine.getNextDay(program.config, lastDay, schedule, lastTrainingDate, startDate);
 }
 
 export { isTodayTrainingDay, getNextTrainingDate, getDaysUntilStart };

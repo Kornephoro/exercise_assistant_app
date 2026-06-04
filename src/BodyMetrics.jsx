@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Heart, Save, Loader2, Activity, Zap } from 'lucide-react';
 
 const STORAGE_KEY = 'body_metrics_history';
@@ -20,7 +20,7 @@ function saveHistory(arr) {
 }
 
 function BodyMetrics() {
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState(loadHistory);
   const [form, setForm] = useState({
     date: todayISO(),
     weight: '',
@@ -31,10 +31,6 @@ function BodyMetrics() {
   });
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
-
-  useEffect(() => {
-    setHistory(loadHistory());
-  }, []);
 
   const handleSave = async (e) => {
     e.preventDefault();

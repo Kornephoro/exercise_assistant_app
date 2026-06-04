@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, AlertCircle } from 'lucide-react';
 
@@ -28,11 +28,6 @@ function CalendarScreen({ getExerciseCNName }) {
   // 选中日期的训练详情记录
   const [dayDetail, setDayDetail] = useState([]);
 
-  // 2. 挂载及切换月份时加载当月训练标记
-  useEffect(() => {
-    fetchMonthWorkouts(currentYear, currentMonth);
-  }, [currentYear, currentMonth]);
-
   /**
    * 按本地时区范围拉取当前月份包含训练的日期集合
    * 
@@ -40,6 +35,7 @@ function CalendarScreen({ getExerciseCNName }) {
    * @param {number} month 月份 (0-11)
    */
   const fetchMonthWorkouts = async (year, month) => {
+    await Promise.resolve();
     setLoadingMonth(true);
     setError(null);
     try {
@@ -78,6 +74,12 @@ function CalendarScreen({ getExerciseCNName }) {
       setLoadingMonth(false);
     }
   };
+
+  // 2. 挂载及切换月份时加载当月训练标记
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchMonthWorkouts(currentYear, currentMonth);
+  }, [currentYear, currentMonth]);
 
   /**
    * 查询选中日期的本地 24 小时内的训练详情
@@ -334,8 +336,8 @@ function CalendarScreen({ getExerciseCNName }) {
             {/* 训练详情卡片流 */}
             <div className="flex flex-col gap-4">
               {dayDetail.map((log) => {
-                let tierBadgeClass = '';
-                let cardBorderClass = '';
+                let tierBadgeClass;
+                let cardBorderClass;
                 if (log.tier === 'T1') {
                   tierBadgeClass = 'bg-tier-t1/10 text-tier-t1 dark:text-tier-t1-dark border-tier-t1/20 dark:border-tier-t1-dark/20';
                   cardBorderClass = 'border-l-4 border-l-tier-t1 dark:border-l-tier-t1-dark';

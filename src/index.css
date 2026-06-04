@@ -140,9 +140,6 @@
     @apply bg-bg-card border border-border-card rounded-[16px] p-[24px] dark:bg-bg-card-dark dark:border-border-card-dark transition-colors duration-200 shadow-sm;
   }
   
-  .tr-hover {
-    @apply hover:bg-bg-hover dark:hover:bg-bg-hover-dark transition-colors duration-150;
-  }
 
   /* 设计系统标准警告提示容器 */
   .alert-box {

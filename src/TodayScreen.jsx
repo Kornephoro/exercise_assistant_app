@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Play, RotateCcw, CheckCircle, Heart, Utensils, Calendar, ChevronDown, ArrowRight, SkipForward, Flag } from 'lucide-react';
 
 const TIER_COLORS = {
@@ -13,7 +13,6 @@ function TodayScreen({
   activeUserPrograms,
   programs,
   todayWorkout,
-  exercisesMap,
   sessionState,
   onStartTrain,
   onOpenPreview,
@@ -43,27 +42,8 @@ function TodayScreen({
     { value: 'other', label: '其他原因' },
   ];
 
-  const getExerciseShortName = (exercise) => {
-    const cnName = getExerciseCNName(exercise);
-    return cnName.split(' ')[0].split('(')[0].trim();
-  };
-
   const getFormattedDate = () => {
     return new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-  };
-
-  const getHeaderTitle = () => {
-    if (!activeProgram) return '训练助手';
-    if (isSessionActive) {
-      const dayLabel = todayWorkout?.dayLabel || '';
-      return `${dayLabel} 训练中`;
-    }
-    if (isTodayCompleted) {
-      return `${todayWorkoutSummary[0]?.training_day || ''} 训练完成`;
-    }
-    if (isRestDay) return '今日休息';
-    const dayLabel = todayWorkout?.dayLabel || '';
-    return `${dayLabel} 训练日`;
   };
 
   // 无活跃计划 → 引导去计划库

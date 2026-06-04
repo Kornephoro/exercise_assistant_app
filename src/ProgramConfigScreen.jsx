@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from './supabaseClient';
 import { Loader2, ArrowLeft, Save, ShieldAlert, CheckCircle, Scale, Zap, Dumbbell, Search, Calendar, Sparkles } from 'lucide-react';
 import { convertWeight, toStorageWeight } from './unitUtils';
 import { deriveStartFromOneRm } from './oneRmUtils';
-import { getCNName, FALLBACK_CN_NAMES } from './exerciseNames';
+import { getCNName } from './exerciseNames';
 
 // ==================== 1RM 同步钩子 ====================
 // 拉取每个主项最新 1RM，供「一键应用」使用
@@ -221,25 +221,27 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
   // 策略: 加载时如果云端有, 用云端的 (因为这是真实测试)
   useEffect(() => {
     if (Object.keys(latestOneRms).length === 0) return;
-    setSquatOneRm(prev => {
-      const cloud = latestOneRms.squat?.e1rm_kg;
-      if (cloud && (Number(prev) === 80 || !prev)) return String(cloud);
-      return prev;
-    });
-    setBenchOneRm(prev => {
-      const cloud = latestOneRms.bench?.e1rm_kg;
-      if (cloud && (Number(prev) === 60 || !prev)) return String(cloud);
-      return prev;
-    });
-    setDeadliftOneRm(prev => {
-      const cloud = latestOneRms.deadlift?.e1rm_kg;
-      if (cloud && (Number(prev) === 100 || !prev)) return String(cloud);
-      return prev;
-    });
-    setPressOneRm(prev => {
-      const cloud = latestOneRms.press?.e1rm_kg;
-      if (cloud && (Number(prev) === 40 || !prev)) return String(cloud);
-      return prev;
+    Promise.resolve().then(() => {
+      setSquatOneRm(prev => {
+        const cloud = latestOneRms.squat?.e1rm_kg;
+        if (cloud && (Number(prev) === 80 || !prev)) return String(cloud);
+        return prev;
+      });
+      setBenchOneRm(prev => {
+        const cloud = latestOneRms.bench?.e1rm_kg;
+        if (cloud && (Number(prev) === 60 || !prev)) return String(cloud);
+        return prev;
+      });
+      setDeadliftOneRm(prev => {
+        const cloud = latestOneRms.deadlift?.e1rm_kg;
+        if (cloud && (Number(prev) === 100 || !prev)) return String(cloud);
+        return prev;
+      });
+      setPressOneRm(prev => {
+        const cloud = latestOneRms.press?.e1rm_kg;
+        if (cloud && (Number(prev) === 40 || !prev)) return String(cloud);
+        return prev;
+      });
     });
   }, [latestOneRms]);
 
@@ -254,7 +256,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
   // 训练日程（weekly 模式）
   const [trainingDays, setTrainingDays] = useState(() => {
     const saved = localStorage.getItem('training_days');
-    if (saved) { try { return JSON.parse(saved); } catch (e) { /* ignore */ } }
+    if (saved) { try { return JSON.parse(saved); } catch { /* ignore */ } }
     return ['Monday', 'Wednesday', 'Friday', 'Saturday'];
   });
 
@@ -324,7 +326,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
       if (selectorMuscleFilter === '胸') return allMuscles.includes('胸');
       if (selectorMuscleFilter === '背') return allMuscles.includes('背') || allMuscles.includes('斜方') || allMuscles.includes('菱形');
       if (selectorMuscleFilter === '肩') return allMuscles.includes('肩') || allMuscles.includes('三角肌');
-      if (selectorMuscleFilter === '腿') return allMuscles.includes('股') || allMuscles.includes('弯举') || allMuscles.includes('臀') || allMuscles.includes('腿');
+      if (selectorMuscleFilter === '腿') return allMuscles.includes('股') || allMuscles.includes('腘绳') || allMuscles.includes('小腿') || allMuscles.includes('腿弯举') || allMuscles.includes('臀') || allMuscles.includes('腿');
       if (selectorMuscleFilter === '臂') return allMuscles.includes('二头') || allMuscles.includes('三头') || allMuscles.includes('臂');
       if (selectorMuscleFilter === '腹') return allMuscles.includes('腹');
 
@@ -332,56 +334,43 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
     });
   }, [exercises, selectorSearch, selectorMuscleFilter]);
 
-  useEffect(() => { fetchConfig(); }, []);
-
-  // T3 同步逻辑：监听 dayTemplate 变化，自动同步 t3Exercises
-  // 保留已配置的动作数据（即使从 dayTemplate 中移除），重新添加时恢复上次配置
-  useEffect(() => {
-    if (exercises.length === 0) return;
-    
-    const usedT3Names = new Set();
-    dayTemplate.forEach(day => {
-      day.t3.forEach(name => {
-        if (name && name.trim()) usedT3Names.add(name.trim());
-      });
-    });
-
-    setT3Exercises(prev => {
-      const currentMap = {};
-      prev.forEach(ex => { currentMap[ex.name] = ex; });
-      
-      const result = [];
-      usedT3Names.forEach(name => {
-        if (currentMap[name]) {
-          result.push(currentMap[name]);
-        } else {
-          result.push({ name, targetReps: 25, incrementKg: 2.5, startWeightKg: 10 });
-        }
-      });
-      
-      return result;
-    });
-  }, [dayTemplate, exercises]);
-
   const fetchConfig = async () => {
+    await Promise.resolve();
     setLoading(true);
     setError(null);
     try {
-      // 并行加载：user_programs 配置 + 动作库
-      const [upRes, exRes] = await Promise.all([
-        supabase.from('user_programs').select('id, exercise_config, schedule, day_map').eq('program_id', program.id).limit(1),
+      // 并行加载：user_programs 当前活跃配置 + 动作库
+      const [upActiveRes, exRes] = await Promise.all([
+        supabase.from('user_programs').select('id, exercise_config, schedule, day_map').eq('program_id', program.id).eq('is_active', true).limit(1),
         supabase.from('exercises').select('id, name, name_cn, primary_muscles, secondary_muscles, equipment').order('name')
       ]);
 
-      if (upRes.error) throw upRes.error;
+      if (upActiveRes.error) throw upActiveRes.error;
       if (exRes.error) console.warn('加载动作库失败:', exRes.error.message);
 
-      const existingUP = upRes.data?.[0];
+      let existingUP = upActiveRes.data?.[0];
+      let isExistingActive = !!existingUP;
+
+      // 如果当前没有活跃的计划，尝试拉取最后一次结束的计划配置用于“数据回填”
+      if (!existingUP) {
+        const { data: pastUPs } = await supabase
+          .from('user_programs')
+          .select('exercise_config, schedule, day_map')
+          .eq('program_id', program.id)
+          .order('updated_at', { ascending: false })
+          .limit(1);
+        if (pastUPs?.length) {
+          existingUP = pastUPs[0];
+        }
+      }
+
       const ec = existingUP?.exercise_config || {};
       const schedule = existingUP?.schedule || {};
 
-      if (existingUP?.id) {
+      if (isExistingActive && existingUP?.id) {
         setUserProgramId(existingUP.id);
+      } else {
+        setUserProgramId(null); // 这是一轮全新的训练周期
       }
 
       // 加载动作库
@@ -493,6 +482,43 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchConfig();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // T3 同步逻辑：监听 dayTemplate 变化，自动同步 t3Exercises
+  // 保留已配置的动作数据（即使从 dayTemplate 中移除），重新添加时恢复上次配置
+  useEffect(() => {
+    if (exercises.length === 0) return;
+    
+    const usedT3Names = new Set();
+    dayTemplate.forEach(day => {
+      day.t3.forEach(name => {
+        if (name && name.trim()) usedT3Names.add(name.trim());
+      });
+    });
+
+    Promise.resolve().then(() => {
+      setT3Exercises(prev => {
+        const currentMap = {};
+        prev.forEach(ex => { currentMap[ex.name] = ex; });
+        
+        const result = [];
+        usedT3Names.forEach(name => {
+          if (currentMap[name]) {
+            result.push(currentMap[name]);
+          } else {
+            result.push({ name, targetReps: 25, incrementKg: 2.5, startWeightKg: 10 });
+          }
+        });
+        
+        return result;
+      });
+    });
+  }, [dayTemplate, exercises]);
 
   const handleSave = async () => {
     const squatW = parseFloat(squatWeight);
@@ -625,6 +651,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
 
       const upData = {
         is_active: true,
+        ended_at: null, // 激活计划时确保结束时间清空
         program_state: {
           current_day: dayKeys[0] || 'Day1',
           scheme_index: {},
@@ -697,7 +724,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
   return (
     <div className="flex flex-col gap-6 animate-fadeIn">
       <div className="flex items-center gap-3">
-        <button type="button" className="btn btn-ghost btn-circle btn-sm cursor-pointer" onClick={onBack}>←</button>
+        <button type="button" className="btn btn-ghost btn-circle btn-sm cursor-pointer" onClick={onBack} aria-label="返回"><ArrowLeft size={18} /></button>
         <h3 className="text-lg font-bold text-text-main dark:text-text-main-dark">配置 GZCLP</h3>
       </div>
 
@@ -1284,7 +1311,7 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
 
   const [trainingDays, setTrainingDays] = useState(() => {
     const saved = localStorage.getItem('training_days');
-    if (saved) { try { return JSON.parse(saved); } catch (e) { /* ignore */ } }
+    if (saved) { try { return JSON.parse(saved); } catch { /* ignore */ } }
     return ['Monday', 'Wednesday', 'Friday', 'Saturday'];
   });
 
@@ -1297,21 +1324,44 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
 
   useEffect(() => {
     const loadExisting = async () => {
-      const { data } = await supabase
+      // 1. 先查找当前活跃的计划订阅
+      let { data } = await supabase
         .from('user_programs')
         .select('id, exercise_config, schedule')
         .eq('program_id', program.id)
+        .eq('is_active', true)
         .limit(1);
-      if (data?.length) {
-        setUserProgramId(data[0].id);
-        if (data[0].exercise_config) {
-          setExerciseConfig(data[0].exercise_config);
+      
+      let existingUP = data?.[0];
+      let isExistingActive = !!existingUP;
+
+      // 2. 如果没有活跃订阅，寻找最近一次结束的订阅进行配置回填
+      if (!existingUP) {
+        const { data: pastUPs } = await supabase
+          .from('user_programs')
+          .select('exercise_config, schedule')
+          .eq('program_id', program.id)
+          .order('updated_at', { ascending: false })
+          .limit(1);
+        if (pastUPs?.length) {
+          existingUP = pastUPs[0];
         }
-        if (data[0].schedule) {
-          if (data[0].schedule.scheduleType) setScheduleType(data[0].schedule.scheduleType);
-          if (data[0].schedule.trainDays) setTrainDays(data[0].schedule.trainDays);
-          if (data[0].schedule.restDays) setRestDays(data[0].schedule.restDays);
-          if (data[0].schedule.training_days) setTrainingDays(data[0].schedule.training_days);
+      }
+
+      if (existingUP) {
+        if (isExistingActive) {
+          setUserProgramId(existingUP.id);
+        } else {
+          setUserProgramId(null); // 全新订阅，执行写入
+        }
+        if (existingUP.exercise_config) {
+          setExerciseConfig(existingUP.exercise_config);
+        }
+        if (existingUP.schedule) {
+          if (existingUP.schedule.scheduleType) setScheduleType(existingUP.schedule.scheduleType);
+          if (existingUP.schedule.trainDays) setTrainDays(existingUP.schedule.trainDays);
+          if (existingUP.schedule.restDays) setRestDays(existingUP.schedule.restDays);
+          if (existingUP.schedule.training_days) setTrainingDays(existingUP.schedule.training_days);
         }
       }
     };
@@ -1331,6 +1381,7 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
 
       const upData = {
         is_active: true,
+        ended_at: null, // 激活计划时确保结束时间清空
         program_state: initialState,
         exercise_config: exerciseConfig,
         schedule,

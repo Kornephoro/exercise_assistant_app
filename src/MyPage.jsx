@@ -1,22 +1,17 @@
-import { useState, useEffect } from 'react';
-import { User, Sun, Moon, Settings, BookOpen, RotateCcw, Info, ChevronRight, Dumbbell, Calendar } from 'lucide-react';
+import { useState } from 'react';
+import { Sun, Moon, Settings, BookOpen, RotateCcw, Info, ChevronRight, Dumbbell } from 'lucide-react';
 
 function MyPage({ theme, onThemeToggle, onReOnboard, onOpenLibrary }) {
-  const [nickname, setNickname] = useState(() => localStorage.getItem('user_nickname') || '');
-  const [daysSince, setDaysSince] = useState(0);
-
-  useEffect(() => {
-    setNickname(localStorage.getItem('user_nickname') || '');
+  const [nickname] = useState(() => localStorage.getItem('user_nickname') || '');
+  const [daysSince] = useState(() => {
     const completedAt = localStorage.getItem('onboarding_completed_at');
     if (completedAt) {
       const start = new Date(completedAt);
       const now = new Date();
-      const days = Math.max(0, Math.floor((now - start) / (1000 * 60 * 60 * 24)));
-      setDaysSince(days);
-    } else {
-      setDaysSince(0);
+      return Math.max(0, Math.floor((now - start) / (1000 * 60 * 60 * 24)));
     }
-  }, []);
+    return 0;
+  });
 
   const avatarChar = nickname ? nickname.charAt(0).toUpperCase() : '?';
   const displayName = nickname || '未设置昵称';

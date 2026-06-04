@@ -63,7 +63,6 @@ export function getCNName(exerciseKey, exercisesMap = {}) {
   // 3. 开发模式提示：未配置该动作
   if (!warnedKeys.has(exerciseKey)) {
     warnedKeys.add(exerciseKey);
-    // eslint-disable-next-line no-console
     console.warn(
       `[exerciseNames] 未找到动作 "${exerciseKey}" 的中文映射。请在 exercises 表的 name_cn 字段或 FALLBACK_CN_NAMES 中补全。`
     );

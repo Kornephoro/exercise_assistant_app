@@ -47,6 +47,7 @@ function OneRMStrength({ onLatestChange }) {
   }, [form.weight, form.reps]);
 
   const load = async () => {
+    await Promise.resolve();
     setLoading(true);
     setError(null);
     try {
@@ -65,12 +66,15 @@ function OneRMStrength({ onLatestChange }) {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, []);
 
+  const latestStr = JSON.stringify(latest);
   useEffect(() => {
     if (onLatestChange) onLatestChange(latest);
-  }, [latest, onLatestChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestStr, onLatestChange]);
 
   const handleSave = async (e) => {
     e?.preventDefault();

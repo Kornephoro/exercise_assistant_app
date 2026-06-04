@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { supabase } from './supabaseClient';
 import { 
   Dumbbell, 
@@ -12,8 +12,6 @@ import {
   HelpCircle,
   Sparkles,
   Calendar,
-  Settings,
-  Scale,
   Award,
   AlertTriangle,
   Loader2
@@ -86,18 +84,6 @@ function OnboardingScreen({ onComplete, onSkip }) {
     { key: 'kettlebell', label: '壶铃 (Kettlebell)' },
     { key: 'bodyweight', label: '自重 (Bodyweight)' }
   ];
-
-  // 1RM 估算器公式： Epley formula: 1RM = w * (1 + r/30)
-  const handleCalculate1RM = () => {
-    const w = parseFloat(estimatorWeight);
-    const r = parseInt(estimatorReps, 10);
-    if (w > 0 && r > 0) {
-      const result = Math.round(w * (1 + r / 30) * 10) / 10;
-      setEstimated1RM(result);
-    } else {
-      setEstimated1RM(0);
-    }
-  };
 
   const applyEstimatedValue = () => {
     if (estimated1RM > 0) {
