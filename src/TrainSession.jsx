@@ -256,14 +256,14 @@ const FieldInputGroup = ({
     <div className={fields.length === 1 ? 'flex flex-col gap-1' : 'grid grid-cols-2 gap-2.5'}>
       {fields.map((kind) => (
         <div key={kind} className="flex flex-col gap-1">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold text-base-content/50">{fieldLabel[kind]}</label>
+          <div className="flex items-center justify-between h-5 overflow-hidden">
+            <label className="text-xs font-semibold text-base-content/50 whitespace-nowrap shrink-0">{fieldLabel[kind]}</label>
             {kind === 'weight' && (showPlateHelperBtn || showCalcBtn) && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 shrink-0">
                 {showCalcBtn && (
                   <button
                     type="button"
-                    className="btn btn-ghost btn-xs text-primary dark:text-primary-dark font-extrabold gap-1 px-1.5 py-0 min-h-0 h-auto cursor-pointer hover:bg-primary/10 rounded"
+                    className="btn btn-ghost btn-xs text-primary dark:text-primary-dark font-extrabold gap-1 px-1 py-0 min-h-0 h-auto cursor-pointer hover:bg-primary/10 rounded"
                     onClick={onShowCalculator}
                   >
                     <Calculator size={11} />
@@ -273,7 +273,7 @@ const FieldInputGroup = ({
                 {showPlateHelperBtn && (
                   <button
                     type="button"
-                    className="btn btn-ghost btn-xs text-primary dark:text-primary-dark font-extrabold gap-1 px-1.5 py-0 min-h-0 h-auto cursor-pointer hover:bg-primary/10 rounded"
+                    className="btn btn-ghost btn-xs text-primary dark:text-primary-dark font-extrabold gap-1 px-1 py-0 min-h-0 h-auto cursor-pointer hover:bg-primary/10 rounded"
                     onClick={onShowPlateHelper}
                   >
                     <Dumbbell size={11} />
