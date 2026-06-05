@@ -710,7 +710,7 @@ function TrainSession({
 
             {/* RPE */}
             <div className="flex flex-col gap-1">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between h-8">
                 <div className="flex items-center gap-2 select-none">
                   <label className="text-xs font-semibold text-base-content/50">RPE</label>
                   <label className="flex items-center gap-1 cursor-pointer">
@@ -747,7 +747,7 @@ function TrainSession({
             {/* Tempo: presets left, fields right - method-aware visibility */}
             {config.showTempo && (
             <div className="flex flex-col gap-1">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between h-6">
                 <div className="flex items-center gap-2 select-none">
                   <label className="text-xs font-semibold text-base-content/50">动作节奏</label>
                   <label className="flex items-center gap-1 cursor-pointer">
