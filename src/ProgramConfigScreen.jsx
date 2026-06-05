@@ -760,10 +760,10 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
         {/* 每周固定几天模式 */}
         {scheduleType === 'weekly' && (
           <>
-            <div className="flex gap-2 justify-between">
+            <div className="flex gap-1.5 sm:gap-2 justify-between">
               {weekdays.map(d => (
                 <button key={d.key} type="button"
-                  className={`btn btn-sm h-10 w-10 rounded-xl font-bold text-sm cursor-pointer transition-all ${
+                  className={`btn btn-sm flex-1 max-w-10 aspect-square min-h-0 min-w-0 p-0 rounded-xl font-bold text-xs sm:text-sm cursor-pointer transition-all ${
                     trainingDays.includes(d.key) ? 'btn-primary text-white shadow-md' : 'btn-outline border-border-card dark:border-border-card-dark text-text-secondary'
                   }`}
                   onClick={() => setTrainingDays(prev => prev.includes(d.key) ? prev.filter(x => x !== d.key) : [...prev, d.key])}
@@ -1425,10 +1425,10 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
 
         {/* 每周固定几天模式 */}
         {scheduleType === 'weekly' && (
-          <div className="flex gap-2 justify-between">
+          <div className="flex gap-1.5 sm:gap-2 justify-between">
             {weekdays.map(d => (
               <button key={d.key} type="button"
-                className={`btn btn-sm h-10 w-10 rounded-xl font-bold text-sm cursor-pointer transition-all ${
+                className={`btn btn-sm flex-1 max-w-10 aspect-square min-h-0 min-w-0 p-0 rounded-xl font-bold text-xs sm:text-sm cursor-pointer transition-all ${
                   trainingDays.includes(d.key) ? 'btn-primary text-white shadow-md' : 'btn-outline border-border-card dark:border-border-card-dark text-text-secondary'
                 }`}
                 onClick={() => setTrainingDays(prev => prev.includes(d.key) ? prev.filter(x => x !== d.key) : [...prev, d.key])}
