@@ -221,9 +221,9 @@ function InfiniteScrollPicker({ options, value, onChange, label }) {
       </span>
       
       {/* Scroll picker outer container with center selection indicator styling */}
-      <div className="relative w-full flex items-center bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card dark:border-border-card-dark rounded-xl h-16 overflow-hidden">
+      <div className="relative w-full flex items-center bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card dark:border-border-card-dark rounded-xl h-12 overflow-hidden">
         {/* Selection highlight overlay in the center */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full border-2 border-primary/30 pointer-events-none z-10" />
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full border-2 border-primary/30 pointer-events-none z-10" />
         
         {/* Left/Right fading mask overlays */}
         <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-bg-card/40 to-transparent dark:from-bg-card-dark/40 pointer-events-none z-10" />
@@ -233,7 +233,7 @@ function InfiniteScrollPicker({ options, value, onChange, label }) {
           ref={containerRef}
           onScroll={handleScroll}
           className="scrollbar-none w-full h-full flex items-center gap-2 overflow-x-auto snap-x snap-mandatory"
-          style={{ paddingLeft: 'calc(50% - 24px)', paddingRight: 'calc(50% - 24px)' }}
+          style={{ paddingLeft: 'calc(50% - 20px)', paddingRight: 'calc(50% - 20px)' }}
         >
           {repeatedOptions.map((opt, i) => {
             const isActive = opt === value;
@@ -242,7 +242,7 @@ function InfiniteScrollPicker({ options, value, onChange, label }) {
                 key={i}
                 type="button"
                 onClick={() => handleItemClick(i, opt)}
-                className={`snap-center shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold font-mono text-sm transition-all cursor-pointer border-0 ${
+                className={`snap-center shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold font-mono text-sm transition-all cursor-pointer border-0 ${
                   isActive
                     ? 'bg-primary text-white scale-110 shadow-md ring-2 ring-primary/20'
                     : 'text-text-secondary hover:text-text-main dark:text-text-secondary-dark dark:hover:text-text-main-dark hover:bg-bg-hover dark:hover:bg-bg-hover-dark bg-transparent'
@@ -1038,7 +1038,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
           </div>
 
           {/* Tab Content with Unified Height Container */}
-          <div className="min-h-[490px] flex flex-col justify-between animate-fadeIn">
+          <div className="min-h-[435px] flex flex-col justify-between animate-fadeIn">
             {calcTab === 'formula' ? (
               <div className="flex flex-col gap-4">
                 {/* Inputs */}
@@ -1162,7 +1162,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                   {/* e1RM Display Card (styled like standard input, but readonly and highlighted) */}
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between">
-                      <label className="section-subtitle select-none mb-0">预估 1RM ({exUnit})</label>
+                      <label className="section-subtitle select-none mb-0">e1RM ({exUnit})</label>
                       <span className="badge badge-info badge-xs scale-90 px-1 py-0.5 font-bold text-[9px] bg-blue-500/15 text-blue-500 border border-blue-500/20">自动</span>
                     </div>
                     <div className="input input-bordered flex items-center gap-1 bg-primary/5 border-primary/20 px-3 h-11 transition-colors select-none">
@@ -1172,15 +1172,6 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                       <span className="text-sm font-bold text-primary/70 select-none">{exUnit}</span>
                     </div>
                   </div>
-                </div>
-
-                {/* RTS RPE Formula Info Box */}
-                <div className="p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 text-xs text-text-secondary dark:text-text-secondary-dark flex flex-col gap-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-text-main dark:text-text-main-dark">RTS RPE Formula (RTS RPE 公式)</span>
-                    <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark font-sans opacity-70">来自 Mike Tuchscherer 百分比表</span>
-                  </div>
-                  <span className="font-mono text-primary font-bold text-xs mt-0.5">e1RM = 重量 / RTS 百分比</span>
                 </div>
 
                 {/* Infinite pickers */}
@@ -1197,6 +1188,11 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                   onChange={setCalcRpe}
                   label="RPE (自感用力程度)"
                 />
+
+                {/* RTS RPE Formula Info Note */}
+                <span className="text-[9px] text-text-secondary/80 leading-tight text-center block mt-1">
+                  RTS RPE 公式: 重量 / RTS 百分比 (来自 Mike Tuchscherer 强度百分比表)
+                </span>
 
                 {/* Apply Button */}
                 <button
