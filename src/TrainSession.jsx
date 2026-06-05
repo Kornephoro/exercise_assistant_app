@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Minimize2, X, Check, Sparkles, SkipForward, Plus, FastForward, Dumbbell, Calculator } from 'lucide-react';
+import { Minimize2, X, Check, Sparkles, SkipForward, Plus, FastForward, Dumbbell, Calculator, Play, Pause } from 'lucide-react';
 import { convertWeight, getBarbellPlateBreakdown, toStorageWeight } from './unitUtils';
 import BarbellVisualizer from './BarbellVisualizer';
 import { fetchLatestOneRmForExercises } from './services/workoutService';
@@ -321,6 +321,71 @@ function TrainSession({
   const [calcFormulaReps, setCalcFormulaReps] = useState(5); // 无 RPE 公式目标次数 (1-36)
   const [calcLoading, setCalcLoading] = useState(false);
 
+  const [timerSeconds, setTimerSeconds] = useState(() => {
+    const saved = localStorage.getItem('active_session_state');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed.timerSeconds || 0;
+      } catch {}
+    }
+    return 0;
+  });
+  const [timerIsRunning, setTimerIsRunning] = useState(() => {
+    const saved = localStorage.getItem('active_session_state');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed.timerIsRunning !== false;
+      } catch {}
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    if (!timerIsRunning) return;
+    const interval = setInterval(() => {
+      setTimerSeconds(prev => {
+        const next = prev + 1;
+        const saved = localStorage.getItem('active_session_state');
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            parsed.timerSeconds = next;
+            parsed.timerIsRunning = timerIsRunning;
+            localStorage.setItem('active_session_state', JSON.stringify(parsed));
+          } catch {}
+        }
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timerIsRunning]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('active_session_state');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        parsed.timerIsRunning = timerIsRunning;
+        localStorage.setItem('active_session_state', JSON.stringify(parsed));
+      } catch {}
+    }
+  }, [timerIsRunning]);
+
+  const formatTimer = (totalSeconds) => {
+    const hrs = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    const minStr = String(mins).padStart(2, '0');
+    const secStr = String(secs).padStart(2, '0');
+    if (hrs > 0) {
+      const hrStr = String(hrs).padStart(2, '0');
+      return `${hrStr}:${minStr}:${secStr}`;
+    }
+    return `${minStr}:${secStr}`;
+  };
+
   const [restTimer, setRestTimer] = useState({
     active: false,
     total: DEFAULT_REST_SECONDS,
@@ -412,6 +477,40 @@ function TrainSession({
   const getCompletedSets = () => Object.values(sessionState.setsData).flat().filter(s => s.completed).length;
   const getProgress = () => { const t = getTotalSets(); return t === 0 ? 0 : Math.round((getCompletedSets() / t) * 100); };
   const isSessionFinished = () => getProgress() === 100;
+
+  const getCompletedExercises = () => {
+    const exercises = todayWorkout?.exercises || [];
+    return exercises.filter((ex, idx) => {
+      const sets = sessionState.setsData[idx] || [];
+      return sets.length > 0 && sets.every(s => s.completed);
+    }).length;
+  };
+
+  const getCompletedVolume = () => {
+    let volume = 0;
+    (todayWorkout?.exercises || []).forEach((ex, idx) => {
+      const sets = sessionState.setsData[idx] || [];
+      sets.forEach(s => {
+        if (s.completed) {
+          const w = s.weight_kg ?? ex.weight ?? 0;
+          const r = s.actual_reps || s.planned_reps || 0;
+          volume += w * r;
+        }
+      });
+    });
+    return Math.round(volume);
+  };
+
+  const getPlannedVolume = () => {
+    let volume = 0;
+    (todayWorkout?.exercises || []).forEach((ex) => {
+      const w = ex.weight ?? 0;
+      const r = ex.reps ?? 0;
+      const s = ex.sets ?? 0;
+      volume += w * r * s;
+    });
+    return Math.round(volume);
+  };
 
   const getSetKey = (exerciseIdx, setIdx) => {
     const ex = todayWorkout?.exercises?.[exerciseIdx];
@@ -676,9 +775,9 @@ function TrainSession({
     };
 
     return (
-      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-3" onClick={closeSetCard}>
-        <div className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-          <div className="p-3.5 flex flex-col gap-2.5">
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-2" onClick={closeSetCard}>
+        <div className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-[460px] mx-1" onClick={(e) => e.stopPropagation()}>
+          <div className="p-4 flex flex-col gap-3">
             {/* Header */}
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-base-content/50">第 {set.set_number} 组 / 共 {totalSets} 组</span>
@@ -987,8 +1086,7 @@ function TrainSession({
           const tierBorder = tier === 'T1' ? 'border-l-primary' : tier === 'T2' ? 'border-l-secondary' : 'border-l-accent';
 
           return (
-            <div key={exIdx} className={`card bg-base-100 border border-base-300 border-l-4 ${tierBorder} shadow-sm transition-all duration-300 ${isFullyCompleted ? 'opacity-50' : ''}`}>
-              <div className="card-body p-3.5 gap-2.5">
+            <div key={exIdx} className={`card !p-3.5 bg-base-100 border border-base-300 border-l-4 ${tierBorder} shadow-sm transition-all duration-300 flex flex-col gap-3.5 ${isFullyCompleted ? 'opacity-50' : ''}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className={`badge ${tierBadge} font-bold text-xs`}>{tier}</span>
@@ -1075,7 +1173,6 @@ function TrainSession({
                     );
                   })}
                 </div>
-              </div>
             </div>
           );
         })}
@@ -1084,6 +1181,8 @@ function TrainSession({
   };
 
   const progress = getProgress();
+  const completedVolume = unit === 'lbs' ? Math.round(convertWeight(getCompletedVolume(), 'lbs')) : getCompletedVolume();
+  const plannedVolume = unit === 'lbs' ? Math.round(convertWeight(getPlannedVolume(), 'lbs')) : getPlannedVolume();
 
   // ============ BOTTOM SHEET PLATE HELPER ============
   const renderPlateHelperSheet = () => {
@@ -1471,23 +1570,69 @@ function TrainSession({
          onTouchStart={handleSwipeStart}
          onTouchEnd={handleSwipeEnd}
     >
-      {/* Navbar */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-base-100 border-b border-base-300">
-        <button type="button" className="btn btn-ghost h-10 px-3 text-sm font-semibold text-base-content/70 hover:text-base-content gap-1.5 active:scale-95" onClick={onMinimize} aria-label="缩小训练窗口"><Minimize2 size={18} /><span>缩小</span></button>
-        <div className="text-xs font-bold text-base-content pointer-events-none">实时训练中 ({currentDay})</div>
-        <button type="button" className="btn btn-ghost h-10 px-3 text-sm font-semibold text-error hover:bg-error/10 gap-1.5 active:scale-95" onClick={handleAbort} aria-label="放弃训练"><X size={18} /><span>放弃</span></button>
-      </div>
+      {/* Top Header Card */}
+      <div className="bg-base-100 border-b border-base-300 rounded-b-[24px] pt-5 pb-4 px-4.5 flex flex-col gap-2.5 shadow-md z-10 select-none animate-fadeIn">
+        {/* Row 1: Timer & Action Buttons */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-3xl font-black font-mono tracking-tight text-base-content select-none">
+              {formatTimer(timerSeconds)}
+            </span>
+            <button
+              type="button"
+              className="w-7 h-7 rounded-full flex items-center justify-center bg-base-200 hover:bg-base-300 text-base-content transition-colors cursor-pointer border-0 active:scale-95 shadow-sm"
+              onClick={() => setTimerIsRunning(!timerIsRunning)}
+              aria-label={timerIsRunning ? "暂停" : "开始"}
+            >
+              {timerIsRunning ? <Pause size={12} className="fill-current" /> : <Play size={12} className="fill-current ml-[1px]" />}
+            </button>
+          </div>
+          <div className="flex items-center gap-1">
+            <button 
+              type="button" 
+              className="btn btn-sm btn-ghost hover:bg-base-300/40 text-xs font-bold text-base-content/60 rounded-full h-8 px-2.5 active:scale-95" 
+              onClick={onMinimize}
+            >
+              缩小
+            </button>
+            <button 
+              type="button" 
+              className="btn btn-sm btn-ghost hover:bg-error/10 text-xs font-bold text-error rounded-full h-8 px-2.5 active:scale-95" 
+              onClick={handleAbort}
+            >
+              放弃
+            </button>
+            <button 
+              type="button" 
+              className="btn btn-sm bg-[#007AFF] hover:bg-[#0066CC] text-white rounded-full h-8 px-4 font-bold border-0 cursor-pointer shadow-md ml-1 active:scale-95" 
+              onClick={() => onSave(setDetails)}
+            >
+              完成
+            </button>
+          </div>
+        </div>
 
-      {/* Progress */}
-      <div className="px-4 py-1.5 bg-base-100 border-b border-base-300">
-        <div className="flex items-center gap-3">
+        {/* Row 2: Title & Stats */}
+        <div className="flex items-end justify-between mt-1">
+          <span className="text-base font-extrabold text-base-content flex items-center gap-1.5 select-none">
+            <Dumbbell size={15} className="text-base-content/65" />
+            <span>{currentDay || '今日训练'}</span>
+          </span>
+          <div className="flex flex-col items-end text-[10px] font-bold text-base-content/60 font-mono leading-tight text-right select-none">
+            <span>{getCompletedSets()}/{getTotalSets()} 组 | {getCompletedExercises()}/{todayWorkout?.exercises?.length || 0} 动作</span>
+            <span className="text-primary mt-0.5">{completedVolume}/{plannedVolume}{unit} 容量</span>
+          </div>
+        </div>
+
+        {/* Row 3: Progress Bar */}
+        <div className="flex items-center gap-2.5 mt-1">
           <progress className="progress progress-primary flex-1 h-1.5" value={progress} max="100" />
-          <span className="text-[10px] font-bold font-mono text-base-content/50 w-9 text-right">{progress}%</span>
+          <span className="text-[10px] font-bold font-mono text-base-content/50 w-7 text-right">{progress}%</span>
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3 pb-24">
+      <div className="flex-1 overflow-y-auto px-2.5 py-3.5 flex flex-col gap-3.5 pb-24">
         {renderExerciseList()}
         {isSessionFinished() && (
           <div className="mt-2 animate-fadeIn">
