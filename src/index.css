@@ -234,3 +234,31 @@
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Bottom sheet slide-up and backdrop fade-in animations */
+@keyframes sheetSlideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes sheetFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-sheet-slide-up {
+  animation: sheetSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-sheet-fade-in {
+  animation: sheetFadeIn 0.25s ease-out forwards;
+}
+
+.bottom-sheet-backdrop {
+  @apply fixed inset-0 z-[70] bg-black/60 backdrop-blur-xs;
+}
+
+.bottom-sheet-container {
+  @apply fixed bottom-0 left-0 right-0 z-[80] bg-bg-card dark:bg-bg-card-dark rounded-t-[24px] border-t border-border-card dark:border-border-card-dark max-w-[480px] mx-auto p-4 shadow-[0_-8px_30px_rgb(0,0,0,0.15)];
+}
+

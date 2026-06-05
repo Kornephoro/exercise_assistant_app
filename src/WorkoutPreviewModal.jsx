@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Play, ChevronDown, ChevronRight } from 'lucide-react';
 import { convertWeight, getBarbellPlateBreakdown } from './unitUtils';
+import BarbellVisualizer from './BarbellVisualizer';
 
 const TIER_COLORS = {
   T1: { bg: 'bg-tier-t1/10', text: 'text-tier-t1', darkText: 'dark:text-tier-t1-dark', border: 'border-tier-t1/20', darkBorder: 'dark:border-tier-t1-dark/20' },
@@ -128,8 +129,11 @@ function WorkoutPreviewModal({
                       const breakdown = getBarbellPlateBreakdown(weightInUnit, barWeight, enabledPlates, plateLimits);
                       if (!breakdown || breakdown.plates.length === 0) {
                         return (
-                          <div className="text-[10px] text-text-secondary dark:text-text-secondary-dark/60 bg-bg-main/50 dark:bg-bg-main-dark/50 px-2 py-1.5 rounded-lg border border-border-card/30 mt-1 select-none font-semibold">
-                            💡 配片说明: 空杆 {barWeight} {unit}
+                          <div className="flex flex-col gap-1.5 mt-1 select-none w-full">
+                            <div className="text-[10px] text-text-secondary dark:text-text-secondary-dark/60 bg-bg-main/50 dark:bg-bg-main-dark/50 px-2 py-1.5 rounded-lg border border-border-card/30 font-semibold">
+                              💡 配片说明: 空杆 {barWeight} {unit}
+                            </div>
+                            <BarbellVisualizer plates={[]} barWeight={barWeight} unit={unit} enabledPlates={enabledPlates} plateLimits={plateLimits} />
                           </div>
                         );
                       }
@@ -141,9 +145,12 @@ function WorkoutPreviewModal({
                         .map(([plate, count]) => `${plate}${unit} × ${count}`);
                       
                       return (
-                        <div className="text-[10px] text-primary dark:text-primary-dark bg-primary/5 dark:bg-primary/10 border border-primary/10 rounded-lg p-2 flex items-center gap-1.5 mt-1 font-semibold select-none">
-                          <span>💡 配片建议:</span>
-                          <span>{barWeight}{unit} 空杆 + 单侧 [{plateTexts.join(', ')}]</span>
+                        <div className="flex flex-col gap-1.5 mt-1 select-none w-full">
+                          <div className="text-[10px] text-primary dark:text-primary-dark bg-primary/5 dark:bg-primary/10 border border-primary/10 rounded-lg p-2 flex items-center gap-1.5 font-semibold">
+                            <span>💡 配片建议:</span>
+                            <span>{barWeight}{unit} 空杆 + 单侧 [{plateTexts.join(', ')}]</span>
+                          </div>
+                          <BarbellVisualizer plates={breakdown.plates} barWeight={barWeight} unit={unit} enabledPlates={enabledPlates} plateLimits={plateLimits} />
                         </div>
                       );
                     })()}

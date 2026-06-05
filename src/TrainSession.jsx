@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Minimize2, X, Check, Sparkles, SkipForward, Plus, FastForward } from 'lucide-react';
+import { Minimize2, X, Check, Sparkles, SkipForward, Plus, FastForward, Dumbbell } from 'lucide-react';
 import { convertWeight, getBarbellPlateBreakdown } from './unitUtils';
+import BarbellVisualizer from './BarbellVisualizer';
 
 const DEFAULT_REST_SECONDS = 90;
 
@@ -50,13 +51,25 @@ const FieldInput = ({ kind, value, onChange, placeholder = '' }) => {
   );
 };
 
-const FieldInputGroup = ({ fields, valueMap, onChangeMap, fieldLabel, placeholderMap = {} }) => {
+const FieldInputGroup = ({ fields, valueMap, onChangeMap, fieldLabel, placeholderMap = {}, showPlateHelperBtn = false, onShowPlateHelper = null }) => {
   if (!fields || fields.length === 0) return null;
   return (
     <div className={fields.length === 1 ? 'flex flex-col gap-1' : 'grid grid-cols-2 gap-2.5'}>
       {fields.map((kind) => (
         <div key={kind} className="flex flex-col gap-1">
-          <label className="text-xs font-semibold text-base-content/50">{fieldLabel[kind]}</label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-base-content/50">{fieldLabel[kind]}</label>
+            {kind === 'weight' && showPlateHelperBtn && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs text-primary dark:text-primary-dark font-extrabold gap-1 px-1.5 py-0 min-h-0 h-auto cursor-pointer hover:bg-primary/10 rounded"
+                onClick={onShowPlateHelper}
+              >
+                <Dumbbell size={11} />
+                <span className="text-[10px]">配片</span>
+              </button>
+            )}
+          </div>
           <FieldInput kind={kind} value={valueMap[kind]} onChange={onChangeMap[kind]} placeholder={placeholderMap[kind] || ''} />
         </div>
       ))}
@@ -80,6 +93,7 @@ function TrainSession({
   const [focusedSet, setFocusedSet] = useState(null);
   const [showSetCard, setShowSetCard] = useState(false);
   const [showRestCard, setShowRestCard] = useState(false);
+  const [showPlateHelper, setShowPlateHelper] = useState(false);
 
   const [restTimer, setRestTimer] = useState({
     active: false,
@@ -93,7 +107,7 @@ function TrainSession({
 
   // 移到上方避免 hoisting 问题
   const openSetCard = (exerciseIdx, setIdx) => { setFocusedSet({ exerciseIdx, setIdx }); setShowSetCard(true); };
-  const closeSetCard = () => { setShowSetCard(false); setFocusedSet(null); };
+  const closeSetCard = () => { setShowSetCard(false); setFocusedSet(null); setShowPlateHelper(false); };
 
   const adjustCustomRest = (delta) => {
     setCustomRestSeconds(prev => Math.max(0, prev + delta));
@@ -363,6 +377,10 @@ function TrainSession({
     const set = sessionState.setsData[exerciseIdx]?.[setIdx];
     if (!set) return null;
 
+    const exInfo = exercisesMap?.[ex.exercise];
+    const isBarbell = exInfo?.equipment?.includes('barbell') || 
+                      ['squat', 'bench', 'deadlift', 'press'].includes(ex.exercise.toLowerCase());
+
     const method = getRecordingMethod(ex.exercise);
     const setKey = getSetKey(exerciseIdx, setIdx);
     const detail = setDetails[setKey] || {};
@@ -427,6 +445,8 @@ function TrainSession({
               placeholderMap={{
                 reps: ex.amrap_last && (set.actual_reps === '' || set.actual_reps === undefined) ? 'AMRAP' : '',
               }}
+              showPlateHelperBtn={isBarbell}
+              onShowPlateHelper={() => setShowPlateHelper(true)}
             />
 
             <div className="divider my-0" />
@@ -670,10 +690,12 @@ function TrainSession({
                   
                   const weightInUnit = unit === 'lbs' ? convertWeight(ex.weight, 'lbs') : ex.weight;
                   const breakdown = getBarbellPlateBreakdown(weightInUnit, barWeight, enabledPlates, plateLimits);
-                  if (!breakdown || breakdown.plates.length === 0) {
+                   if (!breakdown || breakdown.plates.length === 0) {
                     return (
-                      <div className="text-[10px] text-base-content/45 bg-base-200/50 px-2 py-1 rounded-lg select-none font-semibold mb-1 w-fit">
-                        💡 配片: 空杆 {barWeight}{unit}
+                      <div className="flex flex-col gap-1.5 mb-2 select-none w-full">
+                        <div className="text-[10px] text-base-content/45 bg-base-200/50 px-2.5 py-1.5 rounded-lg font-semibold w-fit border border-base-300/40">
+                          💡 配片: 空杆 {barWeight}{unit}
+                        </div>
                       </div>
                     );
                   }
@@ -685,9 +707,12 @@ function TrainSession({
                     .map(([plate, count]) => `${plate}${unit} × ${count}`);
                   
                   return (
-                    <div className="text-[10px] text-primary dark:text-primary-dark bg-primary/5 dark:bg-primary/10 border border-primary/10 rounded-lg px-2 py-1.5 flex items-center gap-1 mb-1.5 font-semibold select-none">
-                      <span>💡 配片建议:</span>
-                      <span>{barWeight}{unit} 空杆 + 单侧 [{plateTexts.join(', ')}]</span>
+                    <div className="flex flex-col gap-1.5 mb-2 select-none w-full">
+                      <div className="text-[10px] text-primary dark:text-primary-dark bg-primary/5 dark:bg-primary/10 border border-primary/10 rounded-lg px-2.5 py-1.5 flex items-center gap-1 font-semibold">
+                        <span>💡 配片建议:</span>
+                        <span>{barWeight}{unit} 空杆 + 单侧 [{plateTexts.join(', ')}]</span>
+                      </div>
+                      <BarbellVisualizer plates={breakdown.plates} barWeight={barWeight} unit={unit} enabledPlates={enabledPlates} plateLimits={plateLimits} />
                     </div>
                   );
                 })()}
@@ -736,6 +761,101 @@ function TrainSession({
 
   const progress = getProgress();
 
+  // ============ BOTTOM SHEET PLATE HELPER ============
+  const renderPlateHelperSheet = () => {
+    if (!showPlateHelper || !focusedSet) return null;
+    const { exerciseIdx, setIdx } = focusedSet;
+    const ex = todayWorkout.exercises[exerciseIdx];
+    const set = sessionState.setsData[exerciseIdx]?.[setIdx];
+    if (!set) return null;
+
+    if (!gymEquipmentConfig) return null;
+
+    const configForUnit = gymEquipmentConfig[unit] || gymEquipmentConfig.kg;
+    const barWeight = configForUnit.barbell?.bar_weight ?? (unit === 'kg' ? 20 : 45);
+    const enabledPlates = configForUnit.barbell?.enabled_plates || (unit === 'kg' ? [25, 20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]);
+    const plateLimits = configForUnit.barbell?.plate_limits || {};
+
+    // 优先使用当前 logged weight，若无则使用动作计划重
+    const currentWeight = set.weight_kg ?? ex.weight ?? 0;
+    const weightInUnit = unit === 'lbs' ? convertWeight(currentWeight, 'lbs') : currentWeight;
+    const breakdown = getBarbellPlateBreakdown(weightInUnit, barWeight, enabledPlates, plateLimits) || { plates: [] };
+
+    return (
+      <div className="fixed inset-0 z-[70] flex items-end justify-center">
+        {/* Backdrop overlay */}
+        <div 
+          className="bottom-sheet-backdrop animate-sheet-fade-in"
+          onClick={() => setShowPlateHelper(false)}
+        />
+        
+        {/* Bottom sheet content card */}
+        <div className="bottom-sheet-container animate-sheet-slide-up w-full flex flex-col gap-3.5 pb-6">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-2 border-b border-border-card/50 dark:border-border-card-dark/50">
+            <div className="flex flex-col">
+              <span className="text-sm font-bold text-text-main dark:text-text-main-dark">
+                杠铃配片计算助手
+              </span>
+              <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark">
+                针对: {getExerciseCNName?.(ex.exercise) || ex.exercise} - 第 {set.set_number} 组
+              </span>
+            </div>
+            <button 
+              type="button" 
+              className="btn btn-ghost btn-circle btn-xs h-7 w-7 min-h-0 text-text-secondary hover:bg-bg-hover dark:hover:bg-bg-hover-dark rounded-full"
+              onClick={() => setShowPlateHelper(false)}
+              aria-label="关闭配片"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Details / Summary */}
+          <div className="flex justify-between items-center bg-bg-main/30 dark:bg-bg-main-dark/30 p-2.5 rounded-xl border border-border-card/50 dark:border-border-card-dark/50 animate-fadeIn">
+            <div className="flex flex-col">
+              <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark">当前组录入重量</span>
+              <span className="text-lg font-black font-mono text-primary">
+                {weightInUnit.toFixed(1)}{unit}
+              </span>
+            </div>
+            {breakdown.plates.length > 0 ? (
+              <div className="text-right flex flex-col items-end">
+                <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark">默认计算配片 (单侧)</span>
+                <span className="text-[11px] font-bold text-text-main dark:text-text-main-dark">
+                  {(() => {
+                    const counts = {};
+                    breakdown.plates.forEach(p => { counts[p] = (counts[p] || 0) + 1; });
+                    return Object.entries(counts)
+                      .sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]))
+                      .map(([plate, count]) => `${plate}${unit} × ${count}`)
+                      .join(' + ');
+                  })()}
+                </span>
+              </div>
+            ) : (
+              <div className="text-right flex flex-col items-end">
+                <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark">默认计算配片</span>
+                <span className="text-[11px] font-bold text-text-secondary dark:text-text-secondary-dark">
+                  仅需 {barWeight}{unit} 空杆
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Barbell Plate Visualizer */}
+          <BarbellVisualizer
+            plates={breakdown.plates}
+            barWeight={barWeight}
+            unit={unit}
+            enabledPlates={enabledPlates}
+            plateLimits={plateLimits}
+          />
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-base-200/95 backdrop-blur-lg max-w-[480px] w-full mx-auto overflow-hidden"
          onTouchStart={handleSwipeStart}
@@ -768,6 +888,7 @@ function TrainSession({
 
       {renderSetCard()}
       {renderRestCard()}
+      {renderPlateHelperSheet()}
     </div>
   );
 }
