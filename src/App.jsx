@@ -13,6 +13,7 @@ import {
 } from './services/workoutService';
 import { getNextWorkout, getNextDay, isTodayTrainingDay, getNextTrainingDate, getDaysUntilStart } from './programEngine';
 import { calcE1RM } from './oneRmUtils';
+import { DEFAULT_GYM_EQUIPMENT_CONFIG } from './unitUtils';
 import { getCNName } from './exerciseNames';
 import TodayScreen from './TodayScreen';
 import PlanScreen from './PlanScreen';
@@ -57,6 +58,7 @@ function App() {
 
   // 用户画像与今日身体数据
   const [userProfile, setUserProfile] = useState(null);
+  const [gymEquipmentConfig, setGymEquipmentConfig] = useState(DEFAULT_GYM_EQUIPMENT_CONFIG);
   const [todayBodyMetrics, setTodayBodyMetrics] = useState(null);
 
   // 用户饮食配置与今日对账单
@@ -164,6 +166,24 @@ function App() {
         try { JSON.parse(profileData.training_days); } catch (e) { console.warn('解析训练日程失败:', e); }
       }
 
+      // 解析用户器械配置
+      let parsedConfig = DEFAULT_GYM_EQUIPMENT_CONFIG;
+      if (profileData && profileData.gym_equipment_config) {
+        try {
+          parsedConfig = typeof profileData.gym_equipment_config === 'string'
+            ? JSON.parse(profileData.gym_equipment_config)
+            : profileData.gym_equipment_config;
+        } catch (e) {
+          console.warn('解析画像器械配置失败:', e);
+        }
+      } else {
+        const localVal = localStorage.getItem('gym_equipment_config');
+        if (localVal) {
+          try { parsedConfig = JSON.parse(localVal); } catch (e) { console.warn('解析本地器械配置失败:', e); }
+        }
+      }
+      setGymEquipmentConfig(parsedConfig);
+
       // 解析今日身体记录
       setTodayBodyMetrics(bodyMetricsData || null);
       // 确定当前活跃计划
@@ -206,7 +226,7 @@ function App() {
             histByExTier[row.exercise][row.tier].push(row);
           });
 
-          const result = getNextWorkout(activeProgram, activeUP, histByExTier);
+          const result = getNextWorkout(activeProgram, activeUP, histByExTier, parsedConfig, exMap);
           setTodayWorkout(result);
 
           // 计算日程相关值
@@ -721,6 +741,7 @@ function App() {
             programs={programs}
             userPrograms={userPrograms}
             exercisesMap={exercisesMap}
+            gymEquipmentConfig={gymEquipmentConfig}
             optimisticUpdateUserProgram={optimisticUpdateUserProgram}
             isOperationLocked={isOperationLocked}
             onProgramStarted={() => {
@@ -774,6 +795,11 @@ function App() {
             onThemeModeChange={setThemeMode}
             onReOnboard={() => setShowOnboarding(true)}
             onOpenLibrary={() => setActiveTab('plan')}
+            userProfile={userProfile}
+            setUserProfile={setUserProfile}
+            gymEquipmentConfig={gymEquipmentConfig}
+            setGymEquipmentConfig={setGymEquipmentConfig}
+            onRefreshProfile={loadWorkoutData}
           />
         </div>
       </main>
@@ -830,6 +856,8 @@ function App() {
             onMinimize={() => setSessionState(prev => ({ ...prev, isMinimized: true }))}
             onSave={handleSaveSession}
             onCancel={handleCancelSession}
+            gymEquipmentConfig={gymEquipmentConfig}
+            unit={getActiveUserProgram()?.exercise_config?._unit || 'kg'}
           />
         </div>
       )}
@@ -869,6 +897,9 @@ function App() {
         }}
         todayWorkout={todayWorkout}
         getExerciseCNName={getExerciseCNName}
+        gymEquipmentConfig={gymEquipmentConfig}
+        exercisesMap={exercisesMap}
+        unit={getActiveUserProgram()?.exercise_config?._unit || 'kg'}
       />
     </div>
   );

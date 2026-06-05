@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, Play, ChevronDown, ChevronRight } from 'lucide-react';
+import { convertWeight, getBarbellPlateBreakdown } from './unitUtils';
 
 const TIER_COLORS = {
   T1: { bg: 'bg-tier-t1/10', text: 'text-tier-t1', darkText: 'dark:text-tier-t1-dark', border: 'border-tier-t1/20', darkBorder: 'dark:border-tier-t1-dark/20' },
@@ -13,6 +14,9 @@ function WorkoutPreviewModal({
   onStartTrain,
   todayWorkout,
   getExerciseCNName,
+  gymEquipmentConfig = null,
+  exercisesMap = {},
+  unit = 'kg',
 }) {
   const [expanded, setExpanded] = React.useState({});
 
@@ -55,7 +59,8 @@ function WorkoutPreviewModal({
             const tempo = ex.tempo || '3110';
             const sets = ex.sets || 0;
             const reps = ex.reps || 0;
-            const weight = ex.weight?.toFixed?.(1) ?? ex.weight;
+            const displayWeight = unit === 'lbs' ? convertWeight(ex.weight, 'lbs') : ex.weight;
+            const weightText = `${displayWeight?.toFixed?.(1) ?? displayWeight}${unit}`;
 
             return (
               <div
@@ -82,7 +87,7 @@ function WorkoutPreviewModal({
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-base font-extrabold text-text-main dark:text-text-main-dark font-mono">
-                      {weight}kg
+                      {weightText}
                     </span>
                     {isOpen ? <ChevronDown size={16} className="text-text-secondary dark:text-text-secondary-dark" /> : <ChevronRight size={16} className="text-text-secondary dark:text-text-secondary-dark" />}
                   </div>
@@ -101,13 +106,46 @@ function WorkoutPreviewModal({
                       </div>
                       <div className="flex justify-between">
                         <span className="text-text-secondary dark:text-text-secondary-dark">重量</span>
-                        <span className="font-bold text-text-main dark:text-text-main-dark font-mono">{weight} kg</span>
+                        <span className="font-bold text-text-main dark:text-text-main-dark font-mono">{weightText}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-text-secondary dark:text-text-secondary-dark">目标 RPE</span>
                         <span className="font-bold text-text-main dark:text-text-main-dark font-mono">{ex.planned_rpe ?? '—'}</span>
                       </div>
                     </div>
+                    {(() => {
+                      const exInfo = exercisesMap?.[ex.exercise];
+                      const isBarbell = exInfo?.equipment?.includes('barbell') || 
+                                        ['squat', 'bench', 'deadlift', 'press'].includes(ex.exercise.toLowerCase());
+                      if (!isBarbell || !gymEquipmentConfig) return null;
+                      
+                      const configForUnit = gymEquipmentConfig[unit] || gymEquipmentConfig.kg;
+                      const barWeight = configForUnit.barbell?.bar_weight ?? (unit === 'kg' ? 20 : 45);
+                      const enabledPlates = configForUnit.barbell?.enabled_plates || (unit === 'kg' ? [25, 20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]);
+                      
+                      const weightInUnit = unit === 'lbs' ? convertWeight(ex.weight, 'lbs') : ex.weight;
+                      const breakdown = getBarbellPlateBreakdown(weightInUnit, barWeight, enabledPlates);
+                      if (!breakdown || breakdown.plates.length === 0) {
+                        return (
+                          <div className="text-[10px] text-text-secondary dark:text-text-secondary-dark/60 bg-bg-main/50 dark:bg-bg-main-dark/50 px-2 py-1.5 rounded-lg border border-border-card/30 mt-1 select-none font-semibold">
+                            💡 配片说明: 空杆 {barWeight} {unit}
+                          </div>
+                        );
+                      }
+                      
+                      const counts = {};
+                      breakdown.plates.forEach(p => { counts[p] = (counts[p] || 0) + 1; });
+                      const plateTexts = Object.entries(counts)
+                        .sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]))
+                        .map(([plate, count]) => `${plate}${unit} × ${count}`);
+                      
+                      return (
+                        <div className="text-[10px] text-primary dark:text-primary-dark bg-primary/5 dark:bg-primary/10 border border-primary/10 rounded-lg p-2 flex items-center gap-1.5 mt-1 font-semibold select-none">
+                          <span>💡 配片建议:</span>
+                          <span>{barWeight}{unit} 空杆 + 单侧 [{plateTexts.join(', ')}]</span>
+                        </div>
+                      );
+                    })()}
                     <div className="mt-1.5 p-2 rounded-lg bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50">
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-semibold text-text-secondary dark:text-text-secondary-dark uppercase tracking-wider">动作节奏 (Tempo)</span>

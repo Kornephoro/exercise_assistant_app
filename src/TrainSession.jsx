@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Minimize2, X, Check, Sparkles, SkipForward, Plus, FastForward } from 'lucide-react';
+import { convertWeight, getBarbellPlateBreakdown } from './unitUtils';
 
 const DEFAULT_REST_SECONDS = 90;
 
@@ -72,7 +73,9 @@ function TrainSession({
   getExerciseCNName,
   onMinimize,
   onSave,
-  onCancel
+  onCancel,
+  gymEquipmentConfig = null,
+  unit = 'kg',
 }) {
   const [focusedSet, setFocusedSet] = useState(null);
   const [showSetCard, setShowSetCard] = useState(false);
@@ -647,10 +650,46 @@ function TrainSession({
                   <div className="flex items-center gap-2">
                     <span className={`badge ${tierBadge} font-bold text-xs`}>{tier}</span>
                     <span className="text-sm font-bold text-base-content">{getExerciseCNName(ex.exercise)}</span>
-                    <span className="text-xs font-mono font-bold text-base-content/40 bg-base-200 px-1.5 py-0.5 rounded">{ex.weight?.toFixed(1)}kg</span>
+                    <span className="text-xs font-mono font-bold text-base-content/40 bg-base-200 px-1.5 py-0.5 rounded">
+                      {unit === 'lbs' ? `${convertWeight(ex.weight, 'lbs').toFixed(1)}lbs` : `${ex.weight?.toFixed(1)}kg`}
+                    </span>
                   </div>
                   <span className="text-[10px] font-semibold text-base-content/40">{completedCount}/{sets.length}</span>
                 </div>
+
+                {(() => {
+                  const exInfo = exercisesMap?.[ex.exercise];
+                  const isBarbell = exInfo?.equipment?.includes('barbell') || 
+                                    ['squat', 'bench', 'deadlift', 'press'].includes(ex.exercise.toLowerCase());
+                  if (!isBarbell || !gymEquipmentConfig) return null;
+                  
+                  const configForUnit = gymEquipmentConfig[unit] || gymEquipmentConfig.kg;
+                  const barWeight = configForUnit.barbell?.bar_weight ?? (unit === 'kg' ? 20 : 45);
+                  const enabledPlates = configForUnit.barbell?.enabled_plates || (unit === 'kg' ? [25, 20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]);
+                  
+                  const weightInUnit = unit === 'lbs' ? convertWeight(ex.weight, 'lbs') : ex.weight;
+                  const breakdown = getBarbellPlateBreakdown(weightInUnit, barWeight, enabledPlates);
+                  if (!breakdown || breakdown.plates.length === 0) {
+                    return (
+                      <div className="text-[10px] text-base-content/45 bg-base-200/50 px-2 py-1 rounded-lg select-none font-semibold mb-1 w-fit">
+                        💡 配片: 空杆 {barWeight}{unit}
+                      </div>
+                    );
+                  }
+                  
+                  const counts = {};
+                  breakdown.plates.forEach(p => { counts[p] = (counts[p] || 0) + 1; });
+                  const plateTexts = Object.entries(counts)
+                    .sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]))
+                    .map(([plate, count]) => `${plate}${unit} × ${count}`);
+                  
+                  return (
+                    <div className="text-[10px] text-primary dark:text-primary-dark bg-primary/5 dark:bg-primary/10 border border-primary/10 rounded-lg px-2 py-1.5 flex items-center gap-1 mb-1.5 font-semibold select-none">
+                      <span>💡 配片建议:</span>
+                      <span>{barWeight}{unit} 空杆 + 单侧 [{plateTexts.join(', ')}]</span>
+                    </div>
+                  );
+                })()}
 
                 <div className="flex flex-col gap-1.5">
                   {sets.map((set, setIdx) => {
@@ -672,7 +711,14 @@ function TrainSession({
                         </div>
                         <div className="flex items-center gap-1.5">
                           {detail.rpe !== undefined && <span className={`text-[10px] font-bold font-mono ${getRpeColor(detail.rpe)}`}>RPE {detail.rpe.toFixed(1)}</span>}
-                          {['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(getRecordingMethod(ex.exercise)) && <span className="text-xs font-mono font-bold text-base-content/50">{set.weight_kg?.toFixed(1) || ex.weight?.toFixed(1)}kg</span>}
+                          {['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(getRecordingMethod(ex.exercise)) && (
+                            <span className="text-xs font-mono font-bold text-base-content/50">
+                              {unit === 'lbs' 
+                                ? `${convertWeight(set.weight_kg || ex.weight, 'lbs').toFixed(1)}lbs` 
+                                : `${(set.weight_kg || ex.weight)?.toFixed(1)}kg`
+                              }
+                            </span>
+                          )}
                           {set.completed && <span className="text-xs font-mono font-bold text-green-500">{set.actual_reps ?? set.planned_reps}次</span>}
                         </div>
                       </button>

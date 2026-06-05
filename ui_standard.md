@@ -194,7 +194,13 @@ graph TD
 *   **具体说明**：
     *   悬浮计时球由于整体宽度限制在 40px~50px 左右，必须强行使用微型字号 `text-[10px] font-bold` 与 `text-[11px] font-mono font-semibold` 展示组次比（如 `3/4`），以防止内容溢出圆形边界。
 
+### 8.5 模态弹窗与密集配置面板的紧凑型输入框 (Compact Controls inside Modals)
+*   **适用场景**：[MyPage.jsx](file:///d:/vibe-coding/training-assistant-app/src/MyPage.jsx) 中的杠铃/哑铃/龙门架设置弹窗及其他复杂属性配置面板。
+*   **具体说明**：
+    *   为了在高度和宽度受限的 Modal 弹窗内展现高密度的配置列表（例如杠铃空杆、哑铃分段规则列表、插销步长等），输入框尺寸允许突破常规页面表单的 `h-11` (44px) 限制，使用更紧凑的 `input-sm` (高度 `32px`/`h-8`，圆角 `8px`/`rounded-lg`，字重 `font-bold font-mono`)，确保页面垂直布局不发生大量溢出滚动，提高单屏展示效率。
+
 ---
+
 
 ## 📱 9. 移动端窄屏响应式规范 (Mobile Responsiveness Standards)
 

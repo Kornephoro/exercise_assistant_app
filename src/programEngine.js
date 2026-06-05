@@ -4,6 +4,8 @@
  * 支持 GZCLP（完整）和 Starting Strength（占位）
  */
 
+import { roundExerciseWeight } from './unitUtils';
+
 function roundWeight(weight) {
   return Math.round(weight * 10) / 10;
 }
@@ -188,7 +190,7 @@ function gzclpGetSchemeText(scheme) {
   return `${scheme.sets}组 × ${scheme.reps}次${amrapText}`;
 }
 
-function gzclpGetTierProgression(exercise, history, schemes, initialWeight, increment, successThreshold) {
+function gzclpGetTierProgression(exercise, history, schemes, initialWeight, increment, successThreshold, gymEquipmentConfig = null, exerciseInfo = null, unit = 'kg') {
   const defaultWeight = (initialWeight !== undefined && initialWeight !== null)
     ? Number(initialWeight)
     : 20.0;
@@ -198,10 +200,17 @@ function gzclpGetTierProgression(exercise, history, schemes, initialWeight, incr
     ? schemes
     : [{ sets: 3, reps: 5, amrap_last: true }];
 
+  const getRoundedWeight = (w) => {
+    if (gymEquipmentConfig && exerciseInfo) {
+      return roundExerciseWeight(w, exerciseInfo, gymEquipmentConfig, unit);
+    }
+    return roundWeight(w);
+  };
+
   if (!history || history.length === 0) {
     const scheme = safeSchemes[0];
     return {
-      weight_kg: roundWeight(defaultWeight),
+      weight_kg: getRoundedWeight(defaultWeight),
       planned_reps: scheme.reps,
       scheme_text: gzclpGetSchemeText(scheme),
       scheme_index: 0
@@ -267,7 +276,7 @@ function gzclpGetTierProgression(exercise, history, schemes, initialWeight, incr
   const stalled = !success && currentScheme.fail_to === -1;
 
   return {
-    weight_kg: roundWeight(nextWeight),
+    weight_kg: getRoundedWeight(nextWeight),
     planned_reps: nextScheme.reps,
     scheme_text: gzclpGetSchemeText(nextScheme),
     scheme_index: nextIdx,
@@ -297,7 +306,7 @@ function userChainToSchemes(chain) {
   });
 }
 
-function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier) {
+function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier, gymEquipmentConfig = null, exercisesMap = {}) {
   const state = userProgram.program_state || {};
   const exConfig = userProgram.exercise_config || {};
   const schedule = userProgram.schedule || {};
@@ -305,6 +314,7 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier) {
   const currentDay = state.current_day || Object.keys(effectiveDayMap)[0];
   const dayConfig = effectiveDayMap[currentDay];
   const lastTrainingDate = state.last_training_date || null;
+  const unit = exConfig._unit || 'kg';
 
   if (!dayConfig) return { exercises: [], dayLabel: currentDay, error: `未知训练日: ${currentDay}` };
 
@@ -320,7 +330,7 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier) {
     // 优先使用用户自定义 chain，fallback 到程序默认
     const userSchemes = userChainToSchemes(userEx.t1_chain);
     const schemes = userSchemes || config.t1_schemes;
-    const result = gzclpGetTierProgression(ex, hist, schemes, initWeight, incr, null);
+    const result = gzclpGetTierProgression(ex, hist, schemes, initWeight, incr, null, gymEquipmentConfig, exercisesMap[ex], unit);
 
     exercises.push({
       exercise: ex,
@@ -344,7 +354,7 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier) {
     const userSchemes = userChainToSchemes(userEx.t2_chain);
     const schemes = userSchemes || config.t2_schemes;
     // 不传 threshold，让 gzclpGetTierProgression 从当前方案的 success_threshold 自动推导
-    const result = gzclpGetTierProgression(ex, hist, schemes, initWeight, incr, null);
+    const result = gzclpGetTierProgression(ex, hist, schemes, initWeight, incr, null, gymEquipmentConfig, exercisesMap[ex], unit);
 
     exercises.push({
       exercise: ex,
@@ -369,7 +379,7 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier) {
       const initWeight = userEx.initial_weight ?? config.default_weights?.[ex] ?? 10;
       const incr = userEx.increment_t3 ?? config.default_increment?.['T3'] ?? 2.5;
       const threshold = userEx.target_reps ?? scheme.success_threshold ?? 25;
-      const result = gzclpGetTierProgression(ex, hist, [scheme], initWeight, incr, threshold);
+      const result = gzclpGetTierProgression(ex, hist, [scheme], initWeight, incr, threshold, gymEquipmentConfig, exercisesMap[ex], unit);
 
       exercises.push({
         exercise: ex,
@@ -494,10 +504,10 @@ export function getEngine(engineType) {
   return engines[engineType] || null;
 }
 
-export function getNextWorkout(program, userProgram, historyByExerciseTier) {
+export function getNextWorkout(program, userProgram, historyByExerciseTier, gymEquipmentConfig = null, exercisesMap = {}) {
   const engine = engines[program.config?.engine_type];
   if (!engine) return { exercises: [], dayLabel: 'unknown', error: `未知引擎: ${program.config?.engine_type}` };
-  return engine.getNextWorkout(program.config, userProgram, historyByExerciseTier);
+  return engine.getNextWorkout(program.config, userProgram, historyByExerciseTier, gymEquipmentConfig, exercisesMap);
 }
 
 export function calculateProgression(program, userProgram, exercise, tier, completedSets) {

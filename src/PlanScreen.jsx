@@ -43,7 +43,7 @@ function ConfirmModal({ isOpen, title, message, onConfirm, onCancel, confirmText
   );
 }
 
-function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, onProgramPaused, onProgramResumed, onProgramEnded, onProgramError, optimisticUpdateUserProgram, isOperationLocked = false }) {
+function PlanScreen({ programs, userPrograms, exercisesMap, gymEquipmentConfig = null, onProgramStarted, onProgramPaused, onProgramResumed, onProgramEnded, onProgramError, optimisticUpdateUserProgram, isOperationLocked = false }) {
   const [activeSubTab, setActiveSubTab] = useState('programs');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProgram, setSelectedProgram] = useState(null);
@@ -168,6 +168,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
         exercisesMap={exercisesMap}
         onBack={() => setConfigProgram(null)}
         onProgramStarted={onProgramStarted}
+        gymEquipmentConfig={gymEquipmentConfig}
       />
     );
   }

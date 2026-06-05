@@ -7,7 +7,7 @@ import {
   saveUserProgram
 } from './services/programService';
 import { Loader2, ArrowLeft, Save, ShieldAlert, CheckCircle, Scale, Zap, Dumbbell, Search, Calendar, Sparkles } from 'lucide-react';
-import { convertWeight, toStorageWeight } from './unitUtils';
+import { convertWeight, toStorageWeight, roundToClosestLoadable } from './unitUtils';
 import { deriveStartFromOneRm } from './oneRmUtils';
 import { getCNName } from './exerciseNames';
 
@@ -177,7 +177,7 @@ function ProgressionChainEditor({ chain, onChange, tierLabel }) {
 
 // ==================== GZCLP 完整配置 ====================
 
-function GzclpConfig({ program, onBack, onActivated, isExisting }) {
+function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentConfig = null }) {
   const defaultWeights = program.config?.default_weights || {};
   const defaultIncrement = program.config?.default_increment || {};
 
@@ -692,9 +692,21 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
     }
     const t1 = deriveStartFromOneRm(rm, 0.85);
     const t2 = deriveStartFromOneRm(rm, 0.65);
+    
+    // 应用杠铃对称配片圆整
+    let roundedT1 = t1;
+    let roundedT2 = t2;
+    const exUnit = exerciseUnits[lift] || weightUnit;
+    if (gymEquipmentConfig) {
+      const barWeight = gymEquipmentConfig[exUnit]?.barbell?.bar_weight ?? (exUnit === 'kg' ? 20 : 45);
+      const enabledPlates = gymEquipmentConfig[exUnit]?.barbell?.enabled_plates || (exUnit === 'kg' ? [25, 20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]);
+      roundedT1 = roundToClosestLoadable(t1, barWeight, enabledPlates);
+      roundedT2 = roundToClosestLoadable(t2, barWeight, enabledPlates);
+    }
+    
     // 默认用 T1 起始 (1RM × 0.85) 作为 initial_weight
-    setterMap[lift](String(t1));
-    setSuccessMsg(`✨ ${LIFT_CN_NAMES[lift]}: 1RM ${rm}kg → 起始 ${t1}kg (T1×0.85, T2 建议 ${t2}kg)`);
+    setterMap[lift](String(roundedT1));
+    setSuccessMsg(`✨ ${LIFT_CN_NAMES[lift]}: 1RM ${rm}${exUnit} → 起始 ${roundedT1}${exUnit} (T1×0.85, T2 建议 ${roundedT2}${exUnit})`);
     setError(null);
   };
 
@@ -717,9 +729,10 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
       </div>
 
       <div className="alert-box text-sm leading-relaxed border-l-4 mb-4">
-        1. <b>默认重量</b>：仅在无训练历史的首次打卡时作为基准。<br />
-        2. <b>增重步长</b>：打卡成功时下一次加重的幅度。<br />
-        3. <b>T3 达标门槛</b>：三组实际次数累加满足该目标时方可晋级加重。
+        💡 <b>GZCLP 配置向导（推荐配置流程）：</b><br />
+        1️⃣ <b>第一步：</b> 填入您的各主项 1RM，系统将以此计算合理的起步重量。如果您不知道 1RM，可以直接跳到第二步。<br />
+        2️⃣ <b>第二步：</b> 确认首训的起始重量。如果您在第一步中点击了一键应用，此处将自动填充；否则，您需要在此手动填入首次训练的重量。<br />
+        3️⃣ <b>第三步：</b> 挑选并配置您的 T3 辅助动作（如二头弯举、高位下拉等），以补充主项训练。
       </div>
 
       {error && (
@@ -823,63 +836,14 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
         </p>
       </div>
 
-      {/* 1. 重量设置 */}
+      {/* 1. 各主项 1RM 与进阶参数 */}
       <div className="card">
-        <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark mb-4 pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
-          <Scale size={16} className="text-primary" /><span>1. 首训默认重量</span>
+        <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark mb-2 pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
+          <Zap size={16} className="text-primary" /><span>第一步：设置各主项 1RM 与进阶参数（推荐）</span>
         </h3>
-
-        {/* 全局单位切换 */}
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs text-text-secondary dark:text-text-secondary-dark">全局单位</span>
-          <div className="flex bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card dark:border-border-card-dark rounded-lg overflow-hidden">
-            <button type="button"
-              className={`px-3 py-1 text-xs font-bold transition-all cursor-pointer ${weightUnit === 'kg' ? 'bg-primary text-white' : 'text-text-secondary hover:text-text-main'}`}
-              onClick={() => setWeightUnit('kg')}>KG</button>
-            <button type="button"
-              className={`px-3 py-1 text-xs font-bold transition-all cursor-pointer ${weightUnit === 'lbs' ? 'bg-primary text-white' : 'text-text-secondary hover:text-text-main'}`}
-              onClick={() => setWeightUnit('lbs')}>LBS</button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          {[['squat', '深蹲 (Squat)', squatWeight, setSquatWeight],
-            ['bench', '卧推 (Bench)', benchWeight, setBenchWeight],
-            ['deadlift', '硬拉 (Deadlift)', deadliftWeight, setDeadliftWeight],
-            ['press', '推举 (Press)', pressWeight, setPressWeight]
-          ].map(([key, label, val, setter]) => {
-            const exUnit = exerciseUnits[key] || weightUnit;
-            return (
-              <div key={key} className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="section-subtitle select-none">{label}</label>
-                  <div className="flex bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card dark:border-border-card-dark rounded overflow-hidden">
-                    <button type="button"
-                      className={`px-1.5 py-0.5 text-[10px] font-bold transition-all cursor-pointer ${exUnit === 'kg' ? 'bg-primary text-white' : 'text-text-secondary'}`}
-                      onClick={() => setExerciseUnits(prev => ({ ...prev, [key]: 'kg' }))}>KG</button>
-                    <button type="button"
-                      className={`px-1.5 py-0.5 text-[10px] font-bold transition-all cursor-pointer ${exUnit === 'lbs' ? 'bg-primary text-white' : 'text-text-secondary'}`}
-                      onClick={() => setExerciseUnits(prev => ({ ...prev, [key]: 'lbs' }))}>LB</button>
-                  </div>
-                </div>
-                <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary px-3 h-10 w-full transition-colors">
-                  <input type="number" step="0.5" className={inputClass} value={val} onChange={(e) => setter(e.target.value)} />
-                  <span className="text-sm font-medium text-text-secondary/50 select-none">{exUnit}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 2. 各主项进阶参数 (移植自插件 GzclpConfigPanel) */}
-      <div className="card">
-        <h3 className="text-lg font-extrabold text-text-main dark:text-text-main-dark mb-2 pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
-          <Zap size={18} className="text-primary" /><span>2. 各主项进阶参数</span>
-        </h3>
-        <p className="text-sm text-text-secondary dark:text-text-secondary-dark mb-4 leading-relaxed">
-          设置每个主项的 1RM、T1/T2 加重步长、进阶链 (失败时前进到下一阶段)。
-          可用「✨ 一键应用」按 1RM × 0.85 自动填入起始重量。
+        <p className="text-xs text-text-secondary dark:text-text-secondary-dark mb-4 leading-relaxed bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-lg p-2.5">
+          👉 <b>最佳实践：</b>请在此输入您的 1RM（单次最大重量），然后点击下方的<b>「一键应用 1RM → 起始重量」</b>按钮。系统将自动按 <b>85%</b> 的安全比例计算首训起始重量并同步到下方的「第二步」。<br />
+          ⚠️ <i>如果您不知道 1RM，可以直接跳过此步，直接到「第二步」手动填入起始重量。</i>
         </p>
 
         <div className="flex flex-col gap-3">
@@ -988,11 +952,68 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
         </div>
       </div>
 
+      {/* 2. 首训默认重量 */}
+      <div className="card">
+        <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark mb-2 pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
+          <Scale size={16} className="text-primary" /><span>第二步：确认或手动设置「首训起始重量」</span>
+        </h3>
+        <p className="text-xs text-text-secondary dark:text-text-secondary-dark mb-4 leading-relaxed bg-bg-main/30 dark:bg-bg-main-dark/30 border border-border-card/30 rounded-lg p-2.5">
+          👉 <b>如何确定该值：</b><br />
+          1. <b>如果您已完成第一步：</b>点击上方的「一键应用」后，此处的重量已被自动填充为 1RM × 85%（T1 推荐起始重），请在此核对确认即可。<br />
+          2. <b>如果您跳过了第一步：</b>请根据您的真实训练水平，在此手动填入您首次训练该动作时的负重（如空杆 20kg 或者是较轻的安全负荷）。
+        </p>
+
+        {/* 全局单位切换 */}
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs text-text-secondary dark:text-text-secondary-dark">全局单位</span>
+          <div className="flex bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card dark:border-border-card-dark rounded-lg overflow-hidden">
+            <button type="button"
+              className={`px-3 py-1 text-xs font-bold transition-all cursor-pointer ${weightUnit === 'kg' ? 'bg-primary text-white' : 'text-text-secondary hover:text-text-main'}`}
+              onClick={() => setWeightUnit('kg')}>KG</button>
+            <button type="button"
+              className={`px-3 py-1 text-xs font-bold transition-all cursor-pointer ${weightUnit === 'lbs' ? 'bg-primary text-white' : 'text-text-secondary hover:text-text-main'}`}
+              onClick={() => setWeightUnit('lbs')}>LBS</button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          {[['squat', '深蹲 (Squat)', squatWeight, setSquatWeight],
+            ['bench', '卧推 (Bench)', benchWeight, setBenchWeight],
+            ['deadlift', '硬拉 (Deadlift)', deadliftWeight, setDeadliftWeight],
+            ['press', '推举 (Press)', pressWeight, setPressWeight]
+          ].map(([key, label, val, setter]) => {
+            const exUnit = exerciseUnits[key] || weightUnit;
+            return (
+              <div key={key} className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="section-subtitle select-none">{label}</label>
+                  <div className="flex bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card dark:border-border-card-dark rounded overflow-hidden">
+                    <button type="button"
+                      className={`px-1.5 py-0.5 text-[10px] font-bold transition-all cursor-pointer ${exUnit === 'kg' ? 'bg-primary text-white' : 'text-text-secondary'}`}
+                      onClick={() => setExerciseUnits(prev => ({ ...prev, [key]: 'kg' }))}>KG</button>
+                    <button type="button"
+                      className={`px-1.5 py-0.5 text-[10px] font-bold transition-all cursor-pointer ${exUnit === 'lbs' ? 'bg-primary text-white' : 'text-text-secondary'}`}
+                      onClick={() => setExerciseUnits(prev => ({ ...prev, [key]: 'lbs' }))}>LB</button>
+                  </div>
+                </div>
+                <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary px-3 h-10 w-full transition-colors">
+                  <input type="number" step="0.5" className={inputClass} value={val} onChange={(e) => setter(e.target.value)} />
+                  <span className="text-sm font-medium text-text-secondary/50 select-none">{exUnit}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* 3. T3 辅助动作配置 */}
       <div className="card flex flex-col gap-4">
         <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
-          <Dumbbell size={16} className="text-primary" /><span>3. T3 辅助动作配置</span>
+          <Dumbbell size={16} className="text-primary" /><span>第三步：T3 辅助动作配置</span>
         </h3>
+        <p className="text-xs text-text-secondary dark:text-text-secondary-dark leading-relaxed">
+          GZCLP 推荐使用 T3 辅助动作（高次数、小重量、接近力竭）来针对性增强弱项肌肉并提升耐力。请为每一天选择 1-2 个辅助动作，并设定它们的起始重量和加重步长。
+        </p>
 
         {/* 每日 T3 动作选择 */}
         <div className="flex flex-col gap-3">
@@ -1516,7 +1537,7 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
 
 // ==================== 主入口 ====================
 
-function ProgramConfigScreen({ program, exercisesMap, onBack, onProgramStarted }) {
+function ProgramConfigScreen({ program, exercisesMap, onBack, onProgramStarted, gymEquipmentConfig = null }) {
   const engineType = program.config?.engine_type;
   const [isActive, setIsActive] = useState(false);
 
@@ -1533,7 +1554,7 @@ function ProgramConfigScreen({ program, exercisesMap, onBack, onProgramStarted }
   }, [program.id]);
 
   if (engineType === 'gzclp') {
-    return <GzclpConfig program={program} onBack={onBack} onActivated={onProgramStarted} isExisting={isActive} />;
+    return <GzclpConfig program={program} onBack={onBack} onActivated={onProgramStarted} isExisting={isActive} gymEquipmentConfig={gymEquipmentConfig} />;
   }
 
   return <GenericConfig program={program} exercisesMap={exercisesMap} onBack={onBack} onActivated={onProgramStarted} isExisting={isActive} />;
