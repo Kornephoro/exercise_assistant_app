@@ -270,7 +270,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
 
   const setUnitProp = (section, key, val) => {
     setConfig(prev => {
-      const next = { ...prev };
+      const next = JSON.parse(JSON.stringify(prev));
       if (!next[activeUnit]) next[activeUnit] = {};
       if (!next[activeUnit][section]) next[activeUnit][section] = {};
       next[activeUnit][section][key] = val;
@@ -293,7 +293,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
     const roundedVal = Math.round(val * 100) / 100;
     
     setConfig(prev => {
-      const next = { ...prev };
+      const next = JSON.parse(JSON.stringify(prev));
       const barbell = next[activeUnit].barbell;
       const plates = barbell.plates || [];
       const enabled = barbell.enabled_plates || [];
@@ -313,7 +313,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
     if (STANDARD_PLATES[activeUnit].includes(plate)) return;
     
     setConfig(prev => {
-      const next = { ...prev };
+      const next = JSON.parse(JSON.stringify(prev));
       const barbell = next[activeUnit].barbell;
       next[activeUnit].barbell.plates = (barbell.plates || []).filter(p => p !== plate);
       next[activeUnit].barbell.enabled_plates = (barbell.enabled_plates || []).filter(p => p !== plate);
@@ -323,7 +323,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
 
   const handleAddDumbbellRule = () => {
     setConfig(prev => {
-      const next = { ...prev };
+      const next = JSON.parse(JSON.stringify(prev));
       const rules = next[activeUnit].dumbbell.rules;
       const newRules = [...rules];
       const lastIndex = newRules.length - 1;
@@ -343,7 +343,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
 
   const handleRemoveDumbbellRule = (index) => {
     setConfig(prev => {
-      const next = { ...prev };
+      const next = JSON.parse(JSON.stringify(prev));
       const rules = next[activeUnit].dumbbell.rules;
       if (rules.length <= 1) return prev;
       
@@ -355,7 +355,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
 
   const handleChangeDumbbellRule = (index, field, value) => {
     setConfig(prev => {
-      const next = { ...prev };
+      const next = JSON.parse(JSON.stringify(prev));
       const rules = next[activeUnit].dumbbell.rules;
       const newRules = rules.map((rule, idx) => {
         if (idx === index) {
