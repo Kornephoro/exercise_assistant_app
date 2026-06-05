@@ -343,13 +343,13 @@ export function BarbellVisualizer({ plates = [], barWeight = 20, unit = 'kg', en
         </div>
         
         <div className="flex items-center gap-1.5 justify-center flex-wrap mt-1.5 shrink-0">
-          <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50 text-text-secondary dark:text-text-secondary-dark font-mono">
+          <span className="text-xs font-black px-1.5 py-0.5 rounded bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50 text-text-secondary dark:text-text-secondary-dark font-mono">
             单侧挂重: {targetPlateWeight} {unit}
           </span>
           <button
             type="button"
             onClick={toggleBarWeight}
-            className="text-[9px] font-black px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary font-mono cursor-pointer hover:bg-primary/20 active:scale-95 transition-all"
+            className="text-xs font-black px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary font-mono cursor-pointer hover:bg-primary/20 active:scale-95 transition-all"
           >
             空杆: {activeBarWeight} {unit} 🔄
           </button>
@@ -357,8 +357,8 @@ export function BarbellVisualizer({ plates = [], barWeight = 20, unit = 'kg', en
       </div>
 
       {/* 右栏 40%：备选方案列表 */}
-      <div className="w-[125px] shrink-0 flex flex-col justify-center gap-1.5">
-        <span className="text-[9px] font-black text-text-muted dark:text-text-secondary-dark tracking-wider uppercase select-none">
+      <div className="w-[135px] shrink-0 flex flex-col justify-center gap-1.5">
+        <span className="text-xs font-black text-text-muted dark:text-text-secondary-dark tracking-wider uppercase select-none">
           🎯 配片备选方案
         </span>
         <div className="flex flex-col gap-1 overflow-y-auto max-h-[85px] pr-0.5">
@@ -368,7 +368,7 @@ export function BarbellVisualizer({ plates = [], barWeight = 20, unit = 'kg', en
                 key={idx}
                 type="button"
                 onClick={() => setSelectedIdx(idx)}
-                className={`text-[9px] font-bold p-1.5 rounded-lg border text-left transition-all leading-snug break-all ${
+                className={`text-xs font-bold p-1.5 rounded-lg border text-left transition-all leading-snug break-all ${
                   selectedIdx === idx
                     ? 'bg-primary/15 border-primary text-primary font-extrabold shadow-sm'
                     : 'bg-bg-card dark:bg-bg-card-dark border-border-card/50 dark:border-border-card-dark/50 text-text-secondary dark:text-text-secondary-dark hover:bg-bg-hover'
@@ -378,13 +378,13 @@ export function BarbellVisualizer({ plates = [], barWeight = 20, unit = 'kg', en
                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${selectedIdx === idx ? 'bg-primary' : 'bg-text-muted/30'}`}></span>
                   <span className="truncate">{idx === 0 ? '最佳推荐' : `方案 ${idx + 1}`}</span>
                 </div>
-                <div className="mt-0.5 font-mono text-[8px] pl-2.5 opacity-90">
+                <div className="mt-0.5 font-mono text-[10px] pl-2.5 opacity-90">
                   {getAltLabel(combo)}
                 </div>
               </button>
             ))
           ) : (
-            <div className="text-[9px] text-text-muted italic py-2">无备选方案</div>
+            <div className="text-xs text-text-muted italic py-2">无备选方案</div>
           )}
         </div>
       </div>

@@ -501,7 +501,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
                 min="0"
                 value={unitConfig.barbell?.bar_weight ?? ''}
                 onChange={e => setUnitProp('barbell', 'bar_weight', parseFloat(e.target.value) || 0)}
-                className="input input-bordered input-sm w-24 text-right bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark font-mono font-semibold"
+                className="input input-bordered input-sm w-24 text-center bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark font-mono font-semibold"
               />
             </div>
             
@@ -616,9 +616,9 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
               {dumbbellRules.map((rule, idx) => {
                 const isLast = idx === dumbbellRules.length - 1;
                 return (
-                  <div key={idx} className="flex items-center gap-2 bg-bg-card dark:bg-bg-card-dark p-2 rounded-lg border border-border-card/30 dark:border-border-card-dark/30">
-                    <div className="flex-1 flex items-center gap-1.5 min-w-0">
-                      <span className="text-xs font-semibold text-text-secondary truncate shrink-0">
+                  <div key={idx} className="flex flex-wrap items-center justify-between gap-2.5 bg-bg-card dark:bg-bg-card-dark p-2.5 rounded-lg border border-border-card/30 dark:border-border-card-dark/30">
+                    <div className="flex items-center gap-1.5 min-w-[120px] flex-1">
+                      <span className="text-xs font-semibold text-text-secondary shrink-0">
                         {getDumbbellLabel(idx)}
                       </span>
                       {!isLast && (
@@ -637,30 +637,32 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
                       )}
                     </div>
                     
-                    <div className="flex items-center gap-1 shrink-0">
-                      <span className="text-xs font-semibold text-text-secondary">步长</span>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0.1"
-                        value={rule.step ?? ''}
-                        onChange={e => handleChangeDumbbellRule(idx, 'step', e.target.value)}
-                        className="input input-bordered input-sm w-16 text-center font-mono font-bold p-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark"
-                        placeholder="步长"
-                      />
-                      <span className="text-xs font-semibold text-text-secondary">{activeUnit}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs font-semibold text-text-secondary shrink-0">步长</span>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0.1"
+                          value={rule.step ?? ''}
+                          onChange={e => handleChangeDumbbellRule(idx, 'step', e.target.value)}
+                          className="input input-bordered input-sm w-16 text-center font-mono font-bold p-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark"
+                          placeholder="步长"
+                        />
+                        <span className="text-xs font-semibold text-text-secondary shrink-0">{activeUnit}</span>
+                      </div>
+                      
+                      {!isLast && dumbbellRules.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDumbbellRule(idx)}
+                          className="text-xs text-error hover:text-error/80 p-1 font-bold select-none shrink-0 cursor-pointer ml-1"
+                          title="删除此分段"
+                        >
+                          🗑️
+                        </button>
+                      )}
                     </div>
-
-                    {!isLast && dumbbellRules.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveDumbbellRule(idx)}
-                        className="text-xs text-error hover:text-error/80 p-1 font-bold select-none shrink-0 cursor-pointer"
-                        title="删除此分段"
-                      >
-                        🗑️
-                      </button>
-                    )}
                   </div>
                 );
               })}
@@ -678,7 +680,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
                 min="0.5"
                 value={unitConfig.cable?.step ?? ''}
                 onChange={e => setUnitProp('cable', 'step', parseFloat(e.target.value) || 0)}
-                className="input input-bordered input-sm w-24 text-right bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark font-mono font-semibold"
+                className="input input-bordered input-sm w-24 text-center bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark font-mono font-semibold"
               />
             </div>
             <p className="text-[10px] text-text-secondary select-none font-medium">
