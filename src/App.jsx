@@ -1,5 +1,16 @@
 import { useState, useEffect } from 'react';
-import { supabase } from './supabaseClient';
+import { fetchActivePrograms, fetchAllUserPrograms, fetchExercises, saveUserProgram } from './services/programService';
+import { fetchUserProfile } from './services/profileService';
+import { fetchBodyMetrics } from './services/bodyService';
+import { fetchDietLog, fetchActiveUserNutritionConfig } from './services/dietService';
+import {
+  fetchProgramWorkoutsHistory,
+  fetchTodayWorkouts,
+  saveWorkout,
+  saveWorkoutSets,
+  fetchLatestOneRmForExercises,
+  saveOneRmRecords
+} from './services/workoutService';
 import { getNextWorkout, getNextDay, isTodayTrainingDay, getNextTrainingDate, getDaysUntilStart } from './programEngine';
 import { calcE1RM } from './oneRmUtils';
 import { getCNName } from './exerciseNames';
@@ -13,11 +24,8 @@ import FloatingBall from './FloatingBall';
 import OnboardingScreen from './OnboardingScreen';
 import WorkoutPreviewModal from './WorkoutPreviewModal';
 import {
-  Dumbbell,
   CheckCircle,
   AlertTriangle,
-  Sun,
-  Moon,
   SkipForward
 } from 'lucide-react';
 
@@ -36,8 +44,6 @@ function App() {
   const [showOnboarding, setShowOnboarding] = useState(() => {
     return localStorage.getItem('onboarding_completed') !== 'true';
   });
-  const [userNickname, setUserNickname] = useState(() => localStorage.getItem('user_nickname') || '');
-
   // 新架构：programs + user_programs
   const [programs, setPrograms] = useState([]);
   const [userPrograms, setUserPrograms] = useState([]);
@@ -120,71 +126,46 @@ function App() {
       const d = new Date();
       const todayISOString = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-      const [programsRes, userProgramsRes, exercisesRes, todayWorkoutsRes, profileRes, bodyMetricsRes, nutritionConfigRes, dietLogsRes] = await Promise.all([
-        supabase.from('programs').select('*').eq('is_active', true).order('name'),
-        supabase.from('user_programs').select('*'),
-        supabase.from('exercises').select('*'),
-        supabase.from('workouts').select('*').gte('created_at', todayStart.toISOString()).order('created_at'),
-        supabase.from('user_profiles').select('*').limit(1),
-        supabase.from('body_metrics').select('*').eq('date', todayISOString).limit(1),
-        supabase.from('user_nutrition_configs').select('*').eq('is_active', true).limit(1),
-        supabase.from('diet_logs').select('*').eq('date', todayISOString).limit(1)
+      const [programsData, userProgramsData, exercisesData, todayWorkoutsData, profileData, bodyMetricsData, nutritionConfigData, dietLogsData] = await Promise.all([
+        fetchActivePrograms(),
+        fetchAllUserPrograms(),
+        fetchExercises(),
+        fetchTodayWorkouts(todayStart.toISOString()),
+        fetchUserProfile(),
+        fetchBodyMetrics(todayISOString),
+        fetchActiveUserNutritionConfig(),
+        fetchDietLog(todayISOString)
       ]);
-
-      if (programsRes.error) throw programsRes.error;
-      if (userProgramsRes.error) throw userProgramsRes.error;
-      if (exercisesRes.error) throw exercisesRes.error;
-      if (todayWorkoutsRes.error) throw todayWorkoutsRes.error;
-      if (profileRes.error) throw profileRes.error;
 
       // 解析 exercises map
       const exMap = {};
-      (exercisesRes.data || []).forEach(row => {
+      (exercisesData || []).forEach(row => {
         if (row.name) exMap[row.name] = row;
       });
       setExercisesMap(exMap);
 
       // 解析 programs
-      const allPrograms = programsRes.data || [];
+      const allPrograms = programsData || [];
       setPrograms(allPrograms);
 
       // 解析 user_programs
-      const allUserPrograms = userProgramsRes.data || [];
+      const allUserPrograms = userProgramsData || [];
       setUserPrograms(allUserPrograms);
 
-      // 解析今日饮食记录 (安全处理表不存在的情况)
-      if (dietLogsRes && !dietLogsRes.error && dietLogsRes.data && dietLogsRes.data.length > 0) {
-        setTodayDietLog(dietLogsRes.data[0]);
-      } else {
-        setTodayDietLog(null);
-      }
+      // 解析今日饮食记录
+      setTodayDietLog(dietLogsData || null);
 
-      // 解析用户饮食配置 (安全处理表不存在的情况)
-      if (nutritionConfigRes && !nutritionConfigRes.error && nutritionConfigRes.data && nutritionConfigRes.data.length > 0) {
-        setUserNutritionConfig(nutritionConfigRes.data[0]);
-      } else {
-        setUserNutritionConfig(null);
-      }
+      // 解析用户饮食配置
+      setUserNutritionConfig(nutritionConfigData || null);
 
       // 解析用户画像
-      const profileData = profileRes.data || [];
-      if (profileData.length > 0) {
-        setUserProfile(profileData[0]);
-        if (profileData[0].training_days) {
-          try { JSON.parse(profileData[0].training_days); } catch { /* ignore */ }
-        }
-      } else {
-        setUserProfile(null);
+      setUserProfile(profileData || null);
+      if (profileData && profileData.training_days) {
+        try { JSON.parse(profileData.training_days); } catch (e) { console.warn('解析训练日程失败:', e); }
       }
 
-      // 解析今日身体记录（安全处理表未创建时的错误）
-      if (bodyMetricsRes && !bodyMetricsRes.error && bodyMetricsRes.data && bodyMetricsRes.data.length > 0) {
-        setTodayBodyMetrics(bodyMetricsRes.data[0]);
-      } else {
-        setTodayBodyMetrics(null);
-      }
-      setUserNickname(localStorage.getItem('user_nickname') || '');
-
+      // 解析今日身体记录
+      setTodayBodyMetrics(bodyMetricsData || null);
       // 确定当前活跃计划
       const activeUps = allUserPrograms.filter(up => up.is_active);
       let currentActiveId = overrideActiveProgramId !== undefined ? overrideActiveProgramId : activeProgramId;
@@ -201,7 +182,7 @@ function App() {
         currentProgramId = activeUP?.program_id;
       }
 
-      const todayWorkouts = todayWorkoutsRes.data || [];
+      const todayWorkouts = todayWorkoutsData || [];
       const filteredTodayWorkouts = todayWorkouts.filter(w => w.program_id === currentProgramId);
       setIsTodayCompleted(filteredTodayWorkouts.length > 0);
       setTodayWorkoutSummary(filteredTodayWorkouts);
@@ -212,12 +193,10 @@ function App() {
         const activeProgram = allPrograms.find(p => p.id === activeUP.program_id);
         if (activeProgram) {
           // 获取该计划所有相关动作的历史 (添加 gte 隔离不同计划订阅周期的数据)
-          const { data: historyData } = await supabase
-            .from('workouts')
-            .select('*')
-            .eq('program_id', activeProgram.id)
-            .gte('created_at', activeUP.started_at || activeUP.created_at)
-            .order('created_at', { ascending: true });
+          const historyData = await fetchProgramWorkoutsHistory(
+            activeProgram.id,
+            activeUP.started_at || activeUP.created_at
+          );
 
           // 按 exercise+tier 分组历史
           const histByExTier = {};
@@ -309,10 +288,13 @@ function App() {
       setsData[idx] = sets; // key = exercise index, supports multiple T3 per day
     });
 
+    const d = new Date();
+    const sessionDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     setSessionState({
       isActive: true,
       isMinimized: false,
-      setsData
+      setsData,
+      sessionDate
     });
   };
 
@@ -328,7 +310,8 @@ function App() {
     setSessionState({
       isActive: false,
       isMinimized: false,
-      setsData: {}
+      setsData: {},
+      sessionDate: null
     });
     setToast({ type: 'success', message: '已放弃本次训练数据。' });
   };
@@ -356,7 +339,7 @@ function App() {
       }].slice(-100)
     };
     
-    await supabase.from('user_programs').update({ program_state: newState, updated_at: new Date().toISOString() }).eq('id', activeUP.id);
+    await saveUserProgram(activeUP.id, null, { program_state: newState, updated_at: new Date().toISOString() });
     
     const nextDateStr = getNextTrainingDate(schedule, newState.last_training_date, newState.start_date);
     let toastMsg = `已跳过今日训练，下次训练日：${nextDay}`;
@@ -367,7 +350,7 @@ function App() {
     await loadWorkoutData();
   };
 
-  // 加练
+  // 加练：启动训练会话（与正常训练日相同），打卡保存时自动推进 current_day
   const handleExtraTraining = async () => {
     const activeUP = userPrograms.find(u => u.id === activeProgramId);
     const activeProgram = programs.find(p => p.id === activeUP?.program_id);
@@ -376,24 +359,9 @@ function App() {
       return;
     }
 
-    const schedule = activeUP.schedule || {};
-    const nextDay = getNextDay(activeProgram, todayWorkout.dayLabel, schedule, activeUP.program_state?.last_training_date, activeUP.program_state?.start_date);
-    
-    const newState = {
-      ...activeUP.program_state,
-      current_day: nextDay,
-      last_training_date: new Date().toISOString()
-    };
-    
-    await supabase.from('user_programs').update({ program_state: newState, updated_at: new Date().toISOString() }).eq('id', activeUP.id);
-    
-    const nextDateStr = getNextTrainingDate(schedule, newState.last_training_date, newState.start_date);
-    let toastMsg = `加练完成！下次计划训练日：${nextDay}`;
-    if (nextDateStr) {
-      toastMsg = `加练完成！下次计划训练日：${nextDateStr}`;
-    }
-    setToast({ type: 'success', message: toastMsg });
-    await loadWorkoutData();
+    // 不直接推进 current_day，而是启动训练会话让用户正常打卡
+    setToast({ type: 'info', message: '加练模式已启动，完成打卡后训练进度将正常更新。' });
+    startTrainSession();
   };
 
   // 保存训练记录
@@ -418,7 +386,9 @@ function App() {
 
     const validateLastSet = (lastSet, method) => {
       if (['standard', 'reps_only', 'bodyweight_added', 'bodyweight_assisted'].includes(method)) {
-        const reps = getFinalReps(lastSet);
+        const raw = lastSet.actual_reps;
+        if (raw === '' || raw === undefined || raw === null) return false;
+        const reps = parseInt(raw, 10);
         return !isNaN(reps) && reps >= 0;
       }
       if (method === 'duration_only') return lastSet.duration_seconds > 0;
@@ -512,12 +482,7 @@ function App() {
 
     try {
       // 先插入 workouts，以便获取返回的 id 并关联到 workout_sets 和 one_rm_records
-      const { data: createdWorkouts, error: insertWorkoutsErr } = await supabase
-        .from('workouts')
-        .insert(workoutRecords)
-        .select('id, exercise, tier');
-
-      if (insertWorkoutsErr) throw insertWorkoutsErr;
+      const createdWorkouts = await saveWorkout(workoutRecords);
 
       const updatedSetsToInsert = setsToInsert.map(s => {
         const parent = (createdWorkouts || []).find(w => w.exercise === s.exercise && w.tier === s.tier);
@@ -527,18 +492,16 @@ function App() {
         };
       });
 
-      const { error: insertSetsErr } = await supabase
-        .from('workout_sets')
-        .insert(updatedSetsToInsert);
-
-      if (insertSetsErr) throw insertSetsErr;
+      await saveWorkoutSets(updatedSetsToInsert);
 
       // ============== 任务 6: 自动推算 + 写入 one_rm_records ==============
       // 规则: 4 个主项 (squat/bench/deadlift/press) T1 高强度组 (reps ≤ 5) 自动推算 1RM
       // 过滤: 如果新 e1rm < 当前 latest × 0.9, 视为脏数据跳过
       const MAIN_LIFTS = ['squat', 'bench', 'deadlift', 'press'];
-      const d = new Date();
-      const todayISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const todayISO = sessionState.sessionDate || (() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      })();
 
       // 收集符合条件的主项 e1rm 候选
       const candidates = [];
@@ -571,18 +534,12 @@ function App() {
       if (candidates.length > 0) {
         try {
           // 拉取每个主项当前最新 1RM 用于过滤
-          const { data: latestData, error: latestErr } = await supabase
-            .from('one_rm_records')
-            .select('exercise, e1rm_kg, date, source')
-            .in('exercise', candidates.map(c => c.exercise))
-            .order('date', { ascending: false });
+          const latestData = await fetchLatestOneRmForExercises(candidates.map(c => c.exercise));
 
-          if (latestErr) throw latestErr;
-
-          // 修正 Bug：按最新 date 取出每一个 exercise 的记录
+          // 按最新 date 取出每一个 exercise 的记录
           const latestByLift = {};
           (latestData || []).forEach(r => {
-            // 因为 SQL 中已经是 order('date', { ascending: false })，所以第一条遇到的就是最新的记录
+            // 因为已经在后端 order('date', { ascending: false })，所以第一条遇到的就是最新的记录
             if (!latestByLift[r.exercise]) {
               latestByLift[r.exercise] = r;
             }
@@ -622,13 +579,7 @@ function App() {
               source_workout_id: workoutMap[c.exercise] || null,
             }));
 
-            const { error: rmErr } = await supabase
-              .from('one_rm_records')
-              .insert(rowsToInsert);
-
-            if (rmErr) {
-              console.warn('写入 1RM 记录失败 (非阻塞):', rmErr.message);
-            }
+            await saveOneRmRecords(rowsToInsert);
           }
         } catch (e) {
           // 1RM 写入失败不阻塞主流程
@@ -644,7 +595,7 @@ function App() {
         current_day: nextDay,
         last_training_date: new Date().toISOString()
       };
-      await supabase.from('user_programs').update({ program_state: newState, updated_at: new Date().toISOString() }).eq('id', activeUP.id);
+      await saveUserProgram(activeUP.id, null, { program_state: newState, updated_at: new Date().toISOString() });
 
       const nextDateStr = getNextTrainingDate(schedule, newState.last_training_date, newState.start_date);
       let toastMsg = `保存成功！下次训练日为 ${nextDay}`;
@@ -656,7 +607,8 @@ function App() {
       setSessionState({
         isActive: false,
         isMinimized: false,
-        setsData: {}
+        setsData: {},
+        sessionDate: null
       });
 
       await loadWorkoutData();

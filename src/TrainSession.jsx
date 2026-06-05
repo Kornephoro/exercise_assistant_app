@@ -31,7 +31,9 @@ const FieldInput = ({ kind, value, onChange, placeholder = '' }) => {
         const cleaned = !isInt && raw.split('.').length > 2
           ? raw.slice(0, raw.lastIndexOf('.'))
           : raw;
-        onChange(cleaned === '' ? '' : (isInt ? parseInt(cleaned, 10) : parseFloat(cleaned)));
+        if (cleaned === '' || cleaned === '.') { onChange(''); return; }
+        const num = isInt ? parseInt(cleaned, 10) : parseFloat(cleaned);
+        onChange(isNaN(num) ? '' : num);
       }}
       onFocus={(e) => requestAnimationFrame(() => e.target.select())}
       onClick={(e) => e.target.select()}
@@ -39,7 +41,9 @@ const FieldInput = ({ kind, value, onChange, placeholder = '' }) => {
       onPaste={(e) => {
         const raw = (e.clipboardData.getData('text') || '').replace(isInt ? /\D/g : /[^\d.]/g, '').slice(0, maxLen);
         e.preventDefault();
-        onChange(raw === '' ? '' : (isInt ? parseInt(raw, 10) : parseFloat(raw)));
+        if (raw === '' || raw === '.') { onChange(''); return; }
+        const num = isInt ? parseInt(raw, 10) : parseFloat(raw);
+        onChange(isNaN(num) ? '' : num);
       }}
     />
   );
@@ -225,7 +229,7 @@ function TrainSession({
     setSessionState(prev => {
       const nextSets = (prev.setsData[exIndex] || []).map((set, sIdx) => {
         if (sIdx === setIndex) {
-          return { ...set, weight_kg: value === '' ? 0 : parseFloat(value) };
+          return { ...set, weight_kg: value === '' ? '' : parseFloat(value) };
         }
         return set;
       });
@@ -255,7 +259,7 @@ function TrainSession({
     setSessionState(prev => {
       const nextSets = (prev.setsData[exIndex] || []).map((set, sIdx) => {
         if (sIdx === setIndex) {
-          return { ...set, distance_meters: value === '' ? 0 : parseFloat(value) };
+          return { ...set, distance_meters: value === '' ? '' : parseFloat(value) };
         }
         return set;
       });

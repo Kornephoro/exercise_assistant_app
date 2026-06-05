@@ -62,17 +62,9 @@ function gzclpGetNextDay(config, lastDay, schedule, lastTrainingDate, startDate)
       }
     }
 
-    // 默认：简单轮转（不考虑日期）
+    // 无日期锚点时：简单轮转（例如首日启动）
     const lastDayIdx = days.indexOf(lastDay);
-    const positionInCycle = lastDayIdx % (trainDays + restDays);
-    if (positionInCycle < trainDays - 1) {
-      // 还在训练日内，推进到下一个训练日
-      return days[(lastDayIdx + 1) % days.length];
-    } else {
-      // 训练日结束，需要跳过休息日
-      const skipDays = restDays;
-      return days[(lastDayIdx + skipDays + 1) % days.length];
-    }
+    return days[(lastDayIdx + 1) % days.length];
   } else {
     // 每每周固定几天模式（原有逻辑）
     const idx = days.indexOf(lastDay);
@@ -227,7 +219,8 @@ function gzclpGetTierProgression(exercise, history, schemes, initialWeight, incr
   const currentScheme = safeSchemes[currentIdx];
 
   let nextWeight;
-  let nextIdx = currentIdx;
+  // all code paths below reassign nextIdx; initial value is a safety fallback
+  let nextIdx;
 
   // 判断成功/失败
   // 阈值优先级：传入参数（T3 按动作自定义）> 当前方案的 success_threshold（T2 自动推导）> 无（T1 按 AMRAP）
@@ -261,17 +254,24 @@ function gzclpGetTierProgression(exercise, history, schemes, initialWeight, incr
       // 自定义 chain 没有 fail_to 字段：失败时前进到 chain 下一阶段，末阶段循环
       if (safeSchemes.length > 1) {
         nextIdx = (currentIdx + 1) % safeSchemes.length;
+      } else {
+        // 单阶段 chain 且无 fail_to：保持原地（userChainToSchemes 总是设置 fail_to，此处为防御性兜底）
+        nextIdx = currentIdx;
       }
     }
   }
 
   const nextScheme = safeSchemes[nextIdx];
 
+  // 末阶段失败停滞标记：当 fail_to === -1 且失败时，用户可能陷入无限停滞
+  const stalled = !success && currentScheme.fail_to === -1;
+
   return {
     weight_kg: roundWeight(nextWeight),
     planned_reps: nextScheme.reps,
     scheme_text: gzclpGetSchemeText(nextScheme),
-    scheme_index: nextIdx
+    scheme_index: nextIdx,
+    stalled
   };
 }
 
@@ -360,13 +360,15 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier) {
   // T3
   if (dayConfig.T3) {
     const t3Exercises = Array.isArray(dayConfig.T3) ? dayConfig.T3 : [dayConfig.T3];
+    // 兜底：防止 config.t3_scheme 未定义时引擎崩溃
+    const defaultT3Scheme = { sets: 3, reps: 15, amrap_last: true, success_threshold: 25 };
+    const scheme = config.t3_scheme || defaultT3Scheme;
     for (const ex of t3Exercises) {
       const hist = (historyByExerciseTier[ex] && historyByExerciseTier[ex]['T3']) || [];
       const userEx = exConfig[ex] || {};
       const initWeight = userEx.initial_weight ?? config.default_weights?.[ex] ?? 10;
       const incr = userEx.increment_t3 ?? config.default_increment?.['T3'] ?? 2.5;
-      const threshold = userEx.target_reps ?? config.t3_scheme?.success_threshold ?? 25;
-      const scheme = config.t3_scheme;
+      const threshold = userEx.target_reps ?? scheme.success_threshold ?? 25;
       const result = gzclpGetTierProgression(ex, hist, [scheme], initWeight, incr, threshold);
 
       exercises.push({
@@ -388,6 +390,7 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier) {
   };
 }
 
+/** @deprecated 当前未被调用，保留供将来独立进阶计算场景使用 */
 function gzclpCalculateProgression(config, userProgram, exercise, tier, completedSets) {
   const scheme = tier === 'T1' ? config.t1_schemes
     : tier === 'T2' ? config.t2_schemes
@@ -429,7 +432,8 @@ function gzclpCalculateProgression(config, userProgram, exercise, tier, complete
 
 // ==================== Starting Strength 引擎（占位）====================
 
-function ssGetNextWorkout(config, userProgram) {
+function ssGetNextWorkout(config, userProgram, _historyByExerciseTier) {
+  void _historyByExerciseTier; // 统一接口签名，SS 引擎暂不使用历史数据
   const state = userProgram.program_state || {};
   const lastWorkout = state.last_workout || null;
   const cycleLength = config.cycle_length || 2;

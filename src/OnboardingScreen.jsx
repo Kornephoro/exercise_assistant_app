@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from './supabaseClient';
+import { saveUserProfile } from './services/profileService';
 import { 
   Dumbbell, 
   User, 
@@ -184,29 +184,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
         updated_at: new Date().toISOString()
       };
 
-      const { data: existingProfiles, error: queryError } = await supabase
-        .from('user_profiles')
-        .select('id')
-        .limit(1);
-
-      if (queryError) throw queryError;
-
-      let saveError;
-      if (existingProfiles && existingProfiles.length > 0) {
-        const targetId = existingProfiles[0].id;
-        const { error: updateError } = await supabase
-          .from('user_profiles')
-          .update(profileData)
-          .eq('id', targetId);
-        saveError = updateError;
-      } else {
-        const { error: insertError } = await supabase
-          .from('user_profiles')
-          .insert([profileData]);
-        saveError = insertError;
-      }
-
-      if (saveError) throw saveError;
+      await saveUserProfile(profileData);
 
       if (nickname.trim()) {
         localStorage.setItem('user_nickname', nickname.trim());

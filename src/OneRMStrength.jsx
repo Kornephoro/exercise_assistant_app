@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from './supabaseClient';
+import { fetchOneRmHistory, saveOneRmRecord, deleteOneRmRecord } from './services/workoutService';
 import { calcE1RM, FORMULA_LABEL, MAIN_LIFTS, pickLatestByLift } from './oneRmUtils';
 import { getCNName } from './exerciseNames';
 import { Loader2, Trash2, TrendingUp, Sparkles } from 'lucide-react';
@@ -51,12 +51,7 @@ function OneRMStrength({ onLatestChange }) {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: err } = await supabase
-        .from('one_rm_records')
-        .select('*')
-        .order('date', { ascending: false })
-        .order('created_at', { ascending: false });
-      if (err) throw err;
+      const data = await fetchOneRmHistory();
       setRecords(data || []);
     } catch (e) {
       setError('加载 1RM 记录失败：' + e.message);
@@ -96,7 +91,7 @@ function OneRMStrength({ onLatestChange }) {
     setError(null);
     setSaveMsg('');
     try {
-      const { error: err } = await supabase.from('one_rm_records').insert([{
+      await saveOneRmRecord({
         exercise: form.exercise,
         date: form.date,
         weight_kg: w,
@@ -104,8 +99,7 @@ function OneRMStrength({ onLatestChange }) {
         e1rm_kg: result.e1rm,
         formula: result.formula,
         source: 'manual',
-      }]);
-      if (err) throw err;
+      });
       setSaveMsg('✓ 1RM 记录已保存');
       setForm(prev => ({ ...prev, weight: '', reps: '' }));
       await load();
@@ -119,8 +113,7 @@ function OneRMStrength({ onLatestChange }) {
   const handleDelete = async (id) => {
     if (!window.confirm('确定删除这条 1RM 记录？')) return;
     try {
-      const { error: err } = await supabase.from('one_rm_records').delete().eq('id', id);
-      if (err) throw err;
+      await deleteOneRmRecord(id);
       await load();
     } catch (e) {
       setError('删除失败：' + e.message);

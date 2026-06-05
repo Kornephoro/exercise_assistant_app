@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from './supabaseClient';
+import { fetchWorkoutsForMonth, fetchWorkoutsForDay } from './services/workoutService';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, AlertCircle } from 'lucide-react';
 
 /**
@@ -44,14 +44,8 @@ function CalendarScreen({ getExerciseCNName }) {
       const startDate = new Date(year, month, 1, 0, 0, 0, 0).toISOString();
       const endDate = new Date(year, month + 1, 1, 0, 0, 0, 0).toISOString();
 
-      // 查询当月时间范围内的所有记录（只 select created_at 优化性能）
-      const { data, error: queryError } = await supabase
-        .from('workouts')
-        .select('created_at')
-        .gte('created_at', startDate)
-        .lt('created_at', endDate);
-
-      if (queryError) throw queryError;
+      // 查询当月时间范围内的所有记录
+      const data = await fetchWorkoutsForMonth(startDate, endDate);
 
       // 建立去重集合，且转换时也必须以用户本地时间为准！
       const localDays = new Set();
@@ -95,14 +89,7 @@ function CalendarScreen({ getExerciseCNName }) {
       const dayStart = new Date(currentYear, currentMonth, dayDate, 0, 0, 0, 0).toISOString();
       const dayEnd = new Date(currentYear, currentMonth, dayDate + 1, 0, 0, 0, 0).toISOString();
 
-      const { data, error: detailError } = await supabase
-        .from('workouts')
-        .select('*')
-        .gte('created_at', dayStart)
-        .lt('created_at', dayEnd)
-        .order('created_at', { ascending: true }); // 按创建时间排序
-
-      if (detailError) throw detailError;
+      const data = await fetchWorkoutsForDay(dayStart, dayEnd);
 
       setDayDetail(data || []);
 

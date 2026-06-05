@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { supabase } from './supabaseClient';
+import { saveUserProgram } from './services/programService';
 import { Search, ChevronRight, X, Users, Calendar, Zap, Target, BookOpen, Pause, Play, StopCircle, Settings, AlertTriangle } from 'lucide-react';
 import ProgramConfigScreen from './ProgramConfigScreen';
 import ExerciseLibrary from './ExerciseLibrary';
@@ -99,12 +99,10 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
       return;
     }
     setShowPauseConfirm(false);
-    const { error } = await supabase
-      .from('user_programs')
-      .update({ is_active: false, paused_at: new Date().toISOString() })
-      .eq('id', userProgramId);
-    if (error) {
-      onProgramError?.('暂停计划失败：' + error.message);
+    try {
+      await saveUserProgram(userProgramId, null, { is_active: false, paused_at: new Date().toISOString() });
+    } catch (err) {
+      onProgramError?.('暂停计划失败：' + err.message);
       return;
     }
     onProgramPaused?.(userProgramId);
@@ -118,12 +116,10 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
     // ① 立即通过父级乐观更新属性，单源真相
     optimisticUpdateUserProgram(userProgramId, { is_active: true, paused_at: null });
     // ② 异步写库 + 父级联动（切 today tab + loadWorkoutData）
-    const { error } = await supabase
-      .from('user_programs')
-      .update({ is_active: true, paused_at: null })
-      .eq('id', userProgramId);
-    if (error) {
-      onProgramError?.('恢复计划失败：' + error.message);
+    try {
+      await saveUserProgram(userProgramId, null, { is_active: true, paused_at: null });
+    } catch (err) {
+      onProgramError?.('恢复计划失败：' + err.message);
       return;
     }
     onProgramResumed?.(userProgramId);
@@ -137,12 +133,10 @@ function PlanScreen({ programs, userPrograms, exercisesMap, onProgramStarted, on
     }
     setShowEndConfirm(false);
     setSelectedActiveProgramId(null);
-    const { error } = await supabase
-      .from('user_programs')
-      .update({ is_active: false, ended_at: new Date().toISOString() })
-      .eq('id', userProgramId);
-    if (error) {
-      onProgramError?.('结束计划失败：' + error.message);
+    try {
+      await saveUserProgram(userProgramId, null, { is_active: false, ended_at: new Date().toISOString() });
+    } catch (err) {
+      onProgramError?.('结束计划失败：' + err.message);
       return;
     }
     onProgramEnded?.(userProgramId);

@@ -1,5 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from './supabaseClient';
+import {
+  fetchActiveUserProgram,
+  fetchLastEndedUserProgram,
+  fetchExercises,
+  fetchOneRmRecords,
+  saveUserProgram
+} from './services/programService';
 import { Loader2, ArrowLeft, Save, ShieldAlert, CheckCircle, Scale, Zap, Dumbbell, Search, Calendar, Sparkles } from 'lucide-react';
 import { convertWeight, toStorageWeight } from './unitUtils';
 import { deriveStartFromOneRm } from './oneRmUtils';
@@ -13,11 +19,7 @@ function useLatestOneRms() {
     let cancelled = false;
     (async () => {
       try {
-        const { data, error } = await supabase
-          .from('one_rm_records')
-          .select('exercise, e1rm_kg, date, weight_kg, reps, formula, source')
-          .order('date', { ascending: false });
-        if (error) throw error;
+        const data = await fetchOneRmRecords();
         if (cancelled) return;
         const map = {};
         (data || []).forEach(r => {
@@ -256,7 +258,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
   // 训练日程（weekly 模式）
   const [trainingDays, setTrainingDays] = useState(() => {
     const saved = localStorage.getItem('training_days');
-    if (saved) { try { return JSON.parse(saved); } catch { /* ignore */ } }
+    if (saved) { try { return JSON.parse(saved); } catch (e) { console.warn('解析本地训练日程缓存失败:', e); } }
     return ['Monday', 'Wednesday', 'Friday', 'Saturday'];
   });
 
@@ -340,27 +342,19 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
     setError(null);
     try {
       // 并行加载：user_programs 当前活跃配置 + 动作库
-      const [upActiveRes, exRes] = await Promise.all([
-        supabase.from('user_programs').select('id, exercise_config, schedule, day_map').eq('program_id', program.id).eq('is_active', true).limit(1),
-        supabase.from('exercises').select('id, name, name_cn, primary_muscles, secondary_muscles, equipment').order('name')
+      const [existingActive, exRes] = await Promise.all([
+        fetchActiveUserProgram(program.id),
+        fetchExercises()
       ]);
 
-      if (upActiveRes.error) throw upActiveRes.error;
-      if (exRes.error) console.warn('加载动作库失败:', exRes.error.message);
-
-      let existingUP = upActiveRes.data?.[0];
+      let existingUP = existingActive;
       let isExistingActive = !!existingUP;
 
       // 如果当前没有活跃的计划，尝试拉取最后一次结束的计划配置用于“数据回填”
       if (!existingUP) {
-        const { data: pastUPs } = await supabase
-          .from('user_programs')
-          .select('exercise_config, schedule, day_map')
-          .eq('program_id', program.id)
-          .order('updated_at', { ascending: false })
-          .limit(1);
-        if (pastUPs?.length) {
-          existingUP = pastUPs[0];
+        const pastUP = await fetchLastEndedUserProgram(program.id);
+        if (pastUP) {
+          existingUP = pastUP;
         }
       }
 
@@ -374,7 +368,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
       }
 
       // 加载动作库
-      setExercises(exRes.data || []);
+      setExercises(exRes || []);
 
       // 从 exercise_config 加载 T3 动作配置
       const t3Names = Object.keys(ec).filter(key =>
@@ -638,7 +632,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
       for (const day of dayTemplate) {
         updatedDayMap[day.label] = {
           ...program.config?.day_map?.[day.label],
-          T3: day.t3 || []
+          T3: (day.t3 || []).filter(name => name && name.trim())
         };
       }
 
@@ -664,13 +658,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting }) {
         updated_at: new Date().toISOString()
       };
 
-      let result;
-      if (userProgramId) {
-        result = await supabase.from('user_programs').update(upData).eq('id', userProgramId);
-      } else {
-        result = await supabase.from('user_programs').insert([{ program_id: program.id, ...upData }]);
-      }
-      if (result.error) throw result.error;
+      await saveUserProgram(userProgramId, program.id, upData);
 
       localStorage.setItem('training_days', JSON.stringify(trainingDays));
       setSuccessMsg('配置保存成功！今日建议重量已同步刷新。');
@@ -1286,6 +1274,9 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
   const [trainDays, setTrainDays] = useState(1);
   const [restDays, setRestDays] = useState(1);
 
+  // 开始日期（与 GzclpConfig 对齐，确保非 GZCLP 计划也有正确的训练日判断）
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+
   const allExercises = new Set();
   if (config.day_map) {
     Object.values(config.day_map).forEach(day => {
@@ -1311,7 +1302,7 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
 
   const [trainingDays, setTrainingDays] = useState(() => {
     const saved = localStorage.getItem('training_days');
-    if (saved) { try { return JSON.parse(saved); } catch { /* ignore */ } }
+    if (saved) { try { return JSON.parse(saved); } catch (e) { console.warn('解析本地训练日程缓存失败:', e); } }
     return ['Monday', 'Wednesday', 'Friday', 'Saturday'];
   });
 
@@ -1324,45 +1315,38 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
 
   useEffect(() => {
     const loadExisting = async () => {
-      // 1. 先查找当前活跃的计划订阅
-      let { data } = await supabase
-        .from('user_programs')
-        .select('id, exercise_config, schedule')
-        .eq('program_id', program.id)
-        .eq('is_active', true)
-        .limit(1);
-      
-      let existingUP = data?.[0];
-      let isExistingActive = !!existingUP;
+      try {
+        // 1. 先查找当前活跃的计划订阅
+        const existingActive = await fetchActiveUserProgram(program.id);
+        let existingUP = existingActive;
+        let isExistingActive = !!existingUP;
 
-      // 2. 如果没有活跃订阅，寻找最近一次结束的订阅进行配置回填
-      if (!existingUP) {
-        const { data: pastUPs } = await supabase
-          .from('user_programs')
-          .select('exercise_config, schedule')
-          .eq('program_id', program.id)
-          .order('updated_at', { ascending: false })
-          .limit(1);
-        if (pastUPs?.length) {
-          existingUP = pastUPs[0];
+        // 2. 如果没有活跃订阅，寻找最近一次结束的订阅进行配置回填
+        if (!existingUP) {
+          const pastUP = await fetchLastEndedUserProgram(program.id);
+          if (pastUP) {
+            existingUP = pastUP;
+          }
         }
-      }
 
-      if (existingUP) {
-        if (isExistingActive) {
-          setUserProgramId(existingUP.id);
-        } else {
-          setUserProgramId(null); // 全新订阅，执行写入
+        if (existingUP) {
+          if (isExistingActive) {
+            setUserProgramId(existingUP.id);
+          } else {
+            setUserProgramId(null); // 全新订阅，执行写入
+          }
+          if (existingUP.exercise_config) {
+            setExerciseConfig(existingUP.exercise_config);
+          }
+          if (existingUP.schedule) {
+            if (existingUP.schedule.scheduleType) setScheduleType(existingUP.schedule.scheduleType);
+            if (existingUP.schedule.trainDays) setTrainDays(existingUP.schedule.trainDays);
+            if (existingUP.schedule.restDays) setRestDays(existingUP.schedule.restDays);
+            if (existingUP.schedule.training_days) setTrainingDays(existingUP.schedule.training_days);
+          }
         }
-        if (existingUP.exercise_config) {
-          setExerciseConfig(existingUP.exercise_config);
-        }
-        if (existingUP.schedule) {
-          if (existingUP.schedule.scheduleType) setScheduleType(existingUP.schedule.scheduleType);
-          if (existingUP.schedule.trainDays) setTrainDays(existingUP.schedule.trainDays);
-          if (existingUP.schedule.restDays) setRestDays(existingUP.schedule.restDays);
-          if (existingUP.schedule.training_days) setTrainingDays(existingUP.schedule.training_days);
-        }
+      } catch (err) {
+        console.warn('加载历史配置失败:', err.message);
       }
     };
     loadExisting();
@@ -1373,7 +1357,11 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
     setError(null);
     try {
       const dayKeys = config.day_map ? Object.keys(config.day_map) : ['A'];
-      const initialState = { current_day: dayKeys[0] };
+      const initialState = {
+        current_day: dayKeys[0],
+        start_date: startDate,
+        last_training_date: startDate
+      };
 
       const schedule = scheduleType === 'weekly'
         ? { scheduleType: 'weekly', training_days: trainingDays }
@@ -1388,13 +1376,7 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
         updated_at: new Date().toISOString()
       };
 
-      let result;
-      if (userProgramId) {
-        result = await supabase.from('user_programs').update(upData).eq('id', userProgramId);
-      } else {
-        result = await supabase.from('user_programs').insert([{ program_id: program.id, ...upData }]);
-      }
-      if (result.error) throw result.error;
+      await saveUserProgram(userProgramId, program.id, upData);
 
       localStorage.setItem('training_days', JSON.stringify(trainingDays));
       if (onActivated) onActivated();
@@ -1488,6 +1470,19 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
         )}
       </div>
 
+      {/* 开始日期（与 GzclpConfig 对齐） */}
+      <div className="card flex flex-col gap-3">
+        <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
+          <Calendar size={16} className="text-primary" /><span>开始日期</span>
+        </h3>
+        <input type="date"
+          className="input input-bordered w-full bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary"
+          value={startDate}
+          min={new Date().toISOString().split('T')[0]}
+          onChange={(e) => setStartDate(e.target.value)}
+        />
+      </div>
+
       <div className="card flex flex-col gap-4">
         <h4 className="text-sm font-bold text-text-main dark:text-text-main-dark select-none">首训默认重量 (kg)</h4>
         <div className="grid grid-cols-2 gap-3">
@@ -1527,12 +1522,12 @@ function ProgramConfigScreen({ program, exercisesMap, onBack, onProgramStarted }
 
   useEffect(() => {
     const checkActive = async () => {
-      const { data } = await supabase
-        .from('user_programs')
-        .select('is_active')
-        .eq('program_id', program.id)
-        .limit(1);
-      setIsActive(!!data?.[0]?.is_active);
+      try {
+        const active = await fetchActiveUserProgram(program.id);
+        setIsActive(!!active);
+      } catch (err) {
+        console.warn('Check active program failed:', err);
+      }
     };
     checkActive();
   }, [program.id]);

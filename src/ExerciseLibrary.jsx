@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from './supabaseClient';
+import { fetchExercisesForLibrary } from './services/programService';
 import {
   Loader2, Search, ChevronDown, ChevronRight, X,
   ShieldAlert, Filter
@@ -29,12 +29,7 @@ function ExerciseLibrary() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: fetchErr } = await supabase
-        .from('exercises')
-        .select('*')
-        .order('movement_pattern', { ascending: true })
-        .order('name', { ascending: true });
-      if (fetchErr) throw fetchErr;
+      const data = await fetchExercisesForLibrary();
       setExercises(data || []);
     } catch (err) {
       setError('加载动作库失败：' + err.message);

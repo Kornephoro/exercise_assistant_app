@@ -1,22 +1,25 @@
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from './supabaseClient';
+import {
+  fetchDietLog,
+  saveDietLog,
+  deleteDietLog,
+  fetchHistoryDietLogs,
+  saveUserNutritionConfig
+} from './services/dietService';
 import {
   calcCalorieBudget,
   calcMacronutrientTargets,
   auditNutritionSafety,
-  getAiDietTuneUp,
-  calcBMR,
-  STRENGTH_ENERGY_COST
+  getAiDietTuneUp
 } from './dietUtils';
 import {
-  WEIGHT_LEVELS,
   AEROBIC_DATA,
   getAerobicKcal,
   formatSubtypeDisplay
 } from './aerobicData';
 import {
-  Utensils, Save, Loader2, Plus, Trash2, ShieldAlert,
-  HelpCircle, Sparkles, RefreshCw, Flame, Heart, Calendar, FileText, Eye
+  Utensils, Save, Loader2, Trash2, ShieldAlert,
+  Sparkles, Flame, Calendar, FileText, Eye
 } from 'lucide-react';
 
 function DietScreen({
@@ -26,7 +29,6 @@ function DietScreen({
   isRestDay,
   onRefreshDiet
 }) {
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -63,25 +65,27 @@ function DietScreen({
   // 从传入配置同步本地表单状态
   useEffect(() => {
     if (userNutritionConfig) {
-      setConfigForm({
-        neat_tef_factor: parseFloat(userNutritionConfig.neat_tef_factor) || 1.10,
-        strength_level: userNutritionConfig.strength_level || 'beginner',
-        custom_strength_kcal: parseInt(userNutritionConfig.custom_strength_kcal, 10) || 0,
-        cardio_weekly_kcal: parseInt(userNutritionConfig.cardio_weekly_kcal, 10) || 0,
-        deficit_slider: parseFloat(userNutritionConfig.deficit_slider) || 0.80,
-        plan_type: userNutritionConfig.plan_type || 'split',
-        calc_mode: userNutritionConfig.calc_mode || 'ratio',
-        ratio_carbs: parseInt(userNutritionConfig.ratio_carbs, 10) || 50,
-        ratio_protein: parseInt(userNutritionConfig.ratio_protein, 10) || 30,
-        ratio_fat: parseInt(userNutritionConfig.ratio_fat, 10) || 20,
-        multiple_config: userNutritionConfig.multiple_config || {
-          strength_day: { carbs: 3.0, protein: 2.0, fat: 0.8 },
-          rest_day: { carbs: 1.5, protein: 2.0, fat: 0.8 }
-        },
-        custom_config: userNutritionConfig.custom_config || {
-          strength_day: { carbs: 250, protein: 140, fat: 60 },
-          rest_day: { carbs: 180, protein: 140, fat: 50 }
-        }
+      Promise.resolve().then(() => {
+        setConfigForm({
+          neat_tef_factor: parseFloat(userNutritionConfig.neat_tef_factor) || 1.10,
+          strength_level: userNutritionConfig.strength_level || 'beginner',
+          custom_strength_kcal: parseInt(userNutritionConfig.custom_strength_kcal, 10) || 0,
+          cardio_weekly_kcal: parseInt(userNutritionConfig.cardio_weekly_kcal, 10) || 0,
+          deficit_slider: parseFloat(userNutritionConfig.deficit_slider) || 0.80,
+          plan_type: userNutritionConfig.plan_type || 'split',
+          calc_mode: userNutritionConfig.calc_mode || 'ratio',
+          ratio_carbs: parseInt(userNutritionConfig.ratio_carbs, 10) || 50,
+          ratio_protein: parseInt(userNutritionConfig.ratio_protein, 10) || 30,
+          ratio_fat: parseInt(userNutritionConfig.ratio_fat, 10) || 20,
+          multiple_config: userNutritionConfig.multiple_config || {
+            strength_day: { carbs: 3.0, protein: 2.0, fat: 0.8 },
+            rest_day: { carbs: 1.5, protein: 2.0, fat: 0.8 }
+          },
+          custom_config: userNutritionConfig.custom_config || {
+            strength_day: { carbs: 250, protein: 140, fat: 60 },
+            rest_day: { carbs: 180, protein: 140, fat: 50 }
+          }
+        });
       });
     }
   }, [userNutritionConfig]);
@@ -105,13 +109,16 @@ function DietScreen({
     });
   }, []);
 
-  const [calcCategory, setCalcCategory] = useState(categoryMap[0]?.raw || '跑步');
+  const initialCategory = categoryMap[0]?.raw || '跑步';
+  const [calcCategory, setCalcCategory] = useState(initialCategory);
 
   const subtypes = useMemo(() => {
     return AEROBIC_DATA.filter(a => a.category === calcCategory).map(a => a.subtype);
   }, [calcCategory]);
 
-  const [calcSubtype, setCalcSubtype] = useState('6');
+  const [calcSubtype, setCalcSubtype] = useState(() => {
+    return AEROBIC_DATA.find(a => a.category === initialCategory)?.subtype || '';
+  });
   const [calcDuration, setCalcDuration] = useState('');
   const [calcFrequency, setCalcFrequency] = useState('3');
 
@@ -120,11 +127,6 @@ function DietScreen({
     const firstSub = AEROBIC_DATA.find(a => a.category === cat)?.subtype || '';
     setCalcSubtype(firstSub);
   };
-
-  useEffect(() => {
-    const firstSub = AEROBIC_DATA.find(a => a.category === calcCategory)?.subtype || '';
-    setCalcSubtype(firstSub);
-  }, [calcCategory]);
 
   const computedCardioKcal = useMemo(() => {
     let weeklySum = 0;
@@ -205,13 +207,7 @@ function DietScreen({
   // 加载某一天的对账数据
   const fetchAuditLog = async (targetDate) => {
     try {
-      const { data, error } = await supabase
-        .from('diet_logs')
-        .select('*')
-        .eq('date', targetDate)
-        .maybeSingle();
-
-      if (error) throw error;
+      const data = await fetchDietLog(targetDate);
 
       if (data) {
         setAuditDayType(data.day_type);
@@ -256,13 +252,7 @@ function DietScreen({
   const fetchHistoryLogs = async () => {
     try {
       setHistoryLoading(true);
-      const { data, error } = await supabase
-        .from('diet_logs')
-        .select('*')
-        .order('date', { ascending: false })
-        .limit(7);
-
-      if (error) throw error;
+      const data = await fetchHistoryDietLogs(7);
 
       const processed = (data || []).map(row => {
         const isStrDay = configForm.plan_type === 'unified' ? true : (row.day_type === 'strength_day');
@@ -311,18 +301,23 @@ function DietScreen({
 
   useEffect(() => {
     if (auditDate) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchAuditLog(auditDate);
     }
   }, [auditDate]);
 
   useEffect(() => {
     if (auditDate === todayDateStr && !isAuditDayTypeManuallySet) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAuditDayType(isRestDay ? 'rest_day' : 'strength_day');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRestDay, auditDate, isAuditDayTypeManuallySet]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchHistoryLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userNutritionConfig]);
 
   const actualValues = useMemo(() => {
@@ -397,11 +392,7 @@ function DietScreen({
         updated_at: new Date().toISOString()
       };
 
-      const { error } = await supabase
-        .from('diet_logs')
-        .upsert(payload, { onConflict: 'date' });
-
-      if (error) throw error;
+      await saveDietLog(payload);
 
       setSuccessMsg('🎉 每日饮食实际摄入对账数据保存成功！');
       setTimeout(() => setSuccessMsg(''), 3000);
@@ -421,12 +412,7 @@ function DietScreen({
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      const { error } = await supabase
-        .from('diet_logs')
-        .delete()
-        .eq('date', targetDate);
-
-      if (error) throw error;
+      await deleteDietLog(targetDate);
 
       setSuccessMsg(`✓ 已删除 ${targetDate} 的对账记录。`);
       setTimeout(() => setSuccessMsg(''), 3000);
@@ -492,15 +478,14 @@ function DietScreen({
           fat: suggestion.fat
         },
         rest_day: {
-          carbs: Math.max(50, Math.round(suggestion.carbs * 0.7)),
-          protein: suggestion.protein,
-          fat: Math.max(30, suggestion.fat - 5)
+          // 保留休息日原有配置，AI 建议仅针对力训日进行调整
+          ...prev.custom_config.rest_day
         }
       }
     }));
     setAiTuneResult(null);
     setAiFeedbackType('');
-    setSuccessMsg('✓ AI 饮食建议已填充入自定义克数表单（点击最下方按钮以保存激活）');
+    setSuccessMsg('✓ AI 饮食建议已填充入自定义克数表单（仅调整力训日，休息日保持原配置。点击最下方按钮以保存激活）');
     setTimeout(() => setSuccessMsg(''), 4000);
   };
 
@@ -517,19 +502,7 @@ function DietScreen({
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      await supabase
-        .from('user_nutrition_configs')
-        .update({ is_active: false })
-        .eq('is_active', true);
-
-      const { error: insertErr } = await supabase
-        .from('user_nutrition_configs')
-        .insert([{
-          ...configForm,
-          is_active: true
-        }]);
-
-      if (insertErr) throw insertErr;
+      await saveUserNutritionConfig(configForm);
 
       setSuccessMsg('🎉 饮食核算方案已成功激活！今日对账将以此为准。');
       setTimeout(() => setSuccessMsg(''), 3000);
@@ -543,6 +516,10 @@ function DietScreen({
 
   // 合并安全审查警告
   const mergedAudits = useMemo(() => {
+    // 统一计划下力训日与休息日预算相同，只显示一份审查，避免误导性重复警告
+    if (configForm.plan_type === 'unified') {
+      return strengthDayStats.audits;
+    }
     const list = [...strengthDayStats.audits];
     restDayStats.audits.forEach(ra => {
       if (!list.find(la => la.message === ra.message)) {
@@ -550,7 +527,7 @@ function DietScreen({
       }
     });
     return list;
-  }, [strengthDayStats.audits, restDayStats.audits]);
+  }, [strengthDayStats.audits, restDayStats.audits, configForm.plan_type]);
 
   return (
     <div className="flex flex-col gap-8 animate-fadeIn pb-12">

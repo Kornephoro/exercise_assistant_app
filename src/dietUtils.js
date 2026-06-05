@@ -66,7 +66,7 @@ export function calcCalorieBudget(profile, currentWeight, config, isStrengthDay 
   const baseMetabolism = bmr * neatFactor; // 无运动能耗
 
   // 1. 力量训练能耗
-  let strengthCost = 0;
+  let strengthCost;
   const level = config?.strength_level || 'beginner';
   if (level === 'custom') {
     strengthCost = parseInt(config?.custom_strength_kcal, 10) || 0;
@@ -81,7 +81,7 @@ export function calcCalorieBudget(profile, currentWeight, config, isStrengthDay 
   // 3. 计算 TDEE
   // 如果是分日计划 (Split)，训练日加力训消耗，休息日不加
   // 如果是统一计划 (Unified)，力训消耗折算均值：每周以 4 天力训（GZCLP常规）计算均值，即 strengthCost * 4 / 7
-  let activeStrengthCost = 0;
+  let activeStrengthCost;
   if (config?.plan_type === 'unified') {
     activeStrengthCost = (strengthCost * 4) / 7;
   } else {
@@ -112,10 +112,10 @@ export function calcMacronutrientTargets(calorieBudget, currentWeight, config, i
   const mode = config?.calc_mode || 'ratio';
   const dayKey = isStrengthDay ? 'strength_day' : 'rest_day';
 
-  let carbs = 0;
-  let protein = 0;
-  let fat = 0;
-  let totalKcal = 0;
+  let carbs;
+  let protein;
+  let fat;
+  let totalKcal;
 
   if (mode === 'ratio') {
     // 占比法
@@ -202,29 +202,29 @@ export function auditNutritionSafety(totalKcal, bmr, proteinG, fatG, currentWeig
  * @returns {Object} 优化建议克数及推荐解释
  */
 export function getAiDietTuneUp(feedbackType, currentGrams) {
-  const c = parseInt(currentGrams?.carbs, 10) || 200;
-  const p = parseInt(currentGrams?.protein, 10) || 120;
-  const f = parseInt(currentGrams?.fat, 10) || 50;
+  const carbsVal = parseInt(currentGrams?.carbs, 10) || 200;
+  const proteinVal = parseInt(currentGrams?.protein, 10) || 120;
+  const fatVal = parseInt(currentGrams?.fat, 10) || 50;
 
   switch (feedbackType) {
     case 'difficult':
       return {
-        suggestion: { carbs: c + 40, protein: p, fat: f },
+        suggestion: { carbs: carbsVal + 40, protein: proteinVal, fat: fatVal },
         reason: '💡 检测到您近期训练体感偏疲惫或体重下降过快。AI 建议：上调 40g 碳水化合物以迅速补足肌糖原，改善运动体能与中枢疲劳。蛋白质和脂肪建议锁定不动。',
       };
     case 'plateau':
       return {
-        suggestion: { carbs: Math.max(80, c - 30), protein: p, fat: f },
+        suggestion: { carbs: Math.max(80, carbsVal - 30), protein: proteinVal, fat: fatVal },
         reason: '💡 检测到您近期减脂进度停滞（进入平台期）。AI 建议：在保留高蛋白质防御肌肉流失的前提下，温和下调 30g 碳水化合物，制造微量的额外热量缺口打破平台。',
       };
     case 'gain':
       return {
-        suggestion: { carbs: c + 60, protein: p + 10, fat: f },
+        suggestion: { carbs: carbsVal + 60, protein: proteinVal + 10, fat: fatVal },
         reason: '💡 检测到您转为增肌/增力期，需要合成代谢热量。AI 建议：大幅上调 60g 碳水化合物以充盈合成代谢环境，并上调 10g 蛋白质作为肌纤维肥大的原料。',
       };
     default:
       return {
-        suggestion: { carbs: c, protein: p, fat: f },
+        suggestion: { carbs: carbsVal, protein: proteinVal, fat: fatVal },
         reason: '维持当前营养配比。',
       };
   }

@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
-import { supabase } from './supabaseClient';
 import { calcCalorieBudget, calcMacronutrientTargets } from './dietUtils';
+import { saveDietLog } from './services/dietService';
+import { saveBodyMetrics } from './services/bodyService';
+import { getBmiInfo, getWhtrInfo } from './healthUtils';
 import { Play, RotateCcw, CheckCircle, Heart, Utensils, Calendar, ChevronDown, ArrowRight, SkipForward, Flag, Loader2, Zap } from 'lucide-react';
 
 const TIER_COLORS = {
@@ -30,7 +32,10 @@ function TodayScreen({
   daysUntilStart = 0,
   userProfile = null,
   todayBodyMetrics = null,
-  onRefreshBodyMetrics
+  onRefreshBodyMetrics,
+  todayDietLog,
+  userNutritionConfig,
+  onRefreshDiet
 }) {
   const [showProgramSwitcher, setShowProgramSwitcher] = useState(false);
   const [showSkipModal, setShowSkipModal] = useState(false);
@@ -148,29 +153,7 @@ function TodayScreen({
         updated_at: new Date().toISOString()
       };
 
-      const { data: existing, error: queryErr } = await supabase
-        .from('diet_logs')
-        .select('id')
-        .eq('date', todayISOString)
-        .limit(1);
-
-      if (queryErr) throw queryErr;
-
-      let saveErr;
-      if (existing && existing.length > 0) {
-        const { error: updateErr } = await supabase
-          .from('diet_logs')
-          .update(entry)
-          .eq('id', existing[0].id);
-        saveErr = updateErr;
-      } else {
-        const { error: insertErr } = await supabase
-          .from('diet_logs')
-          .insert([entry]);
-        saveErr = insertErr;
-      }
-
-      if (saveErr) throw saveErr;
+      await saveDietLog(entry);
 
       setIsEditingDiet(false);
       if (onRefreshDiet) {
@@ -219,7 +202,7 @@ function TodayScreen({
             <button
               type="button"
               className="btn-aux text-primary bg-transparent hover:bg-bg-hover dark:hover:bg-bg-hover-dark font-bold"
-              onClick={() => setIsEditingDiet(true)}
+              onClick={startEditingDiet}
             >
               修改对账
             </button>
@@ -417,48 +400,7 @@ function TodayScreen({
     );
   };
 
-  // BMI/WHtR 评估计算辅助函数
-  const getBmiInfo = (w, h) => {
-    if (!w || !h) return null;
-    const bmi = w / ((h / 100) ** 2);
-    let label = '标准';
-    let badgeColor = 'bg-green-500/10 text-green-500 border-green-500/20';
-    if (bmi < 18.5) {
-      label = '偏瘦';
-      badgeColor = 'bg-blue-500/10 text-blue-500 border-blue-500/20';
-    } else if (bmi < 24) {
-      label = '标准';
-      badgeColor = 'bg-green-500/10 text-green-500 border-green-500/20';
-    } else if (bmi < 28) {
-      label = '超重';
-      badgeColor = 'bg-amber-500/10 text-amber-500 border-amber-500/20';
-    } else {
-      label = '肥胖';
-      badgeColor = 'bg-red-500/10 text-red-500 border-red-500/20';
-    }
-    return { bmi: bmi.toFixed(1), label, badgeColor };
-  };
-
-  const getWhtrInfo = (waistCm, heightCm) => {
-    if (!waistCm || !heightCm) return null;
-    const whtr = waistCm / heightCm;
-    let label = '理想';
-    let badgeColor = 'bg-green-500/10 text-green-500 border-green-500/20';
-    if (whtr < 0.46) {
-      label = '消瘦';
-      badgeColor = 'bg-blue-500/10 text-blue-500 border-blue-500/20';
-    } else if (whtr < 0.51) {
-      label = '理想';
-      badgeColor = 'bg-green-500/10 text-green-500 border-green-500/20';
-    } else if (whtr < 0.57) {
-      label = '超重';
-      badgeColor = 'bg-amber-500/10 text-amber-500 border-amber-500/20';
-    } else {
-      label = '腹部肥胖';
-      badgeColor = 'bg-red-500/10 text-red-500 border-red-500/20';
-    }
-    return { whtr: whtr.toFixed(3), label, badgeColor };
-  };
+  // BMI/WHtR 评估计算辅助函数已由 healthUtils 导入
 
   const liveBmi = useMemo(() => {
     if (!weight || !userProfile?.height_cm) return null;
@@ -495,29 +437,7 @@ function TodayScreen({
         updated_at: new Date().toISOString()
       };
 
-      const { data: existing, error: queryErr } = await supabase
-        .from('body_metrics')
-        .select('id')
-        .eq('date', todayISOString)
-        .limit(1);
-
-      if (queryErr) throw queryErr;
-
-      let saveErr;
-      if (existing && existing.length > 0) {
-        const { error: updateErr } = await supabase
-          .from('body_metrics')
-          .update(entry)
-          .eq('id', existing[0].id);
-        saveErr = updateErr;
-      } else {
-        const { error: insertErr } = await supabase
-          .from('body_metrics')
-          .insert([entry]);
-        saveErr = insertErr;
-      }
-
-      if (saveErr) throw saveErr;
+      await saveBodyMetrics(entry);
 
       setIsEditingBody(false);
       if (onRefreshBodyMetrics) {
@@ -1063,7 +983,7 @@ function TodayScreen({
         <dialog className="modal modal-open">
           <div className="modal-box">
             <h3 className="font-bold text-lg">今天想加练？</h3>
-            <p className="py-4 text-sm text-text-secondary">今天是休息日，加练会影响恢复。确定要开始吗？加练后计划将顺延至下一个训练日。</p>
+            <p className="py-4 text-sm text-text-secondary">今天是休息日，加练会影响恢复。确定要开始吗？点击确认后将进入训练打卡界面。</p>
             <div className="modal-action">
               <button className="btn-sec px-5" onClick={() => setShowExtraModal(false)}>取消</button>
               <button className="btn-main px-5" onClick={() => { onExtraTraining(); setShowExtraModal(false); }}>确认加练</button>

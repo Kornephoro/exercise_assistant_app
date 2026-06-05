@@ -1,6 +1,13 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { supabase } from './supabaseClient';
-import { Heart, Save, Loader2, Activity, Zap, Trash2, ShieldAlert } from 'lucide-react';
+import {
+  fetchUserHeight,
+  saveBodyMetrics,
+  deleteBodyMetrics,
+  fetchHistoryBodyMetrics,
+  bulkInsertBodyMetrics
+} from './services/bodyService';
+import { getBmiInfo, getWhtrInfo } from './healthUtils';
+import { Heart, Loader2, Activity, Zap, Trash2, ShieldAlert } from 'lucide-react';
 
 const STORAGE_KEY = 'body_metrics_history';
 
@@ -37,49 +44,7 @@ const getBezierPath = (points) => {
   return path;
 };
 
-// BMI 评估计算
-const getBmiInfo = (weight, heightCm) => {
-  if (!weight || !heightCm) return null;
-  const bmi = weight / ((heightCm / 100) ** 2);
-  let label = '未知';
-  let badgeColor = 'bg-gray-500/10 text-gray-500 border-gray-500/20';
-  if (bmi < 18.5) {
-    label = '偏瘦';
-    badgeColor = 'bg-blue-500/10 text-blue-500 border-blue-500/20';
-  } else if (bmi < 24) {
-    label = '标准';
-    badgeColor = 'bg-green-500/10 text-green-500 border-green-500/20';
-  } else if (bmi < 28) {
-    label = '超重';
-    badgeColor = 'bg-amber-500/10 text-amber-500 border-amber-500/20';
-  } else {
-    label = '肥胖';
-    badgeColor = 'bg-red-500/10 text-red-500 border-red-500/20';
-  }
-  return { bmi: bmi.toFixed(1), label, badgeColor };
-};
-
-// WHtR 评估计算 (腰围身高比)
-const getWhtrInfo = (waistCm, heightCm) => {
-  if (!waistCm || !heightCm) return null;
-  const whtr = waistCm / heightCm;
-  let label = '未知';
-  let badgeColor = 'bg-gray-500/10 text-gray-500 border-gray-500/20';
-  if (whtr < 0.46) {
-    label = '消瘦';
-    badgeColor = 'bg-blue-500/10 text-blue-500 border-blue-500/20';
-  } else if (whtr < 0.51) {
-    label = '理想';
-    badgeColor = 'bg-green-500/10 text-green-500 border-green-500/20';
-  } else if (whtr < 0.57) {
-    label = '超重';
-    badgeColor = 'bg-amber-500/10 text-amber-500 border-amber-500/20';
-  } else {
-    label = '腹部肥胖';
-    badgeColor = 'bg-red-500/10 text-red-500 border-red-500/20';
-  }
-  return { whtr: whtr.toFixed(3), label, badgeColor };
-};
+// BMI/WHtR 评估计算已从 healthUtils 导入
 
 function BodyMetrics() {
   const [history, setHistory] = useState([]);
@@ -104,32 +69,18 @@ function BodyMetrics() {
 
   // 1. 加载身体指标历史数据与用户画像
   const loadData = async () => {
+    await Promise.resolve();
     setLoading(true);
     setErrorMsg('');
     try {
       // 获取用户身高画像
-      const { data: profileData, error: profileErr } = await supabase
-        .from('user_profiles')
-        .select('height_cm')
-        .limit(1);
-      if (profileErr) throw profileErr;
-      if (profileData && profileData.length > 0) {
-        setUserHeight(profileData[0].height_cm);
+      const height = await fetchUserHeight();
+      if (height) {
+        setUserHeight(height);
       }
 
       // 获取云端身体记录
-      const { data: metricsData, error: metricsErr } = await supabase
-        .from('body_metrics')
-        .select('*')
-        .order('date', { ascending: false });
-
-      if (metricsErr) {
-        // 如果是表不存在的错误，则抛出说明，但不阻塞主页面
-        console.warn('Query returned error:', metricsErr.message);
-        throw metricsErr;
-      }
-
-      const dbHistory = metricsData || [];
+      const dbHistory = await fetchHistoryBodyMetrics();
       setHistory(dbHistory);
 
       // 2. 本地 LocalStorage 历史记录迁移逻辑 (仅运行一次)
@@ -152,19 +103,13 @@ function BodyMetrics() {
               }));
 
             if (remainingToMigrate.length > 0) {
-              const { error: insertErr } = await supabase
-                .from('body_metrics')
-                .insert(remainingToMigrate);
-              if (insertErr) throw insertErr;
+              await bulkInsertBodyMetrics(remainingToMigrate);
             }
             // 迁移成功后移除本地缓存
             localStorage.removeItem(STORAGE_KEY);
             setSaveMsg('🎉 已成功将您本地的历史身体指标迁移至云端！');
             // 重新加载以读取最新数据
-            const { data: refreshedMetrics } = await supabase
-              .from('body_metrics')
-              .select('*')
-              .order('date', { ascending: false });
+            const refreshedMetrics = await fetchHistoryBodyMetrics();
             setHistory(refreshedMetrics || []);
           } else {
             localStorage.removeItem(STORAGE_KEY);
@@ -181,6 +126,7 @@ function BodyMetrics() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
   }, []);
 
@@ -207,30 +153,7 @@ function BodyMetrics() {
         updated_at: new Date().toISOString()
       };
 
-      // 检查该日期是否已有记录
-      const { data: existing, error: queryErr } = await supabase
-        .from('body_metrics')
-        .select('id')
-        .eq('date', form.date)
-        .limit(1);
-
-      if (queryErr) throw queryErr;
-
-      let saveErr;
-      if (existing && existing.length > 0) {
-        const { error: updateErr } = await supabase
-          .from('body_metrics')
-          .update(entry)
-          .eq('id', existing[0].id);
-        saveErr = updateErr;
-      } else {
-        const { error: insertErr } = await supabase
-          .from('body_metrics')
-          .insert([entry]);
-        saveErr = insertErr;
-      }
-
-      if (saveErr) throw saveErr;
+      await saveBodyMetrics(entry);
 
       setSaveMsg('✓ 记录已成功保存');
       setForm(prev => ({ ...prev, weight: '', waist: '', hr: '', sleep: '', fatigue: '5' }));
@@ -246,11 +169,7 @@ function BodyMetrics() {
   const handleDelete = async (id) => {
     if (!window.confirm('确定删除这条身体指标记录吗？')) return;
     try {
-      const { error: deleteErr } = await supabase
-        .from('body_metrics')
-        .delete()
-        .eq('id', id);
-      if (deleteErr) throw deleteErr;
+      await deleteBodyMetrics(id);
       await loadData();
     } catch (err) {
       setErrorMsg('删除失败：' + err.message);
