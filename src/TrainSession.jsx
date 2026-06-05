@@ -711,22 +711,72 @@ function TrainSession({
             {/* RPE */}
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-base-content/50">RPE</label>
-                <span className={`text-2xl font-bold font-mono ${getRpeColor(rpeValue)}`}>{rpeValue.toFixed(1)}</span>
+                <div className="flex items-center gap-2 select-none">
+                  <label className="text-xs font-semibold text-base-content/50">RPE</label>
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="checkbox checkbox-primary checkbox-xs rounded" 
+                      checked={detail.record_rpe !== false} 
+                      onChange={(e) => updateSetDetail(setKey, 'record_rpe', e.target.checked)} 
+                    />
+                    <span className="text-[11px] text-base-content/40 font-bold">记录</span>
+                  </label>
+                </div>
+                {detail.record_rpe !== false ? (
+                  <span className={`text-2xl font-bold font-mono ${getRpeColor(rpeValue)}`}>{rpeValue.toFixed(1)}</span>
+                ) : (
+                  <span className="text-xs font-semibold text-base-content/30">不记录</span>
+                )}
               </div>
-              <input type="range" min="0" max="10" step="0.5" value={rpeValue} className="range range-primary w-full" onChange={(e) => updateSetDetail(setKey, 'rpe', parseFloat(e.target.value))} />
-              <div className="flex justify-between px-1 text-[10px] text-base-content/30 font-mono"><span>0</span><span>2</span><span>4</span><span>6</span><span>8</span><span>10</span></div>
+              <div className={`transition-all duration-200 ${detail.record_rpe === false ? 'opacity-30 pointer-events-none' : ''}`}>
+                <input 
+                  type="range" 
+                  min="0" 
+                  max="10" 
+                  step="0.5" 
+                  value={rpeValue} 
+                  className="range range-primary w-full" 
+                  disabled={detail.record_rpe === false}
+                  onChange={(e) => updateSetDetail(setKey, 'rpe', parseFloat(e.target.value))} 
+                />
+                <div className="flex justify-between px-1 text-[10px] text-base-content/30 font-mono select-none"><span>0</span><span>2</span><span>4</span><span>6</span><span>8</span><span>10</span></div>
+              </div>
             </div>
 
             {/* Tempo: presets left, fields right - method-aware visibility */}
             {config.showTempo && (
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-base-content/50">动作节奏</label>
-              <div className="flex gap-2.5 items-stretch">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 select-none">
+                  <label className="text-xs font-semibold text-base-content/50">动作节奏</label>
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="checkbox checkbox-primary checkbox-xs rounded" 
+                      checked={detail.record_tempo !== false} 
+                      onChange={(e) => updateSetDetail(setKey, 'record_tempo', e.target.checked)} 
+                    />
+                    <span className="text-[11px] text-base-content/40 font-bold">记录</span>
+                  </label>
+                </div>
+                {detail.record_tempo === false && (
+                  <span className="text-xs font-semibold text-base-content/30">不记录</span>
+                )}
+              </div>
+              <div className={`flex gap-2.5 items-stretch transition-all duration-200 ${detail.record_tempo === false ? 'opacity-30 pointer-events-none' : ''}`}>
                 {/* 左侧：3 个预设按钮垂直排列，占 50%，均匀分布 */}
                 <div className="flex-1 flex flex-col gap-1 justify-between">
                   {TEMPO_PRESETS.slice(0, 3).map((preset, idx) => (
-                    <button key={idx} type="button" className={`btn btn-ghost h-6 min-h-0 px-2 text-xs w-full whitespace-nowrap rounded-full ${preset.values === null ? 'btn-outline' : ''}`} onClick={() => applyTempoPreset(setKey, preset.values)}>{preset.label}</button>
+                    <button 
+                      key={idx} 
+                      type="button" 
+                      disabled={detail.record_tempo === false}
+                      className={`btn btn-ghost h-6 min-h-0 px-2 text-xs w-full whitespace-nowrap rounded-full ${preset.values === null ? 'btn-outline' : ''}`} 
+                      onClick={() => applyTempoPreset(setKey, preset.values)}
+                    >
+                      {preset.label}
+                    </button>
                   ))}
                 </div>
                 {/* 右侧：4 个输入框横向并排，占 50% */}
@@ -742,6 +792,7 @@ function TrainSession({
                           inputMode="numeric"
                           pattern="[0-9]"
                           maxLength={1}
+                          disabled={detail.record_tempo === false}
                           className="input input-bordered text-center !text-center font-mono font-bold w-full h-12 text-xl rounded-md px-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={detail[fields[idx]] ?? defaults[idx]}
                           onChange={(e) => {
@@ -992,7 +1043,9 @@ function TrainSession({
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          {detail.rpe !== undefined && <span className={`text-[10px] font-bold font-mono ${getRpeColor(detail.rpe)}`}>RPE {detail.rpe.toFixed(1)}</span>}
+                          {detail.record_rpe !== false && detail.rpe !== undefined && detail.rpe !== null && (
+                            <span className={`text-[10px] font-bold font-mono ${getRpeColor(detail.rpe)}`}>RPE {detail.rpe.toFixed(1)}</span>
+                          )}
                           {['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(getRecordingMethod(ex.exercise)) && (
                             <span className="text-xs font-mono font-bold text-base-content/50">
                               {unit === 'lbs' 

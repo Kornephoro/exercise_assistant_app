@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 
 // 标准 IPF/IWF 杠铃片颜色与尺寸配置 (KG 模式)
 const PLATE_CONFIGS_KG = {
@@ -112,11 +112,12 @@ export function BarbellVisualizer({ plates = [], barWeight = 20, unit = 'kg', en
 
   // 独立高交互性的空杆重 state
   const [activeBarWeight, setActiveBarWeight] = useState(barWeight);
-  const [prevPropBarWeight, setPrevPropBarWeight] = useState(barWeight);
-  if (barWeight !== prevPropBarWeight) {
+
+  // 同步外部 barWeight 变更（如单位切换）到内部 state
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveBarWeight(barWeight);
-    setPrevPropBarWeight(barWeight);
-  }
+  }, [barWeight]);
 
   // 总重 (根据 parent 传入的 plates 计算出来的目标总重)
   const totalWeight = useMemo(() => {

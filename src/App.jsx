@@ -468,11 +468,11 @@ function App() {
           set_number: s.set_number,
           completed: s.completed,
           notes: detail.notes || null,
-          rpe: detail.rpe ?? null,
-          tempo_eccentric: detail.tempo_eccentric ?? null,
-          tempo_pause_bottom: detail.tempo_pause_bottom ?? null,
-          tempo_concentric: detail.tempo_concentric ?? null,
-          tempo_pause_top: detail.tempo_pause_top ?? null,
+          rpe: detail.record_rpe !== false ? (detail.rpe ?? null) : null,
+          tempo_eccentric: detail.record_tempo !== false ? (detail.tempo_eccentric ?? null) : null,
+          tempo_pause_bottom: detail.record_tempo !== false ? (detail.tempo_pause_bottom ?? null) : null,
+          tempo_concentric: detail.record_tempo !== false ? (detail.tempo_concentric ?? null) : null,
+          tempo_pause_top: detail.record_tempo !== false ? (detail.tempo_pause_top ?? null) : null,
           rest_duration: detail.rest_duration ?? null,
         };
         if (['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(method)) {
