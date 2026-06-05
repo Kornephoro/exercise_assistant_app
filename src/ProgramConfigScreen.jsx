@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   fetchActiveUserProgram,
   fetchLastEndedUserProgram,
@@ -6,7 +6,7 @@ import {
   fetchOneRmRecords,
   saveUserProgram
 } from './services/programService';
-import { Loader2, ArrowLeft, Save, ShieldAlert, CheckCircle, Scale, Zap, Dumbbell, Search, Calendar, Sparkles } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, ShieldAlert, CheckCircle, Scale, Zap, Dumbbell, Search, Calendar, Sparkles, Calculator, X } from 'lucide-react';
 import { convertWeight, toStorageWeight, roundToClosestLoadable } from './unitUtils';
 import { deriveStartFromOneRm } from './oneRmUtils';
 import { getCNName } from './exerciseNames';
@@ -57,6 +57,206 @@ const LIFT_CN_NAMES = {
   deadlift: '硬拉',
   press: '推举',
 };
+
+const RPE_PERCENTAGE_CHART = {
+  1:  { 10: 1.0,   9.5: 0.978, 9: 0.955, 8.5: 0.939, 8: 0.922, 7.5: 0.907, 7: 0.892, 6.5: 0.878, 6: 0.864 },
+  2:  { 10: 0.955, 9.5: 0.939, 9: 0.922, 8.5: 0.907, 8: 0.892, 7.5: 0.878, 7: 0.864, 6.5: 0.850, 6: 0.837 },
+  3:  { 10: 0.922, 9.5: 0.907, 9: 0.892, 8.5: 0.878, 8: 0.864, 7.5: 0.850, 7: 0.837, 6.5: 0.824, 6: 0.811 },
+  4:  { 10: 0.892, 9.5: 0.878, 9: 0.864, 8.5: 0.850, 8: 0.837, 7.5: 0.824, 7: 0.811, 6.5: 0.798, 6: 0.786 },
+  5:  { 10: 0.863, 9.5: 0.850, 9: 0.837, 8.5: 0.824, 8: 0.811, 7.5: 0.799, 7: 0.786, 6.5: 0.774, 6: 0.762 },
+  6:  { 10: 0.837, 9.5: 0.824, 9: 0.811, 8.5: 0.799, 8: 0.786, 7.5: 0.774, 7: 0.762, 6.5: 0.751, 6: 0.739 },
+  7:  { 10: 0.811, 9.5: 0.799, 9: 0.786, 8.5: 0.774, 8: 0.762, 7.5: 0.751, 7: 0.739, 6.5: 0.723, 6: 0.707 },
+  8:  { 10: 0.786, 9.5: 0.774, 9: 0.762, 8.5: 0.751, 8: 0.739, 7.5: 0.723, 7: 0.707, 6.5: 0.694, 6: 0.680 },
+  9:  { 10: 0.762, 9.5: 0.751, 9: 0.739, 8.5: 0.723, 8: 0.707, 7.5: 0.694, 7: 0.680, 6.5: 0.667, 6: 0.653 },
+  10: { 10: 0.739, 9.5: 0.723, 9: 0.707, 8.5: 0.694, 8: 0.680, 7.5: 0.667, 7: 0.653, 6.5: 0.640, 6: 0.626 },
+  11: { 10: 0.707, 9.5: 0.694, 9: 0.680, 8.5: 0.667, 8: 0.653, 7.5: 0.640, 7: 0.626, 6.5: 0.613, 6: 0.599 },
+  12: { 10: 0.680, 9.5: 0.667, 9: 0.653, 8.5: 0.640, 8: 0.626, 7.5: 0.613, 7: 0.599, 6.5: 0.586, 6: 0.573 }
+};
+
+// ==================== InfiniteScrollPicker ====================
+// 水平循环滚动对齐选择器
+function InfiniteScrollPicker({ options, value, onChange, label }) {
+  const containerRef = useRef(null);
+  const isTeleportingRef = useRef(false);
+  const lastSelectedValueRef = useRef(value);
+
+  // We repeat the options array 9 times to create an infinite scroll illusion.
+  const repeatCount = 9;
+  const repeatedOptions = useMemo(() => {
+    let arr = [];
+    for (let i = 0; i < repeatCount; i++) {
+      arr = arr.concat(options);
+    }
+    return arr;
+  }, [options]);
+
+  const scrollToValue = (val, smooth = false) => {
+    const container = containerRef.current;
+    if (!container) return;
+    const L = options.length;
+    const itemIndex = options.indexOf(val);
+    if (itemIndex === -1) return;
+    // We aim for the middle copy (index 4 out of 0-8)
+    const targetIndex = 4 * L + itemIndex;
+    const children = container.children;
+    const targetChild = children[targetIndex];
+    if (targetChild) {
+      const itemOffsetLeft = targetChild.offsetLeft;
+      const itemWidth = targetChild.offsetWidth;
+      const newScrollLeft = itemOffsetLeft - container.clientWidth / 2 + itemWidth / 2;
+      container.scrollTo({
+        left: newScrollLeft,
+        behavior: smooth ? 'smooth' : 'auto'
+      });
+    }
+  };
+
+  // Align to the initial value on mount and when layout becomes ready
+  useEffect(() => {
+    let timer;
+    const align = () => {
+      scrollToValue(value, false);
+      lastSelectedValueRef.current = value;
+    };
+    align();
+    timer = setTimeout(align, 100);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Listen to external value changes
+  useEffect(() => {
+    if (value !== lastSelectedValueRef.current) {
+      scrollToValue(value, false);
+      lastSelectedValueRef.current = value;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  const handleScroll = () => {
+    if (isTeleportingRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const containerCenter = containerRect.left + containerRect.width / 2;
+    let minDistance = Infinity;
+    let closestIndex = -1;
+
+    const children = container.children;
+    for (let i = 0; i < children.length; i++) {
+      const childRect = children[i].getBoundingClientRect();
+      const childCenter = childRect.left + childRect.width / 2;
+      const distance = Math.abs(childCenter - containerCenter);
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestIndex = i;
+      }
+    }
+
+    if (closestIndex !== -1) {
+      const val = options[closestIndex % options.length];
+      if (val !== undefined && val !== value) {
+        lastSelectedValueRef.current = val;
+        onChange(val);
+      }
+
+      // Silent teleportation check
+      const L = options.length;
+      const activeCopy = Math.floor(closestIndex / L);
+      if (activeCopy < 3 || activeCopy > 5) {
+        const targetIndex = 4 * L + (closestIndex % L);
+        const targetChild = children[targetIndex];
+        if (targetChild) {
+          const itemOffsetLeft = targetChild.offsetLeft;
+          const itemWidth = targetChild.offsetWidth;
+          const newScrollLeft = itemOffsetLeft - container.clientWidth / 2 + itemWidth / 2;
+
+          isTeleportingRef.current = true;
+          container.scrollLeft = newScrollLeft;
+          // Clear flag on next frame
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              isTeleportingRef.current = false;
+            }, 50);
+          });
+        }
+      }
+    }
+  };
+
+  const handleItemClick = (index, val) => {
+    const container = containerRef.current;
+    if (!container) return;
+    const children = container.children;
+    const targetChild = children[index];
+    if (targetChild) {
+      const itemOffsetLeft = targetChild.offsetLeft;
+      const itemWidth = targetChild.offsetWidth;
+      const newScrollLeft = itemOffsetLeft - container.clientWidth / 2 + itemWidth / 2;
+      container.scrollTo({
+        left: newScrollLeft,
+        behavior: 'smooth'
+      });
+      lastSelectedValueRef.current = val;
+      onChange(val);
+    }
+  };
+
+  const scrollbarHideStyle = `
+    .scrollbar-none::-webkit-scrollbar {
+      display: none;
+    }
+    .scrollbar-none {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  `;
+
+  return (
+    <div className="flex flex-col gap-1 w-full">
+      <style>{scrollbarHideStyle}</style>
+      <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark font-bold pl-1">
+        {label}
+      </span>
+      
+      {/* Scroll picker outer container with center selection indicator styling */}
+      <div className="relative w-full flex items-center bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card dark:border-border-card-dark rounded-xl h-16 overflow-hidden">
+        {/* Selection highlight overlay in the center */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full border-2 border-primary/30 pointer-events-none z-10" />
+        
+        {/* Left/Right fading mask overlays */}
+        <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-bg-card/40 to-transparent dark:from-bg-card-dark/40 pointer-events-none z-10" />
+        <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-bg-card/40 to-transparent dark:from-bg-card-dark/40 pointer-events-none z-10" />
+        
+        <div
+          ref={containerRef}
+          onScroll={handleScroll}
+          className="scrollbar-none w-full h-full flex items-center gap-2 overflow-x-auto snap-x snap-mandatory"
+          style={{ paddingLeft: 'calc(50% - 24px)', paddingRight: 'calc(50% - 24px)' }}
+        >
+          {repeatedOptions.map((opt, i) => {
+            const isActive = opt === value;
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() => handleItemClick(i, opt)}
+                className={`snap-center shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold font-mono text-sm transition-all cursor-pointer border-0 ${
+                  isActive
+                    ? 'bg-primary text-white scale-110 shadow-md ring-2 ring-primary/20'
+                    : 'text-text-secondary hover:text-text-main dark:text-text-secondary-dark dark:hover:text-text-main-dark hover:bg-bg-hover dark:hover:bg-bg-hover-dark bg-transparent'
+                }`}
+              >
+                {opt}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ==================== ProgressionChainEditor ====================
 // 移植自插件 GzclpConfigPanel.tsx:193-277
@@ -218,6 +418,13 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
 
   // 1RM 拉取钩子
   const latestOneRms = useLatestOneRms();
+
+  // e1RM 计算器相关状态
+  const [calcLift, setCalcLift] = useState(null); // 'squat' | 'bench' | 'deadlift' | 'press' | null
+  const [calcTab, setCalcTab] = useState('formula'); // 'formula' | 'rpe'
+  const [calcWeight, setCalcWeight] = useState('');
+  const [calcReps, setCalcReps] = useState(5); // 1 to 12 in RPE, or string in formula
+  const [calcRpe, setCalcRpe] = useState(8); // 6 to 10
 
   // 同步云端 1RM → state (仅在 fetch 完成后, 如果本地初始 80/60/100/40 还没被用户改过)
   // 策略: 加载时如果云端有, 用云端的 (因为这是真实测试)
@@ -722,6 +929,290 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
 
   const inputClass = "w-full bg-transparent font-mono font-semibold text-sm md:text-base text-text-main dark:text-text-main-dark focus:outline-none text-right pr-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
+  const renderE1RMCalculatorSheet = () => {
+    if (!calcLift) return null;
+    const exUnit = exerciseUnits[calcLift] || weightUnit;
+    const liftName = LIFT_CN_NAMES[calcLift];
+
+    // Formula mode calculation
+    const w = parseFloat(calcWeight) || 0;
+    const r = parseInt(calcReps) || 0;
+
+    let epleyVal = 0;
+    let brzyckiVal = 0;
+    let isRepsValid = r > 0 && r < 36;
+
+    if (w > 0 && r > 0) {
+      if (r === 1) {
+        epleyVal = w;
+        brzyckiVal = w;
+      } else {
+        epleyVal = Math.round(w * (1 + r / 30) * 10) / 10;
+        if (r < 37) {
+          brzyckiVal = Math.round(w * (36 / (37 - r)) * 10) / 10;
+        }
+      }
+    }
+
+    // RPE mode calculation
+    const parsedRepsForRpe = parseInt(calcReps) || 5;
+    const P = RPE_PERCENTAGE_CHART[parsedRepsForRpe]?.[calcRpe] || 0;
+    const currentWeight = parseFloat(calcWeight) || 0;
+    const computedE1RM = P > 0 ? Math.round(currentWeight / P * 10) / 10 : 0;
+
+    const applyValue = (val) => {
+      const setterMap = {
+        squat: setSquatOneRm,
+        bench: setBenchOneRm,
+        deadlift: setDeadliftOneRm,
+        press: setPressOneRm,
+      };
+      const setter = setterMap[calcLift];
+      if (setter && val > 0) {
+        setter(String(val));
+      }
+      setCalcLift(null);
+    };
+
+    return (
+      <div className="fixed inset-0 z-[70] flex items-end justify-center">
+        {/* Backdrop overlay */}
+        <div 
+          className="bottom-sheet-backdrop animate-sheet-fade-in"
+          onClick={() => setCalcLift(null)}
+        />
+        
+        {/* Bottom sheet content card */}
+        <div className="bottom-sheet-container animate-sheet-slide-up w-full flex flex-col gap-4 pb-6">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-2 border-b border-border-card/50 dark:border-border-card-dark/50">
+            <div className="flex flex-col">
+              <span className="text-sm font-bold text-text-main dark:text-text-main-dark">
+                e1RM 估算计算器
+              </span>
+              <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark">
+                针对: {liftName}
+              </span>
+            </div>
+            <button 
+              type="button" 
+              className="btn btn-ghost btn-circle btn-xs h-7 w-7 min-h-0 text-text-secondary hover:bg-bg-hover dark:hover:bg-bg-hover-dark rounded-full"
+              onClick={() => setCalcLift(null)}
+              aria-label="关闭计算器"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Tab Selector */}
+          <div className="flex bg-bg-main/40 dark:bg-bg-main-dark/40 border border-border-card dark:border-border-card-dark rounded-lg p-0.5 gap-0.5 select-none">
+            <button
+              type="button"
+              onClick={() => {
+                setCalcTab('formula');
+                setCalcReps(5);
+              }}
+              className={`flex-1 py-1.5 rounded text-xs font-bold transition-all cursor-pointer border-0 ${
+                calcTab === 'formula'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main'
+              }`}
+            >
+              无RPE估算
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCalcTab('rpe');
+                setCalcReps(5);
+                setCalcRpe(8);
+              }}
+              className={`flex-1 py-1.5 rounded text-xs font-bold transition-all cursor-pointer border-0 ${
+                calcTab === 'rpe'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main'
+              }`}
+            >
+              RPE估算
+            </button>
+          </div>
+
+          {/* Tab Content with Unified Height Container */}
+          <div className="min-h-[295px] flex flex-col justify-between animate-fadeIn">
+            {calcTab === 'formula' ? (
+              <div className="flex flex-col gap-4">
+                {/* Inputs */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="section-subtitle select-none mb-0">测试重量 ({exUnit})</label>
+                    <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary px-3 h-11 transition-colors">
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        placeholder="重量"
+                        value={calcWeight}
+                        onChange={(e) => setCalcWeight(e.target.value)}
+                        className="w-full bg-transparent font-mono font-semibold text-sm text-text-main dark:text-text-main-dark focus:outline-none text-right pr-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        autoFocus
+                      />
+                      <span className="text-sm font-medium text-text-secondary/50 select-none">{exUnit}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="section-subtitle select-none mb-0">完成次数 (Reps)</label>
+                    <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary px-3 h-11 transition-colors">
+                      <input
+                        type="number"
+                        step="1"
+                        min="1"
+                        max="36"
+                        placeholder="次数"
+                        value={calcReps}
+                        onChange={(e) => setCalcReps(e.target.value)}
+                        className="w-full bg-transparent font-mono font-semibold text-sm text-text-main dark:text-text-main-dark focus:outline-none text-right pr-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <span className="text-sm font-medium text-text-secondary/50 select-none">次</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live Calculation Cards */}
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Epley Card */}
+                  <div className={`flex flex-col gap-2 p-3 rounded-xl border transition-all ${w > 0 && r > 0 ? 'bg-primary/5 border-primary/20' : 'bg-bg-main/10 border-border-card/40'}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-text-main dark:text-text-main-dark">Epley 公式</span>
+                      {r > 1 && r <= 10 && (
+                        <span className="badge badge-success badge-xs scale-90 px-1 py-0.5 font-bold text-[9px] bg-green-500/10 text-green-500 border border-green-500/20">推荐</span>
+                      )}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark font-sans leading-none">估算 1RM</span>
+                      <span className="text-xl font-black font-mono text-primary mt-1">
+                        {epleyVal > 0 ? `${epleyVal} ${exUnit}` : `-- ${exUnit}`}
+                      </span>
+                    </div>
+                    <span className="text-[9px] text-text-secondary/80 leading-tight">
+                      公式: W × (1 + R/30)<br />
+                      特点: 适合 1-10 次中低重复
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-main w-full h-8 min-h-8 rounded-lg text-xs mt-1 font-bold text-white bg-primary hover:bg-primary/95 disabled:opacity-40 disabled:pointer-events-none border-0"
+                      disabled={!(epleyVal > 0)}
+                      onClick={() => applyValue(epleyVal)}
+                    >
+                      应用此值
+                    </button>
+                  </div>
+
+                  {/* Brzycki Card */}
+                  <div className={`flex flex-col gap-2 p-3 rounded-xl border transition-all ${w > 0 && r > 0 && isRepsValid ? 'bg-primary/5 border-primary/20' : 'bg-bg-main/10 border-border-card/40'}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-text-main dark:text-text-main-dark">Brzycki 公式</span>
+                      {r > 10 && r <= 15 && (
+                        <span className="badge badge-success badge-xs scale-90 px-1 py-0.5 font-bold text-[9px] bg-green-500/10 text-green-500 border border-green-500/20">推荐</span>
+                      )}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark font-sans leading-none">估算 1RM</span>
+                      <span className="text-xl font-black font-mono text-primary mt-1">
+                        {brzyckiVal > 0 && isRepsValid ? `${brzyckiVal} ${exUnit}` : `-- ${exUnit}`}
+                      </span>
+                    </div>
+                    <span className="text-[9px] text-text-secondary/80 leading-tight">
+                      公式: W × 36 / (37 - R)<br />
+                      特点: 适合 10-15 次中高重复
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-main w-full h-8 min-h-8 rounded-lg text-xs mt-1 font-bold text-white bg-primary hover:bg-primary/95 disabled:opacity-40 disabled:pointer-events-none border-0"
+                      disabled={!(brzyckiVal > 0 && isRepsValid)}
+                      onClick={() => applyValue(brzyckiVal)}
+                    >
+                      应用此值
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {/* Single-direction inputs for RPE mode */}
+                <div className="flex items-center gap-3 justify-between">
+                  {/* Weight card (Input) */}
+                  <div className="flex-1 p-3 rounded-xl border border-border-card dark:border-border-card-dark bg-bg-main/20 dark:bg-bg-main-dark/20 flex flex-col gap-1 min-h-[82px] justify-center">
+                    <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark font-bold">测试重量 ({exUnit})</span>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      placeholder="重量"
+                      value={calcWeight}
+                      onChange={(e) => setCalcWeight(e.target.value)}
+                      className="w-full bg-transparent font-mono font-black text-xl text-text-main dark:text-text-main-dark focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none py-1"
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* Right Arrow (Visual indicator only) */}
+                  <div className="text-primary text-xl font-bold flex items-center justify-center w-8 select-none">
+                    ➜
+                  </div>
+
+                  {/* e1RM card (Auto Computed Display) */}
+                  <div className="flex-1 p-3 rounded-xl border border-border-card dark:border-border-card-dark bg-bg-main/20 dark:bg-bg-main-dark/20 flex flex-col gap-1 min-h-[82px] justify-center">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark font-bold font-sans">预估 1RM ({exUnit})</span>
+                      <span className="badge badge-info badge-xs scale-90 px-1 py-0.5 font-bold text-[9px] bg-blue-500/15 text-blue-500 border border-blue-500/20">自动</span>
+                    </div>
+                    <div className="text-xl font-black font-mono text-primary py-1">
+                      {computedE1RM > 0 ? `${computedE1RM}` : `0`}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Infinite pickers */}
+                <InfiniteScrollPicker
+                  options={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]}
+                  value={parsedRepsForRpe}
+                  onChange={setCalcReps}
+                  label="次数 (Reps)"
+                />
+
+                <InfiniteScrollPicker
+                  options={[6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10]}
+                  value={calcRpe}
+                  onChange={setCalcRpe}
+                  label="RPE (自感用力程度)"
+                />
+
+                {/* Apply Button */}
+                <button
+                  type="button"
+                  className="btn-main w-full h-11 min-h-11 font-bold text-white bg-primary hover:bg-primary/95 disabled:opacity-40 disabled:pointer-events-none border-0"
+                  onClick={() => applyValue(computedE1RM)}
+                  disabled={!(computedE1RM > 0)}
+                >
+                  填入预估 1RM
+                </button>
+              </div>
+            )}
+
+            {/* Reps warning notice (User note requirement) */}
+            <div className="p-3 rounded-xl bg-bg-main/30 dark:bg-bg-main-dark/30 border border-border-card/50 dark:border-border-card-dark/50 text-xs text-text-secondary dark:text-text-secondary-dark leading-relaxed mt-2">
+              <span className="font-bold text-text-main dark:text-text-main-dark flex items-center gap-1 mb-1">
+                💡 估算提示与建议
+              </span>
+              估算公式在重复次数较少时（如 <b>2-8 次</b>）最为准确。如果次数过多（<b>大于 15 次</b>），由于耐力因素影响，估算误差会随之变大。建议使用低重复组数据进行估算。
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col gap-6 animate-fadeIn">
       <div className="flex items-center gap-3">
@@ -890,7 +1381,24 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                   {/* 1RM 输入 + T1/T2 加重 */}
                   <div className="grid grid-cols-3 gap-3">
                     <div className="flex flex-col gap-1.5">
-                      <label className="section-subtitle select-none">1RM ({exUnit})</label>
+                      <div className="flex items-center justify-between">
+                        <label className="section-subtitle select-none mb-0">1RM ({exUnit})</label>
+                        <button
+                          type="button"
+                          className="btn-aux h-5 px-1 rounded text-[10px] font-extrabold text-primary bg-primary/10 hover:bg-primary/20 cursor-pointer flex items-center gap-0.5"
+                          onClick={() => {
+                            setCalcLift(L.key);
+                            setCalcTab('formula');
+                            setCalcWeight(L.oneRm || '');
+                            setCalcReps(5);
+                            setCalcRpe(8);
+                          }}
+                          title="估算 1RM"
+                        >
+                          <Calculator size={10} />
+                          <span>估算</span>
+                        </button>
+                      </div>
                       <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
                         <input
                           type="number"
@@ -1284,6 +1792,8 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
           ? <><Loader2 className="animate-spin" size={18} /><span>正在保存设定...</span></>
           : <><Save size={18} /><span>{isExisting ? '保存配置' : '保存并开始计划'}</span></>}
       </button>
+
+      {calcLift && renderE1RMCalculatorSheet()}
     </div>
   );
 }
