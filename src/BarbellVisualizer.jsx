@@ -3,25 +3,25 @@ import { useState, useMemo } from 'react';
 // 标准 IPF/IWF 杠铃片颜色与尺寸配置 (KG 模式)
 const PLATE_CONFIGS_KG = {
   '25': { color: '#EF4444', gradient: ['#F87171', '#EF4444', '#991B1B'], height: 72, width: 14 },
-  '20': { color: '#3B82F6', gradient: ['#60A5FA', '#3B82F6', '#1E40AF'], height: 66, width: 12 },
-  '15': { color: '#FBBF24', gradient: ['#FDE047', '#FBBF24', '#78350F'], height: 60, width: 11 },
-  '10': { color: '#34D399', gradient: ['#6EE7B7', '#34D399', '#064E3B'], height: 54, width: 10 },
-  '5': { color: '#F3F4F6', gradient: ['#FFFFFF', '#E5E7EB', '#4B5563'], height: 46, width: 9, border: '#9CA3AF' },
-  '2.5': { color: '#4B5563', gradient: ['#6B7280', '#4B5563', '#111827'], height: 38, width: 8 },
-  '1.25': { color: '#E5E7EB', gradient: ['#F3F4F6', '#D1D5DB', '#374151'], height: 30, width: 7 },
-  '0.5': { color: '#F9FAFB', gradient: ['#FFFFFF', '#F3F4F6', '#9CA3AF'], height: 22, width: 6 }
+  '20': { color: '#3B82F6', gradient: ['#60A5FA', '#3B82F6', '#1E40AF'], height: 72, width: 12 },
+  '15': { color: '#FBBF24', gradient: ['#FDE047', '#FBBF24', '#78350F'], height: 72, width: 10 },
+  '10': { color: '#34D399', gradient: ['#6EE7B7', '#34D399', '#064E3B'], height: 72, width: 8 },
+  '5': { color: '#F3F4F6', gradient: ['#FFFFFF', '#E5E7EB', '#4B5563'], height: 50, width: 7, border: '#9CA3AF' },
+  '2.5': { color: '#4B5563', gradient: ['#6B7280', '#4B5563', '#111827'], height: 40, width: 6 },
+  '1.25': { color: '#E5E7EB', gradient: ['#F3F4F6', '#D1D5DB', '#374151'], height: 32, width: 5 },
+  '0.5': { color: '#F9FAFB', gradient: ['#FFFFFF', '#F3F4F6', '#9CA3AF'], height: 24, width: 4 }
 };
 
 // 标准杠铃片颜色与尺寸配置 (LBS 模式)
 const PLATE_CONFIGS_LBS = {
   '55': { color: '#EF4444', gradient: ['#F87171', '#EF4444', '#991B1B'], height: 72, width: 14 },
-  '45': { color: '#3B82F6', gradient: ['#60A5FA', '#3B82F6', '#1E40AF'], height: 66, width: 12 },
-  '35': { color: '#FBBF24', gradient: ['#FDE047', '#FBBF24', '#78350F'], height: 60, width: 11 },
-  '25': { color: '#34D399', gradient: ['#6EE7B7', '#34D399', '#064E3B'], height: 54, width: 10 },
-  '15': { color: '#F3F4F6', gradient: ['#FFFFFF', '#E5E7EB', '#4B5563'], height: 46, width: 9, border: '#9CA3AF' },
-  '10': { color: '#4B5563', gradient: ['#6B7280', '#4B5563', '#111827'], height: 38, width: 8 },
-  '5': { color: '#E5E7EB', gradient: ['#F3F4F6', '#D1D5DB', '#374151'], height: 30, width: 7 },
-  '2.5': { color: '#F9FAFB', gradient: ['#FFFFFF', '#F3F4F6', '#9CA3AF'], height: 22, width: 6 }
+  '45': { color: '#3B82F6', gradient: ['#60A5FA', '#3B82F6', '#1E40AF'], height: 72, width: 12 },
+  '35': { color: '#FBBF24', gradient: ['#FDE047', '#FBBF24', '#78350F'], height: 72, width: 10 },
+  '25': { color: '#34D399', gradient: ['#6EE7B7', '#34D399', '#064E3B'], height: 72, width: 8 },
+  '15': { color: '#F3F4F6', gradient: ['#FFFFFF', '#E5E7EB', '#4B5563'], height: 50, width: 7, border: '#9CA3AF' },
+  '10': { color: '#4B5563', gradient: ['#6B7280', '#4B5563', '#111827'], height: 40, width: 6 },
+  '5': { color: '#E5E7EB', gradient: ['#F3F4F6', '#D1D5DB', '#374151'], height: 32, width: 5 },
+  '2.5': { color: '#F9FAFB', gradient: ['#FFFFFF', '#F3F4F6', '#9CA3AF'], height: 24, width: 4 }
 };
 
 const ALL_STANDARD_PLATES = new Set([25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25, 0.5, 45.0, 35.0]);
@@ -194,7 +194,7 @@ export function BarbellVisualizer({ plates = [], barWeight = 20, unit = 'kg', en
   // 挂片套筒位置
   const sleeveX = collarX + collarW;
   const sleeveW = 100;
-  const sleeveH = 14;
+  const sleeveH = 8;
   const sleeveY = centerY - sleeveH / 2;
 
   let currentX = sleeveX + 1; // 贴着卡环往右堆叠
@@ -207,7 +207,9 @@ export function BarbellVisualizer({ plates = [], barWeight = 20, unit = 'kg', en
     
     if (!config) {
       const baseMax = unit === 'lbs' ? 45 : 25;
-      const height = Math.max(22, Math.min(72, 22 + (w / baseMax) * 50));
+      const height = w >= (unit === 'lbs' ? 25 : 10)
+        ? 72
+        : Math.max(24, Math.min(72, 24 + (w / (unit === 'lbs' ? 25 : 10)) * 48));
       const width = Math.max(4, Math.min(14, 4 + (w / baseMax) * 10));
       config = {
         color: '#9333EA',
@@ -292,10 +294,10 @@ export function BarbellVisualizer({ plates = [], barWeight = 20, unit = 'kg', en
             {/* 左侧细手柄 */}
             <rect
               x={2}
-              y={37}
+              y={37.5}
               width={12}
-              height={6}
-              rx={1}
+              height={5}
+              rx={0.5}
               fill="url(#shaft-grad)"
               stroke="rgba(0, 0, 0, 0.2)"
               strokeWidth={0.5}

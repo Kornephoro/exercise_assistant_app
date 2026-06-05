@@ -712,7 +712,6 @@ function TrainSession({
                         <span>💡 配片建议:</span>
                         <span>{barWeight}{unit} 空杆 + 单侧 [{plateTexts.join(', ')}]</span>
                       </div>
-                      <BarbellVisualizer plates={breakdown.plates} barWeight={barWeight} unit={unit} enabledPlates={enabledPlates} plateLimits={plateLimits} />
                     </div>
                   );
                 })()}
