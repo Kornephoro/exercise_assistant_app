@@ -566,7 +566,7 @@ function PlanScreen({ programs, userPrograms, exercisesMap, gymEquipmentConfig =
                           {isPaused
                             ? <span className="badge badge-warning badge-sm font-bold">已暂停</span>
                             : <span className="badge badge-primary badge-sm font-bold gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary-content animate-pulse"></span>
                                 进行中
                               </span>}
                         </div>

@@ -535,8 +535,8 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
                     labelStyle = 'text-sky-600/75 dark:text-sky-400/75 font-bold';
                   } else if (limit === 3) {
                     stateLabel = '限 3 对';
-                    btnStyle = 'bg-indigo-500/10 border-indigo-500 text-indigo-600 dark:text-indigo-400';
-                    labelStyle = 'text-indigo-600/75 dark:text-indigo-400/75 font-bold';
+                    btnStyle = 'bg-teal-500/10 border-teal-500 text-teal-600 dark:text-teal-400';
+                    labelStyle = 'text-teal-600/75 dark:text-teal-400/75 font-bold';
                   }
 
                   return (

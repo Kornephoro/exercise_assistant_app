@@ -866,9 +866,20 @@ function TodayScreen({
                 const exercises = todayWorkout.exercises || [];
                 const exCount = exercises.length;
                 const totalWeight = exercises.reduce((sum, ex) => sum + ((ex.weight || 0) * (ex.sets || 0)), 0);
-                // 估算时长：每组约 90s 组间休息 + 30s 动作
-                const totalSets = exercises.reduce((sum, ex) => sum + (ex.sets || 0), 0);
-                const estMinutes = Math.max(15, Math.round(totalSets * 2));
+                
+                // 更符合真实健身房训练的耗时估算模型
+                // 1. 基础热身准备时间：10 分钟
+                // 2. 动作间换位调整时间：每个间隔 3 分钟
+                // 3. 各组加权耗时：T1 动作 3.5 分钟/组，T2 动作 2.5 分钟/组，T3 动作 1.5 分钟/组，其他默认 2 分钟/组
+                const warmupMin = 10;
+                const transitionMin = Math.max(0, exCount - 1) * 3;
+                const setsMin = exercises.reduce((sum, ex) => {
+                  const sets = ex.sets || 0;
+                  const tier = ex.tier || 'T1';
+                  const factor = tier === 'T1' ? 3.5 : tier === 'T2' ? 2.5 : tier === 'T3' ? 1.5 : 2;
+                  return sum + (sets * factor);
+                }, 0);
+                const estMinutes = Math.max(15, Math.round(warmupMin + transitionMin + setsMin));
                 return (
                   <div className="flex flex-col gap-2 text-sm text-text-secondary dark:text-text-secondary-dark">
                     <div className="flex items-center gap-2">
