@@ -1038,7 +1038,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
           </div>
 
           {/* Tab Content with Unified Height Container */}
-          <div className="min-h-[295px] flex flex-col justify-between animate-fadeIn">
+          <div className="min-h-[420px] flex flex-col justify-between animate-fadeIn">
             {calcTab === 'formula' ? (
               <div className="flex flex-col gap-4">
                 {/* Inputs */}
@@ -1381,7 +1381,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                   {/* 1RM 输入 + T1/T2 加重 */}
                   <div className="grid grid-cols-3 gap-3">
                     <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between h-6">
                         <label className="section-subtitle select-none mb-0">1RM ({exUnit})</label>
                         <button
                           type="button"
@@ -1412,7 +1412,9 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                       </div>
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <label className="section-subtitle select-none">T1 加重</label>
+                      <div className="flex items-center h-6">
+                        <label className="section-subtitle select-none mb-0">T1 加重</label>
+                      </div>
                       <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
                         <input
                           type="number"
@@ -1426,7 +1428,9 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                       </div>
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <label className="section-subtitle select-none">T2 加重</label>
+                      <div className="flex items-center h-6">
+                        <label className="section-subtitle select-none mb-0">T2 加重</label>
+                      </div>
                       <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
                         <input
                           type="number"
