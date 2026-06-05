@@ -297,6 +297,8 @@ function TrainSession({
   todayWorkout,
   exercisesMap,
   getExerciseCNName,
+  setDetails,
+  setSetDetails,
   onMinimize,
   onSave,
   onCancel,
@@ -324,7 +326,7 @@ function TrainSession({
     endTime: null
   });
 
-  const [setDetails, setSetDetails] = useState({});
+
   const [customRestSeconds, setCustomRestSeconds] = useState(DEFAULT_REST_SECONDS);
 
   const handleOpenCalculator = async (ex, currentWeightVal) => {
@@ -618,6 +620,8 @@ function TrainSession({
       setSetDetails(prev => ({ ...prev, [key]: { ...prev[key], tempo_eccentric: presetValues[0], tempo_pause_bottom: presetValues[1], tempo_concentric: presetValues[2], tempo_pause_top: presetValues[3] } }));
     }
   };
+
+  const getRpeColor = (v) => v <= 4 ? 'text-green-500' : v <= 7 ? 'text-yellow-500' : 'text-red-500';
 
   const handleAbort = () => {
     const confirmDiscard = window.confirm("确定要放弃本次训练吗？所有未保存的训练数据都将丢失！");

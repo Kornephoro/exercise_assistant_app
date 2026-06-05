@@ -71,11 +71,41 @@ function App() {
   const [daysUntilStartValue, setDaysUntilStartValue] = useState(0);
 
   // 训练会话状态
-  const [sessionState, setSessionState] = useState({
-    isActive: false,
-    isMinimized: false,
-    setsData: {} // key = index in todayWorkout.exercises, supports multiple exercises per tier
+  const [sessionState, setSessionState] = useState(() => {
+    const saved = localStorage.getItem('active_session_state');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.warn('Failed to parse active_session_state:', e);
+      }
+    }
+    return {
+      isActive: false,
+      isMinimized: false,
+      setsData: {}
+    };
   });
+
+  const [setDetails, setSetDetails] = useState(() => {
+    const saved = localStorage.getItem('active_session_details');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.warn('Failed to parse active_session_details:', e);
+      }
+    }
+    return {};
+  });
+
+  useEffect(() => {
+    localStorage.setItem('active_session_state', JSON.stringify(sessionState));
+  }, [sessionState]);
+
+  useEffect(() => {
+    localStorage.setItem('active_session_details', JSON.stringify(setDetails));
+  }, [setDetails]);
 
   // 训练预览弹窗
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -146,16 +176,40 @@ function App() {
         previewOpen: false
       }, '', hash);
     } else if (cleanHash === 'session') {
-      setActiveTab('today');
-      window.history.replaceState({
-        tab: 'today',
-        configProgramId: null,
-        selectedActiveProgramId: null,
-        selectedProgramId: null,
-        sessionActive: false,
-        isMinimized: false,
-        previewOpen: false
-      }, '', '#today');
+      const savedSession = localStorage.getItem('active_session_state');
+      let isSessionActive = false;
+      let isSessionMinimized = false;
+      if (savedSession) {
+        try {
+          const parsed = JSON.parse(savedSession);
+          isSessionActive = !!parsed.isActive;
+          isSessionMinimized = !!parsed.isMinimized;
+        } catch {}
+      }
+
+      if (isSessionActive && !isSessionMinimized) {
+        setActiveTab('today');
+        window.history.replaceState({
+          tab: 'today',
+          configProgramId: null,
+          selectedActiveProgramId: null,
+          selectedProgramId: null,
+          sessionActive: true,
+          isMinimized: false,
+          previewOpen: false
+        }, '', '#session');
+      } else {
+        setActiveTab('today');
+        window.history.replaceState({
+          tab: 'today',
+          configProgramId: null,
+          selectedActiveProgramId: null,
+          selectedProgramId: null,
+          sessionActive: false,
+          isMinimized: false,
+          previewOpen: false
+        }, '', '#today');
+      }
     } else if (cleanHash === 'preview') {
       setActiveTab('today');
       setPreviewOpen(true);
@@ -594,6 +648,9 @@ function App() {
       setsData: {},
       sessionDate: null
     });
+    setSetDetails({});
+    localStorage.removeItem('active_session_state');
+    localStorage.removeItem('active_session_details');
     if (window.location.hash === '#session') {
       updateNavigationState({ sessionActive: false }, true);
     } else {
@@ -896,6 +953,9 @@ function App() {
         setsData: {},
         sessionDate: null
       });
+      setSetDetails({});
+      localStorage.removeItem('active_session_state');
+      localStorage.removeItem('active_session_details');
 
       if (window.location.hash === '#session') {
         updateNavigationState({ sessionActive: false }, true);
@@ -1131,6 +1191,8 @@ function App() {
             todayWorkout={todayWorkout}
             exercisesMap={exercisesMap}
             getExerciseCNName={getExerciseCNName}
+            setDetails={setDetails}
+            setSetDetails={setSetDetails}
             onMinimize={() => {
               if (window.location.hash === '#session') {
                 window.history.back();
