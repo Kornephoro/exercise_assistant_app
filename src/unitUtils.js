@@ -129,7 +129,12 @@ export const DEFAULT_GYM_EQUIPMENT_CONFIG = {
 };
 
 /**
- * 杠铃对称配片圆整算法 (完全背包/可达背包搜索最临近组合)
+ * 标准杠铃片规格集合，用于背包算法区分常用片和特殊片
+ */
+const ALL_STANDARD_PLATES = new Set([25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25, 0.5, 45.0, 35.0]);
+
+/**
+ * 杠铃对称配片圆整算法 (混合背包算法，限制特殊片单侧最多 1 张，且优先选用标准常用片)
  */
 export function roundToClosestLoadable(targetWeight, barWeight = 20, enabledPlates = [25, 20, 15, 10, 5, 2.5, 1.25]) {
   const bar = parseFloat(barWeight) || 0;
@@ -147,25 +152,57 @@ export function roundToClosestLoadable(targetWeight, barWeight = 20, enabledPlat
   const scaledPlates = sortedPlates.map(p => Math.round(p * scale));
   const maxLimit = Math.round(maxReachable * scale);
   
-  const dp = new Array(maxLimit + 1).fill(false);
-  dp[0] = true;
+  // dp[w] 记录拼装到 w 重量所需的最少自定义片数量
+  const dp = new Array(maxLimit + 1).fill(Infinity);
+  const parent = new Array(maxLimit + 1).fill(-1);
+  dp[0] = 0;
   
-  for (const p of scaledPlates) {
-    for (let w = p; w <= maxLimit; w++) {
-      if (dp[w - p]) {
-        dp[w] = true;
+  for (let i = 0; i < scaledPlates.length; i++) {
+    const p = scaledPlates[i];
+    const originalP = sortedPlates[i];
+    const isStandard = ALL_STANDARD_PLATES.has(originalP);
+    
+    if (isStandard) {
+      // 常用标准片：无界背包，数量不限
+      for (let w = p; w <= maxLimit; w++) {
+        if (dp[w - p] !== Infinity) {
+          if (dp[w - p] < dp[w]) {
+            dp[w] = dp[w - p];
+            parent[w] = originalP;
+          }
+        }
+      }
+    } else {
+      // 自定义特殊片：0-1 背包，单侧数量最多为 1 (倒序循环防止重复选择自身)
+      for (let w = maxLimit; w >= p; w--) {
+        if (dp[w - p] !== Infinity) {
+          if (dp[w - p] + 1 < dp[w]) {
+            dp[w] = dp[w - p] + 1;
+            parent[w] = originalP;
+          }
+        }
       }
     }
   }
   
   let bestW = 0;
   let bestDiff = Infinity;
+  let bestCustomCount = Infinity;
+  
   for (let w = 0; w <= maxLimit; w++) {
-    if (dp[w]) {
+    if (dp[w] !== Infinity) {
       const diff = Math.abs(w - t);
+      const customCount = dp[w];
       if (diff < bestDiff) {
         bestDiff = diff;
         bestW = w;
+        bestCustomCount = customCount;
+      } else if (diff === bestDiff) {
+        // 差值相同时，优先选择自定义片数量最少的组合
+        if (customCount < bestCustomCount) {
+          bestW = w;
+          bestCustomCount = customCount;
+        }
       }
     }
   }
@@ -293,7 +330,7 @@ export function roundExerciseWeight(targetWeight, exerciseInfo, config, unit = '
 }
 
 /**
- * 分解空杆重与每侧配片列表
+ * 分解空杆重与每侧配片列表 (同样使用限制特殊片的混合背包算法，确保配片结果与圆整总重量完全一致)
  */
 export function getBarbellPlateBreakdown(totalWeight, barWeight = 20, enabledPlates = [25, 20, 15, 10, 5, 2.5, 1.25]) {
   const bar = parseFloat(barWeight) || 0;
@@ -311,29 +348,53 @@ export function getBarbellPlateBreakdown(totalWeight, barWeight = 20, enabledPla
   const scaledPlates = sortedPlates.map(p => Math.round(p * scale));
   const maxLimit = Math.round(maxReachable * scale);
   
-  const dp = new Array(maxLimit + 1).fill(false);
+  const dp = new Array(maxLimit + 1).fill(Infinity);
   const parent = new Array(maxLimit + 1).fill(-1);
-  dp[0] = true;
+  dp[0] = 0;
   
   for (let i = 0; i < scaledPlates.length; i++) {
     const p = scaledPlates[i];
     const originalP = sortedPlates[i];
-    for (let w = p; w <= maxLimit; w++) {
-      if (dp[w - p]) {
-        dp[w] = true;
-        parent[w] = originalP;
+    const isStandard = ALL_STANDARD_PLATES.has(originalP);
+    
+    if (isStandard) {
+      for (let w = p; w <= maxLimit; w++) {
+        if (dp[w - p] !== Infinity) {
+          if (dp[w - p] < dp[w]) {
+            dp[w] = dp[w - p];
+            parent[w] = originalP;
+          }
+        }
+      }
+    } else {
+      for (let w = maxLimit; w >= p; w--) {
+        if (dp[w - p] !== Infinity) {
+          if (dp[w - p] + 1 < dp[w]) {
+            dp[w] = dp[w - p] + 1;
+            parent[w] = originalP;
+          }
+        }
       }
     }
   }
   
   let bestW = 0;
   let bestDiff = Infinity;
+  let bestCustomCount = Infinity;
+  
   for (let w = 0; w <= maxLimit; w++) {
-    if (dp[w]) {
+    if (dp[w] !== Infinity) {
       const diff = Math.abs(w - t);
+      const customCount = dp[w];
       if (diff < bestDiff) {
         bestDiff = diff;
         bestW = w;
+        bestCustomCount = customCount;
+      } else if (diff === bestDiff) {
+        if (customCount < bestCustomCount) {
+          bestW = w;
+          bestCustomCount = customCount;
+        }
       }
     }
   }
@@ -344,7 +405,7 @@ export function getBarbellPlateBreakdown(totalWeight, barWeight = 20, enabledPla
   while (curr > 0 && safety < 100) {
     safety++;
     const p = parent[curr];
-    if (p === -1 || p === undefined) break;
+    if (p === -1 || p === undefined || p <= 0) break;
     usedPlates.push(p);
     curr = Math.round(curr - p * scale);
   }

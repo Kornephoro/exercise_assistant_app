@@ -857,8 +857,14 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
             return lifts.map(L => {
               const exUnit = exerciseUnits[L.key] || weightUnit;
               const rm = parseFloat(L.oneRm) || 0;
-              const t1Start = deriveStartFromOneRm(rm, 0.85);
-              const t2Start = deriveStartFromOneRm(rm, 0.65);
+              let t1Start = deriveStartFromOneRm(rm, 0.85);
+              let t2Start = deriveStartFromOneRm(rm, 0.65);
+              if (gymEquipmentConfig) {
+                const barWeight = gymEquipmentConfig[exUnit]?.barbell?.bar_weight ?? (exUnit === 'kg' ? 20 : 45);
+                const enabledPlates = gymEquipmentConfig[exUnit]?.barbell?.enabled_plates || (exUnit === 'kg' ? [25, 20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]);
+                t1Start = roundToClosestLoadable(t1Start, barWeight, enabledPlates);
+                t2Start = roundToClosestLoadable(t2Start, barWeight, enabledPlates);
+              }
               const cloudOneRm = latestOneRms[L.key];
               return (
                 <div key={L.key} className="p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 flex flex-col gap-3">
