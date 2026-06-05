@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { fetchActivePrograms, fetchAllUserPrograms, fetchExercises, saveUserProgram } from './services/programService';
 import { fetchUserProfile } from './services/profileService';
 import { fetchBodyMetrics } from './services/bodyService';
@@ -80,8 +80,263 @@ function App() {
   // 训练预览弹窗
   const [previewOpen, setPreviewOpen] = useState(false);
 
+  // 提升的计划库子界面状态
+  const [configProgram, setConfigProgram] = useState(null);
+  const [selectedActiveProgramId, setSelectedActiveProgramId] = useState(null);
+  const [selectedProgram, setSelectedProgram] = useState(null);
+
+  // 初始化标记
+  const hasInitializedRef = useRef(false);
+
   // 操作锁定：训练中或预览弹窗打开时，禁止在 PlanScreen 结束/暂停计划
   const isOperationLocked = sessionState.isActive || previewOpen;
+
+  // URL Hash 解析器，根据 URL 状态初始化页面
+  const parseHashAndSetState = (hash, allPrograms) => {
+    const cleanHash = hash.replace('#', '');
+    const currentPrograms = allPrograms || programs;
+    
+    if (!cleanHash) {
+      setActiveTab('today');
+      window.history.replaceState({
+        tab: 'today',
+        configProgramId: null,
+        selectedActiveProgramId: null,
+        selectedProgramId: null,
+        sessionActive: false,
+        isMinimized: false,
+        previewOpen: false
+      }, '', '#today');
+      return;
+    }
+
+    const parts = cleanHash.split('/');
+    const mainTab = parts[0];
+    const validTabs = ['today', 'plan', 'diet', 'data', 'me'];
+
+    if (validTabs.includes(mainTab)) {
+      setActiveTab(mainTab);
+      
+      let configProg = null;
+      let selActiveId = null;
+      let selProg = null;
+
+      if (mainTab === 'plan' && parts[1]) {
+        const subView = parts[1];
+        const id = parts[2];
+        if (subView === 'config' && id) {
+          configProg = currentPrograms.find(p => p.id === id) || null;
+          setConfigProgram(configProg);
+        } else if (subView === 'active' && id) {
+          selActiveId = id;
+          setSelectedActiveProgramId(id);
+        } else if (subView === 'detail' && id) {
+          selProg = currentPrograms.find(p => p.id === id) || null;
+          setSelectedProgram(selProg);
+        }
+      }
+
+      window.history.replaceState({
+        tab: mainTab,
+        configProgramId: configProg ? configProg.id : null,
+        selectedActiveProgramId: selActiveId,
+        selectedProgramId: selProg ? selProg.id : null,
+        sessionActive: sessionState.isActive,
+        isMinimized: sessionState.isMinimized,
+        previewOpen: false
+      }, '', hash);
+    } else if (cleanHash === 'session') {
+      setActiveTab('today');
+      window.history.replaceState({
+        tab: 'today',
+        configProgramId: null,
+        selectedActiveProgramId: null,
+        selectedProgramId: null,
+        sessionActive: false,
+        isMinimized: false,
+        previewOpen: false
+      }, '', '#today');
+    } else if (cleanHash === 'preview') {
+      setActiveTab('today');
+      setPreviewOpen(true);
+      window.history.replaceState({
+        tab: 'today',
+        configProgramId: null,
+        selectedActiveProgramId: null,
+        selectedProgramId: null,
+        sessionActive: false,
+        isMinimized: false,
+        previewOpen: true
+      }, '', '#preview');
+    } else {
+      setActiveTab('today');
+      window.history.replaceState({
+        tab: 'today',
+        configProgramId: null,
+        selectedActiveProgramId: null,
+        selectedProgramId: null,
+        sessionActive: false,
+        isMinimized: false,
+        previewOpen: false
+      }, '', '#today');
+    }
+  };
+
+  // 全局路由与历史记录同步更新器
+  const updateNavigationState = (updates, replace = false) => {
+    const nextTab = updates.hasOwnProperty('tab') ? updates.tab : activeTab;
+    
+    let nextConfigProgram = configProgram;
+    if (updates.hasOwnProperty('configProgram')) {
+      nextConfigProgram = updates.configProgram;
+    }
+    
+    let nextSelectedActiveProgramId = selectedActiveProgramId;
+    if (updates.hasOwnProperty('selectedActiveProgramId')) {
+      nextSelectedActiveProgramId = updates.selectedActiveProgramId;
+    }
+    
+    let nextSelectedProgram = selectedProgram;
+    if (updates.hasOwnProperty('selectedProgram')) {
+      nextSelectedProgram = updates.selectedProgram;
+    }
+    
+    let nextPreviewOpen = previewOpen;
+    if (updates.hasOwnProperty('previewOpen')) {
+      nextPreviewOpen = updates.previewOpen;
+    }
+    
+    let nextSessionActive = sessionState.isActive;
+    let nextSessionMinimized = sessionState.isMinimized;
+    if (updates.hasOwnProperty('sessionActive')) {
+      nextSessionActive = updates.sessionActive;
+    }
+    if (updates.hasOwnProperty('isMinimized')) {
+      nextSessionMinimized = updates.isMinimized;
+    }
+
+    // 更新 React 状态
+    if (updates.hasOwnProperty('tab')) {
+      setActiveTab(updates.tab);
+      if (updates.tab !== 'plan') {
+        setConfigProgram(null);
+        setSelectedActiveProgramId(null);
+        setSelectedProgram(null);
+        nextConfigProgram = null;
+        nextSelectedActiveProgramId = null;
+        nextSelectedProgram = null;
+      }
+    }
+    if (updates.hasOwnProperty('configProgram')) {
+      setConfigProgram(updates.configProgram);
+    }
+    if (updates.hasOwnProperty('selectedActiveProgramId')) {
+      setSelectedActiveProgramId(updates.selectedActiveProgramId);
+    }
+    if (updates.hasOwnProperty('selectedProgram')) {
+      setSelectedProgram(updates.selectedProgram);
+    }
+    if (updates.hasOwnProperty('previewOpen')) {
+      setPreviewOpen(updates.previewOpen);
+    }
+    if (updates.hasOwnProperty('sessionActive') || updates.hasOwnProperty('isMinimized')) {
+      setSessionState(prev => ({
+        ...prev,
+        isActive: nextSessionActive,
+        isMinimized: nextSessionMinimized
+      }));
+    }
+
+    // 计算 URL Hash
+    let hash = `#${nextTab}`;
+    if (nextSessionActive && !nextSessionMinimized) {
+      hash = '#session';
+    } else if (nextPreviewOpen) {
+      hash = '#preview';
+    } else if (nextTab === 'plan') {
+      if (nextConfigProgram) {
+        hash = `#plan/config/${nextConfigProgram.id}`;
+      } else if (nextSelectedActiveProgramId) {
+        hash = `#plan/active/${nextSelectedActiveProgramId}`;
+      } else if (nextSelectedProgram) {
+        hash = `#plan/detail/${nextSelectedProgram.id}`;
+      }
+    }
+
+    // 构建历史状态对象
+    const historyState = {
+      tab: nextTab,
+      configProgramId: nextConfigProgram ? nextConfigProgram.id : null,
+      selectedActiveProgramId: nextSelectedActiveProgramId,
+      selectedProgramId: nextSelectedProgram ? nextSelectedProgram.id : null,
+      sessionActive: nextSessionActive,
+      isMinimized: nextSessionMinimized,
+      previewOpen: nextPreviewOpen
+    };
+
+    if (replace) {
+      window.history.replaceState(historyState, '', hash);
+    } else if (window.location.hash !== hash) {
+      window.history.pushState(historyState, '', hash);
+    }
+  };
+
+  // 监听浏览器前进、后退操作 (Popstate)
+  useEffect(() => {
+    if (loading) return;
+
+    const handlePopState = (event) => {
+      const state = event.state;
+      if (!state) {
+        parseHashAndSetState(window.location.hash);
+        return;
+      }
+
+      // 如果处于最大化的训练界面，且后退试图退出训练界面 -> 则进行【最小化】处理而不丢弃数据
+      if (sessionState.isActive && !sessionState.isMinimized && !state.sessionActive) {
+        setSessionState(prev => ({
+          ...prev,
+          isMinimized: true
+        }));
+        
+        window.history.replaceState({
+          ...state,
+          sessionActive: true,
+          isMinimized: true
+        }, '', window.location.hash);
+        
+        setActiveTab(state.tab || 'today');
+        
+        const resolvedConfigProg = state.configProgramId ? programs.find(p => p.id === state.configProgramId) : null;
+        const resolvedSelProg = state.selectedProgramId ? programs.find(p => p.id === state.selectedProgramId) : null;
+        setConfigProgram(resolvedConfigProg);
+        setSelectedActiveProgramId(state.selectedActiveProgramId);
+        setSelectedProgram(resolvedSelProg);
+        setPreviewOpen(!!state.previewOpen);
+        return;
+      }
+
+      // 正常恢复其他状态
+      setActiveTab(state.tab || 'today');
+      
+      const resolvedConfigProg = state.configProgramId ? programs.find(p => p.id === state.configProgramId) : null;
+      const resolvedSelProg = state.selectedProgramId ? programs.find(p => p.id === state.selectedProgramId) : null;
+      
+      setConfigProgram(resolvedConfigProg);
+      setSelectedActiveProgramId(state.selectedActiveProgramId);
+      setSelectedProgram(resolvedSelProg);
+      setPreviewOpen(!!state.previewOpen);
+
+      setSessionState(prev => ({
+        ...prev,
+        isActive: !!state.sessionActive,
+        isMinimized: !!state.isMinimized
+      }));
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [loading, programs, sessionState.isActive, sessionState.isMinimized, activeTab, configProgram, selectedActiveProgramId, selectedProgram, previewOpen]);
 
   useEffect(() => {
     const applyTheme = () => {
@@ -241,7 +496,12 @@ function App() {
         setTodayWorkout(null);
         setIsRestDayValue(false);
         setNextTrainingDateValue('');
-        setDaysUntilStartValue(0);
+      }
+
+      // 数据成功解析后，进行首次 URL Hash 路由解析
+      if (!hasInitializedRef.current) {
+        parseHashAndSetState(window.location.hash, allPrograms);
+        hasInitializedRef.current = true;
       }
 
     } catch (err) {
@@ -316,11 +576,12 @@ function App() {
       setsData,
       sessionDate
     });
+    updateNavigationState({ sessionActive: true, isMinimized: false });
   };
 
   const handleStartOrRestoreTrain = () => {
     if (sessionState.isActive) {
-      setSessionState(prev => ({ ...prev, isMinimized: false }));
+      updateNavigationState({ sessionActive: true, isMinimized: false });
     } else {
       startTrainSession();
     }
@@ -333,6 +594,11 @@ function App() {
       setsData: {},
       sessionDate: null
     });
+    if (window.location.hash === '#session') {
+      updateNavigationState({ sessionActive: false }, true);
+    } else {
+      updateNavigationState({ sessionActive: false });
+    }
     setToast({ type: 'success', message: '已放弃本次训练数据。' });
   };
 
@@ -631,6 +897,12 @@ function App() {
         sessionDate: null
       });
 
+      if (window.location.hash === '#session') {
+        updateNavigationState({ sessionActive: false }, true);
+      } else {
+        updateNavigationState({ sessionActive: false });
+      }
+
       await loadWorkoutData();
     } catch (err) {
       console.error('保存训练记录失败：', err);
@@ -744,9 +1016,15 @@ function App() {
             gymEquipmentConfig={gymEquipmentConfig}
             optimisticUpdateUserProgram={optimisticUpdateUserProgram}
             isOperationLocked={isOperationLocked}
+            selectedProgram={selectedProgram}
+            setSelectedProgram={(prog) => updateNavigationState({ selectedProgram: prog })}
+            selectedActiveProgramId={selectedActiveProgramId}
+            setSelectedActiveProgramId={(id) => updateNavigationState({ selectedActiveProgramId: id })}
+            configProgram={configProgram}
+            setConfigProgram={(prog) => updateNavigationState({ configProgram: prog })}
             onProgramStarted={() => {
               setToast({ type: 'success', message: '计划已启用！' });
-              setActiveTab('today');
+              updateNavigationState({ tab: 'today' });
               loadWorkoutData();
             }}
             onProgramPaused={(userProgramId) => {
@@ -757,13 +1035,13 @@ function App() {
             onProgramResumed={(userProgramId) => {
               optimisticUpdateUserProgram(userProgramId, { is_active: true, paused_at: null });
               setToast({ type: 'success', message: '计划已恢复。' });
-              setActiveTab('today');
+              updateNavigationState({ tab: 'today' });
               loadWorkoutData(userProgramId);
             }}
             onProgramEnded={(userProgramId) => {
               optimisticUpdateUserProgram(userProgramId, { is_active: false, ended_at: new Date().toISOString() });
               setToast({ type: 'info', message: '计划已结束，训练历史已保留。' });
-              setActiveTab('plan');
+              updateNavigationState({ tab: 'plan' });
               loadWorkoutData(null);
             }}
             onProgramError={(message) => {
@@ -808,35 +1086,35 @@ function App() {
       <div className="dock fixed bottom-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[480px] bg-bg-card/90 dark:bg-bg-card-dark/90 border-t border-border-card dark:border-border-card-dark backdrop-blur h-16">
         <button type="button"
           className={`transition-all duration-200 ${activeTab === 'today' ? 'dock-active text-primary font-bold bg-transparent' : 'text-text-secondary dark:text-text-secondary-dark'}`}
-          onClick={() => setActiveTab('today')}
+          onClick={() => updateNavigationState({ tab: 'today' })}
         >
           <span className="text-xl">🏋️</span>
           <span className="dock-label text-xs font-bold">今日</span>
         </button>
         <button type="button"
           className={`transition-all duration-200 ${activeTab === 'plan' ? 'dock-active text-primary font-bold bg-transparent' : 'text-text-secondary dark:text-text-secondary-dark'}`}
-          onClick={() => setActiveTab('plan')}
+          onClick={() => updateNavigationState({ tab: 'plan' })}
         >
           <span className="text-xl">📋</span>
           <span className="dock-label text-xs font-bold">训练</span>
         </button>
         <button type="button"
           className={`transition-all duration-200 ${activeTab === 'diet' ? 'dock-active text-primary font-bold bg-transparent' : 'text-text-secondary dark:text-text-secondary-dark'}`}
-          onClick={() => setActiveTab('diet')}
+          onClick={() => updateNavigationState({ tab: 'diet' })}
         >
           <span className="text-xl">🍎</span>
           <span className="dock-label text-xs font-bold">饮食</span>
         </button>
         <button type="button"
           className={`transition-all duration-200 ${activeTab === 'data' ? 'dock-active text-primary font-bold bg-transparent' : 'text-text-secondary dark:text-text-secondary-dark'}`}
-          onClick={() => setActiveTab('data')}
+          onClick={() => updateNavigationState({ tab: 'data' })}
         >
           <span className="text-xl">📊</span>
           <span className="dock-label text-xs font-bold">数据</span>
         </button>
         <button type="button"
           className={`transition-all duration-200 ${activeTab === 'me' ? 'dock-active text-primary font-bold bg-transparent' : 'text-text-secondary dark:text-text-secondary-dark'}`}
-          onClick={() => setActiveTab('me')}
+          onClick={() => updateNavigationState({ tab: 'me' })}
         >
           <span className="text-xl">👤</span>
           <span className="dock-label text-xs font-bold">我的</span>
@@ -853,7 +1131,13 @@ function App() {
             todayWorkout={todayWorkout}
             exercisesMap={exercisesMap}
             getExerciseCNName={getExerciseCNName}
-            onMinimize={() => setSessionState(prev => ({ ...prev, isMinimized: true }))}
+            onMinimize={() => {
+              if (window.location.hash === '#session') {
+                window.history.back();
+              } else {
+                updateNavigationState({ isMinimized: true });
+              }
+            }}
             onSave={handleSaveSession}
             onCancel={handleCancelSession}
             gymEquipmentConfig={gymEquipmentConfig}
@@ -866,7 +1150,7 @@ function App() {
       {sessionState.isActive && sessionState.isMinimized && (
         <FloatingBall
           progress={getSessionProgress(sessionState.setsData)}
-          onRestore={() => setSessionState(prev => ({ ...prev, isMinimized: false }))}
+          onRestore={() => updateNavigationState({ sessionActive: true, isMinimized: false })}
           onCancel={handleCancelSession}
         />
       )}
@@ -890,9 +1174,19 @@ function App() {
       {/* 今日训练预览弹窗 */}
       <WorkoutPreviewModal
         isOpen={previewOpen}
-        onClose={() => setPreviewOpen(false)}
+        onClose={() => {
+          if (window.location.hash === '#preview') {
+            window.history.back();
+          } else {
+            updateNavigationState({ previewOpen: false });
+          }
+        }}
         onStartTrain={() => {
-          setPreviewOpen(false);
+          if (window.location.hash === '#preview') {
+            window.history.back();
+          } else {
+            updateNavigationState({ previewOpen: false });
+          }
           handleStartOrRestoreTrain();
         }}
         todayWorkout={todayWorkout}

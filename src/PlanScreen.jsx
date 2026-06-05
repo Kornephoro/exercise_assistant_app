@@ -43,12 +43,27 @@ function ConfirmModal({ isOpen, title, message, onConfirm, onCancel, confirmText
   );
 }
 
-function PlanScreen({ programs, userPrograms, exercisesMap, gymEquipmentConfig = null, onProgramStarted, onProgramPaused, onProgramResumed, onProgramEnded, onProgramError, optimisticUpdateUserProgram, isOperationLocked = false }) {
+function PlanScreen({
+  programs,
+  userPrograms,
+  exercisesMap,
+  gymEquipmentConfig = null,
+  onProgramStarted,
+  onProgramPaused,
+  onProgramResumed,
+  onProgramEnded,
+  onProgramError,
+  optimisticUpdateUserProgram,
+  isOperationLocked = false,
+  selectedProgram,
+  setSelectedProgram,
+  selectedActiveProgramId,
+  setSelectedActiveProgramId,
+  configProgram,
+  setConfigProgram
+}) {
   const [activeSubTab, setActiveSubTab] = useState('programs');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedProgram, setSelectedProgram] = useState(null);
-  const [selectedActiveProgramId, setSelectedActiveProgramId] = useState(null);
-  const [configProgram, setConfigProgram] = useState(null);
 
   // 筛选器
   const [categoryFilter, setCategoryFilter] = useState('');

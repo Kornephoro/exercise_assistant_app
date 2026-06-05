@@ -619,8 +619,12 @@ function TrainSession({
     }
   };
 
-  const getRpeColor = (v) => v <= 4 ? 'text-green-500' : v <= 7 ? 'text-yellow-500' : 'text-red-500';
-  const handleAbort = () => onCancel();
+  const handleAbort = () => {
+    const confirmDiscard = window.confirm("确定要放弃本次训练吗？所有未保存的训练数据都将丢失！");
+    if (confirmDiscard) {
+      onCancel();
+    }
+  };
 
   // ============ FIELD INPUT GROUP (hoisted outside) ============
 
