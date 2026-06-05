@@ -236,6 +236,19 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
       } else {
         raw[unit].barbell.enabled_plates = enabled.map(p => parseFloat(p)).filter(p => plates.includes(p));
       }
+
+      if (!raw[unit].barbell.plate_limits || typeof raw[unit].barbell.plate_limits !== 'object') {
+        raw[unit].barbell.plate_limits = {};
+      } else {
+        const cleanLimits = {};
+        for (const [wt, limit] of Object.entries(raw[unit].barbell.plate_limits)) {
+          const parsedWt = parseFloat(wt);
+          if (!isNaN(parsedWt) && plates.includes(parsedWt)) {
+            cleanLimits[parsedWt.toString()] = limit;
+          }
+        }
+        raw[unit].barbell.plate_limits = cleanLimits;
+      }
       
       // 2. 哑铃规则标准化与初始化
       if (!raw[unit].dumbbell) raw[unit].dumbbell = {};
@@ -279,12 +292,38 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
   };
 
   const handleTogglePlate = (plate) => {
-    const enabled = unitConfig.barbell?.enabled_plates || [];
-    const nextEnabled = enabled.includes(plate)
-      ? enabled.filter(p => p !== plate)
-      : [...enabled, plate];
-    nextEnabled.sort((a, b) => b - a);
-    setUnitProp('barbell', 'enabled_plates', nextEnabled);
+    setConfig(prev => {
+      const next = JSON.parse(JSON.stringify(prev));
+      const barbell = next[activeUnit].barbell;
+      if (!barbell.enabled_plates) barbell.enabled_plates = [];
+      if (!barbell.plate_limits) barbell.plate_limits = {};
+      
+      const enabled = barbell.enabled_plates;
+      const isEnabled = enabled.includes(plate);
+      const limit = barbell.plate_limits[plate];
+      
+      if (!isEnabled) {
+        // 已禁用 -> 数量不限 (enabled_plates 增加, plate_limits 清除)
+        barbell.enabled_plates.push(plate);
+        delete barbell.plate_limits[plate];
+      } else if (limit === undefined || limit === null) {
+        // 数量不限 -> 仅限 1 对
+        barbell.plate_limits[plate] = 1;
+      } else if (limit === 1) {
+        // 限 1 对 -> 限 2 对
+        barbell.plate_limits[plate] = 2;
+      } else if (limit === 2) {
+        // 限 2 对 -> 限 3 对
+        barbell.plate_limits[plate] = 3;
+      } else {
+        // 限 3 对 -> 已禁用 (enabled_plates 移出, plate_limits 清除)
+        barbell.enabled_plates = enabled.filter(p => p !== plate);
+        delete barbell.plate_limits[plate];
+      }
+      
+      barbell.enabled_plates.sort((a, b) => b - a);
+      return next;
+    });
   };
 
   const handleAddPlate = () => {
@@ -297,12 +336,12 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
       const barbell = next[activeUnit].barbell;
       const plates = barbell.plates || [];
       const enabled = barbell.enabled_plates || [];
+      if (!barbell.plate_limits) barbell.plate_limits = {};
       
       if (!plates.includes(roundedVal)) {
-        const nextPlates = [...plates, roundedVal].sort((a, b) => b - a);
-        const nextEnabled = [...enabled, roundedVal].sort((a, b) => b - a);
-        next[activeUnit].barbell.plates = nextPlates;
-        next[activeUnit].barbell.enabled_plates = nextEnabled;
+        barbell.plates = [...plates, roundedVal].sort((a, b) => b - a);
+        barbell.enabled_plates = [...enabled, roundedVal].sort((a, b) => b - a);
+        barbell.plate_limits[roundedVal] = 1; // 自定义片默认限1对
       }
       return next;
     });
@@ -317,6 +356,9 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
       const barbell = next[activeUnit].barbell;
       next[activeUnit].barbell.plates = (barbell.plates || []).filter(p => p !== plate);
       next[activeUnit].barbell.enabled_plates = (barbell.enabled_plates || []).filter(p => p !== plate);
+      if (barbell.plate_limits) {
+        delete barbell.plate_limits[plate];
+      }
       return next;
     });
   };
@@ -377,13 +419,14 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
   const handleReset = () => {
     const defaults = DEFAULT_GYM_EQUIPMENT_CONFIG[activeUnit];
     setConfig(prev => {
-      const next = { ...prev };
+      const next = JSON.parse(JSON.stringify(prev));
       next[activeUnit] = JSON.parse(JSON.stringify(defaults));
       // 重置后同样进行一次标准化
       const rawUnit = next[activeUnit];
       if (!rawUnit.barbell) rawUnit.barbell = {};
       rawUnit.barbell.plates = [...STANDARD_PLATES[activeUnit]];
       rawUnit.barbell.enabled_plates = rawUnit.barbell.plates.filter(p => activeUnit === 'lbs' || p !== 0.5);
+      rawUnit.barbell.plate_limits = {};
       return next;
     });
   };
@@ -467,19 +510,44 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
               <div className="grid grid-cols-4 gap-2">
                 {platesList.map(p => {
                   const isEnabled = (unitConfig.barbell?.enabled_plates || []).includes(p);
+                  const limit = unitConfig.barbell?.plate_limits?.[p];
                   const isStandard = STANDARD_PLATES[activeUnit].includes(p);
+                  
+                  let btnStyle = "";
+                  let labelStyle = "";
+                  let stateLabel = "";
+
+                  if (!isEnabled) {
+                    stateLabel = '已禁用';
+                    btnStyle = 'bg-bg-card dark:bg-bg-card-dark border-dashed border-border-card dark:border-border-card-dark text-text-muted hover:bg-bg-hover';
+                    labelStyle = 'text-text-muted/60 font-semibold';
+                  } else if (limit === undefined || limit === null) {
+                    stateLabel = '不限数量';
+                    btnStyle = 'bg-primary/10 border-primary text-primary';
+                    labelStyle = 'text-primary/75 font-bold';
+                  } else if (limit === 1) {
+                    stateLabel = '仅 1 对';
+                    btnStyle = 'bg-amber-500/10 border-amber-500 text-amber-600 dark:text-amber-400';
+                    labelStyle = 'text-amber-600/75 dark:text-amber-400/75 font-bold';
+                  } else if (limit === 2) {
+                    stateLabel = '限 2 对';
+                    btnStyle = 'bg-sky-500/10 border-sky-500 text-sky-600 dark:text-sky-400';
+                    labelStyle = 'text-sky-600/75 dark:text-sky-400/75 font-bold';
+                  } else if (limit === 3) {
+                    stateLabel = '限 3 对';
+                    btnStyle = 'bg-indigo-500/10 border-indigo-500 text-indigo-600 dark:text-indigo-400';
+                    labelStyle = 'text-indigo-600/75 dark:text-indigo-400/75 font-bold';
+                  }
+
                   return (
                     <div key={p} className="relative">
                       <button
                         type="button"
                         onClick={() => handleTogglePlate(p)}
-                        className={`w-full py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                          isEnabled
-                            ? 'bg-primary/10 border-primary text-primary font-black'
-                            : 'bg-bg-card dark:bg-bg-card-dark border-border-card/50 dark:border-border-card-dark/50 text-text-secondary hover:bg-bg-hover'
-                        }`}
+                        className={`w-full py-1 px-1 rounded-lg border flex flex-col items-center justify-center transition-all min-h-[48px] select-none ${btnStyle}`}
                       >
-                        {p} {activeUnit}
+                        <span className="font-extrabold text-[11px] leading-tight">{p} {activeUnit}</span>
+                        <span className={`text-[9px] mt-0.5 leading-none ${labelStyle}`}>{stateLabel}</span>
                       </button>
                       {!isStandard && (
                         <button

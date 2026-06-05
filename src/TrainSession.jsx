@@ -666,9 +666,10 @@ function TrainSession({
                   const configForUnit = gymEquipmentConfig[unit] || gymEquipmentConfig.kg;
                   const barWeight = configForUnit.barbell?.bar_weight ?? (unit === 'kg' ? 20 : 45);
                   const enabledPlates = configForUnit.barbell?.enabled_plates || (unit === 'kg' ? [25, 20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]);
+                  const plateLimits = configForUnit.barbell?.plate_limits || {};
                   
                   const weightInUnit = unit === 'lbs' ? convertWeight(ex.weight, 'lbs') : ex.weight;
-                  const breakdown = getBarbellPlateBreakdown(weightInUnit, barWeight, enabledPlates);
+                  const breakdown = getBarbellPlateBreakdown(weightInUnit, barWeight, enabledPlates, plateLimits);
                   if (!breakdown || breakdown.plates.length === 0) {
                     return (
                       <div className="text-[10px] text-base-content/45 bg-base-200/50 px-2 py-1 rounded-lg select-none font-semibold mb-1 w-fit">

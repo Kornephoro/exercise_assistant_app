@@ -700,8 +700,9 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
     if (gymEquipmentConfig) {
       const barWeight = gymEquipmentConfig[exUnit]?.barbell?.bar_weight ?? (exUnit === 'kg' ? 20 : 45);
       const enabledPlates = gymEquipmentConfig[exUnit]?.barbell?.enabled_plates || (exUnit === 'kg' ? [25, 20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]);
-      roundedT1 = roundToClosestLoadable(t1, barWeight, enabledPlates);
-      roundedT2 = roundToClosestLoadable(t2, barWeight, enabledPlates);
+      const plateLimits = gymEquipmentConfig[exUnit]?.barbell?.plate_limits || {};
+      roundedT1 = roundToClosestLoadable(t1, barWeight, enabledPlates, plateLimits);
+      roundedT2 = roundToClosestLoadable(t2, barWeight, enabledPlates, plateLimits);
     }
     
     // 默认用 T1 起始 (1RM × 0.85) 作为 initial_weight
@@ -862,8 +863,9 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
               if (gymEquipmentConfig) {
                 const barWeight = gymEquipmentConfig[exUnit]?.barbell?.bar_weight ?? (exUnit === 'kg' ? 20 : 45);
                 const enabledPlates = gymEquipmentConfig[exUnit]?.barbell?.enabled_plates || (exUnit === 'kg' ? [25, 20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]);
-                t1Start = roundToClosestLoadable(t1Start, barWeight, enabledPlates);
-                t2Start = roundToClosestLoadable(t2Start, barWeight, enabledPlates);
+                const plateLimits = gymEquipmentConfig[exUnit]?.barbell?.plate_limits || {};
+                t1Start = roundToClosestLoadable(t1Start, barWeight, enabledPlates, plateLimits);
+                t2Start = roundToClosestLoadable(t2Start, barWeight, enabledPlates, plateLimits);
               }
               const cloudOneRm = latestOneRms[L.key];
               return (

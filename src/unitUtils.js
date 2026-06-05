@@ -133,10 +133,37 @@ export const DEFAULT_GYM_EQUIPMENT_CONFIG = {
  */
 const ALL_STANDARD_PLATES = new Set([25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25, 0.5, 45.0, 35.0]);
 
+function getPlateLimit(originalP, plateLimits, isStandard) {
+  if (!plateLimits || typeof plateLimits !== 'object') {
+    return isStandard ? Infinity : 1;
+  }
+  
+  if (plateLimits[originalP] !== undefined && plateLimits[originalP] !== null) {
+    return parseInt(plateLimits[originalP], 10);
+  }
+  
+  const strKey = parseFloat(originalP).toString();
+  if (plateLimits[strKey] !== undefined && plateLimits[strKey] !== null) {
+    return parseInt(plateLimits[strKey], 10);
+  }
+  
+  const floatKey1 = parseFloat(originalP).toFixed(1);
+  if (plateLimits[floatKey1] !== undefined && plateLimits[floatKey1] !== null) {
+    return parseInt(plateLimits[floatKey1], 10);
+  }
+  
+  const floatKey2 = parseFloat(originalP).toFixed(2);
+  if (plateLimits[floatKey2] !== undefined && plateLimits[floatKey2] !== null) {
+    return parseInt(plateLimits[floatKey2], 10);
+  }
+  
+  return isStandard ? Infinity : 1;
+}
+
 /**
  * 杠铃对称配片圆整算法 (混合背包算法，限制特殊片单侧最多 1 张，且优先选用标准常用片)
  */
-export function roundToClosestLoadable(targetWeight, barWeight = 20, enabledPlates = [25, 20, 15, 10, 5, 2.5, 1.25]) {
+export function roundToClosestLoadable(targetWeight, barWeight = 20, enabledPlates = [25, 20, 15, 10, 5, 2.5, 1.25], plateLimits = {}) {
   const bar = parseFloat(barWeight) || 0;
   if (targetWeight <= bar) return bar;
   const eachSideTarget = (targetWeight - bar) / 2;
@@ -152,7 +179,7 @@ export function roundToClosestLoadable(targetWeight, barWeight = 20, enabledPlat
   const scaledPlates = sortedPlates.map(p => Math.round(p * scale));
   const maxLimit = Math.round(maxReachable * scale);
   
-  // dp[w] 记录拼装到 w 重量所需的最少自定义片数量
+  // dp[w] 记录拼装到 w 重量所需的最少自定义/受限片数量
   const dp = new Array(maxLimit + 1).fill(Infinity);
   const parent = new Array(maxLimit + 1).fill(-1);
   dp[0] = 0;
@@ -162,8 +189,10 @@ export function roundToClosestLoadable(targetWeight, barWeight = 20, enabledPlat
     const originalP = sortedPlates[i];
     const isStandard = ALL_STANDARD_PLATES.has(originalP);
     
-    if (isStandard) {
-      // 常用标准片：无界背包，数量不限
+    let limit = getPlateLimit(originalP, plateLimits, isStandard);
+    
+    if (limit === Infinity) {
+      // 无限制：完全背包（升序循环），自定义片计数不变
       for (let w = p; w <= maxLimit; w++) {
         if (dp[w - p] !== Infinity) {
           if (dp[w - p] < dp[w]) {
@@ -172,13 +201,15 @@ export function roundToClosestLoadable(targetWeight, barWeight = 20, enabledPlat
           }
         }
       }
-    } else {
-      // 自定义特殊片：0-1 背包，单侧数量最多为 1 (倒序循环防止重复选择自身)
-      for (let w = maxLimit; w >= p; w--) {
-        if (dp[w - p] !== Infinity) {
-          if (dp[w - p] + 1 < dp[w]) {
-            dp[w] = dp[w - p] + 1;
-            parent[w] = originalP;
+    } else if (limit > 0) {
+      // 有限限制：有界背包（拆分为 limit 个 0-1 物品，每次降序循环），每次使用受限片使得自定义/受限片计数加 1
+      for (let k = 0; k < limit; k++) {
+        for (let w = maxLimit; w >= p; w--) {
+          if (dp[w - p] !== Infinity) {
+            if (dp[w - p] + 1 < dp[w]) {
+              dp[w] = dp[w - p] + 1;
+              parent[w] = originalP;
+            }
           }
         }
       }
@@ -291,9 +322,10 @@ export function roundExerciseWeight(targetWeight, exerciseInfo, config, unit = '
   if (isBarbell) {
     const barWeight = eqConfig.barbell?.bar_weight ?? (unit === 'kg' ? 20 : 45);
     const enabledPlates = eqConfig.barbell?.enabled_plates || (unit === 'kg' ? [25, 20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]);
+    const plateLimits = eqConfig.barbell?.plate_limits || {};
     
     const targetInUnit = unit === 'lbs' ? convertWeight(tVal, 'lbs') : tVal;
-    const roundedInUnit = roundToClosestLoadable(targetInUnit, barWeight, enabledPlates);
+    const roundedInUnit = roundToClosestLoadable(targetInUnit, barWeight, enabledPlates, plateLimits);
     return unit === 'lbs' ? toStorageWeight(roundedInUnit, 'lbs') : roundedInUnit;
   }
   
@@ -332,7 +364,7 @@ export function roundExerciseWeight(targetWeight, exerciseInfo, config, unit = '
 /**
  * 分解空杆重与每侧配片列表 (同样使用限制特殊片的混合背包算法，确保配片结果与圆整总重量完全一致)
  */
-export function getBarbellPlateBreakdown(totalWeight, barWeight = 20, enabledPlates = [25, 20, 15, 10, 5, 2.5, 1.25]) {
+export function getBarbellPlateBreakdown(totalWeight, barWeight = 20, enabledPlates = [25, 20, 15, 10, 5, 2.5, 1.25], plateLimits = {}) {
   const bar = parseFloat(barWeight) || 0;
   if (totalWeight <= bar) return { bar, plates: [] };
   const eachSideTarget = (totalWeight - bar) / 2;
@@ -357,7 +389,9 @@ export function getBarbellPlateBreakdown(totalWeight, barWeight = 20, enabledPla
     const originalP = sortedPlates[i];
     const isStandard = ALL_STANDARD_PLATES.has(originalP);
     
-    if (isStandard) {
+    let limit = getPlateLimit(originalP, plateLimits, isStandard);
+    
+    if (limit === Infinity) {
       for (let w = p; w <= maxLimit; w++) {
         if (dp[w - p] !== Infinity) {
           if (dp[w - p] < dp[w]) {
@@ -366,12 +400,14 @@ export function getBarbellPlateBreakdown(totalWeight, barWeight = 20, enabledPla
           }
         }
       }
-    } else {
-      for (let w = maxLimit; w >= p; w--) {
-        if (dp[w - p] !== Infinity) {
-          if (dp[w - p] + 1 < dp[w]) {
-            dp[w] = dp[w - p] + 1;
-            parent[w] = originalP;
+    } else if (limit > 0) {
+      for (let k = 0; k < limit; k++) {
+        for (let w = maxLimit; w >= p; w--) {
+          if (dp[w - p] !== Infinity) {
+            if (dp[w - p] + 1 < dp[w]) {
+              dp[w] = dp[w - p] + 1;
+              parent[w] = originalP;
+            }
           }
         }
       }
