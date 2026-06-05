@@ -1038,7 +1038,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
           </div>
 
           {/* Tab Content with Unified Height Container */}
-          <div className="min-h-[420px] flex flex-col justify-between animate-fadeIn">
+          <div className="min-h-[460px] flex flex-col justify-between animate-fadeIn">
             {calcTab === 'formula' ? (
               <div className="flex flex-col gap-4">
                 {/* Inputs */}
