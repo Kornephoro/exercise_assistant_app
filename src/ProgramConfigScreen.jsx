@@ -1038,7 +1038,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
           </div>
 
           {/* Tab Content with Unified Height Container */}
-          <div className="min-h-[460px] flex flex-col justify-between animate-fadeIn">
+          <div className="min-h-[490px] flex flex-col justify-between animate-fadeIn">
             {calcTab === 'formula' ? (
               <div className="flex flex-col gap-4">
                 {/* Inputs */}
@@ -1139,38 +1139,48 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                {/* Single-direction inputs for RPE mode */}
-                <div className="flex items-center gap-3 justify-between">
-                  {/* Weight card (Input) */}
-                  <div className="flex-1 p-3 rounded-xl border border-border-card dark:border-border-card-dark bg-bg-main/20 dark:bg-bg-main-dark/20 flex flex-col gap-1 min-h-[82px] justify-center">
-                    <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark font-bold">测试重量 ({exUnit})</span>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      placeholder="重量"
-                      value={calcWeight}
-                      onChange={(e) => setCalcWeight(e.target.value)}
-                      className="w-full bg-transparent font-mono font-black text-xl text-text-main dark:text-text-main-dark focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none py-1"
-                      autoFocus
-                    />
+                {/* Inputs with standard unified layout (matching Formula mode) */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Weight Input */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="section-subtitle select-none mb-0">测试重量 ({exUnit})</label>
+                    <div className="input input-bordered flex items-center gap-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary px-3 h-11 transition-colors">
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        placeholder="重量"
+                        value={calcWeight}
+                        onChange={(e) => setCalcWeight(e.target.value)}
+                        className="w-full bg-transparent font-mono font-semibold text-sm text-text-main dark:text-text-main-dark focus:outline-none text-right pr-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        autoFocus
+                      />
+                      <span className="text-sm font-medium text-text-secondary/50 select-none">{exUnit}</span>
+                    </div>
                   </div>
 
-                  {/* Right Arrow (Visual indicator only) */}
-                  <div className="text-primary text-xl font-bold flex items-center justify-center w-8 select-none">
-                    ➜
-                  </div>
-
-                  {/* e1RM card (Auto Computed Display) */}
-                  <div className="flex-1 p-3 rounded-xl border border-border-card dark:border-border-card-dark bg-bg-main/20 dark:bg-bg-main-dark/20 flex flex-col gap-1 min-h-[82px] justify-center">
+                  {/* e1RM Display Card (styled like standard input, but readonly and highlighted) */}
+                  <div className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark font-bold font-sans">预估 1RM ({exUnit})</span>
+                      <label className="section-subtitle select-none mb-0">预估 1RM ({exUnit})</label>
                       <span className="badge badge-info badge-xs scale-90 px-1 py-0.5 font-bold text-[9px] bg-blue-500/15 text-blue-500 border border-blue-500/20">自动</span>
                     </div>
-                    <div className="text-xl font-black font-mono text-primary py-1">
-                      {computedE1RM > 0 ? `${computedE1RM}` : `0`}
+                    <div className="input input-bordered flex items-center gap-1 bg-primary/5 border-primary/20 px-3 h-11 transition-colors select-none">
+                      <div className="w-full font-mono font-black text-sm text-primary text-right pr-0.5">
+                        {computedE1RM > 0 ? `${computedE1RM}` : `0`}
+                      </div>
+                      <span className="text-sm font-bold text-primary/70 select-none">{exUnit}</span>
                     </div>
                   </div>
+                </div>
+
+                {/* RTS RPE Formula Info Box */}
+                <div className="p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 text-xs text-text-secondary dark:text-text-secondary-dark flex flex-col gap-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-text-main dark:text-text-main-dark">RTS RPE Formula (RTS RPE 公式)</span>
+                    <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark font-sans opacity-70">来自 Mike Tuchscherer 百分比表</span>
+                  </div>
+                  <span className="font-mono text-primary font-bold text-xs mt-0.5">e1RM = 重量 / RTS 百分比</span>
                 </div>
 
                 {/* Infinite pickers */}
