@@ -299,14 +299,16 @@ function TrainSession({
   getExerciseCNName,
   setDetails,
   setSetDetails,
+  showSetCard,
+  focusedSet,
+  openSetCard,
+  closeSetCard,
   onMinimize,
   onSave,
   onCancel,
   gymEquipmentConfig = null,
   unit = 'kg',
 }) {
-  const [focusedSet, setFocusedSet] = useState(null);
-  const [showSetCard, setShowSetCard] = useState(false);
   const [showRestCard, setShowRestCard] = useState(false);
   const [showPlateHelper, setShowPlateHelper] = useState(false);
 
@@ -326,6 +328,13 @@ function TrainSession({
     endTime: null
   });
 
+
+  useEffect(() => {
+    if (!showSetCard) {
+      setShowPlateHelper(false);
+      setCalcOpen(false);
+    }
+  }, [showSetCard]);
 
   const [customRestSeconds, setCustomRestSeconds] = useState(DEFAULT_REST_SECONDS);
 
@@ -362,9 +371,7 @@ function TrainSession({
     setCalcOpen(false);
   };
 
-  // 移到上方避免 hoisting 问题
-  const openSetCard = (exerciseIdx, setIdx) => { setFocusedSet({ exerciseIdx, setIdx }); setShowSetCard(true); };
-  const closeSetCard = () => { setShowSetCard(false); setFocusedSet(null); setShowPlateHelper(false); setCalcOpen(false); };
+  // openSetCard and closeSetCard are now props passed from App.jsx to sync with history popstate
 
   const adjustCustomRest = (delta) => {
     setCustomRestSeconds(prev => Math.max(0, prev + delta));

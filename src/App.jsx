@@ -115,6 +115,10 @@ function App() {
   const [selectedActiveProgramId, setSelectedActiveProgramId] = useState(null);
   const [selectedProgram, setSelectedProgram] = useState(null);
 
+  // 提升的动作组卡片状态
+  const [showSetCard, setShowSetCard] = useState(false);
+  const [focusedSet, setFocusedSet] = useState(null);
+
   // 初始化标记
   const hasInitializedRef = useRef(false);
 
@@ -269,6 +273,15 @@ function App() {
       nextSessionMinimized = updates.isMinimized;
     }
 
+    let nextShowSetCard = showSetCard;
+    if (updates.hasOwnProperty('showSetCard')) {
+      nextShowSetCard = updates.showSetCard;
+    }
+    let nextFocusedSet = focusedSet;
+    if (updates.hasOwnProperty('focusedSet')) {
+      nextFocusedSet = updates.focusedSet;
+    }
+
     // 更新 React 状态
     if (updates.hasOwnProperty('tab')) {
       setActiveTab(updates.tab);
@@ -300,6 +313,20 @@ function App() {
         isMinimized: nextSessionMinimized
       }));
     }
+    if (updates.hasOwnProperty('showSetCard')) {
+      setShowSetCard(updates.showSetCard);
+    }
+    if (updates.hasOwnProperty('focusedSet')) {
+      setFocusedSet(updates.focusedSet);
+    }
+
+    // 清理逻辑：如果训练结束或最小化，关闭组卡片
+    if ((updates.hasOwnProperty('sessionActive') && !nextSessionActive) || (updates.hasOwnProperty('isMinimized') && nextSessionMinimized)) {
+      setShowSetCard(false);
+      setFocusedSet(null);
+      nextShowSetCard = false;
+      nextFocusedSet = null;
+    }
 
     // 计算 URL Hash
     let hash = `#${nextTab}`;
@@ -325,13 +352,38 @@ function App() {
       selectedProgramId: nextSelectedProgram ? nextSelectedProgram.id : null,
       sessionActive: nextSessionActive,
       isMinimized: nextSessionMinimized,
-      previewOpen: nextPreviewOpen
+      previewOpen: nextPreviewOpen,
+      showSetCard: nextShowSetCard,
+      focusedSet: nextFocusedSet
     };
+
+    const isStateDifferent = 
+      window.location.hash !== hash ||
+      historyState.showSetCard !== (window.history.state?.showSetCard ?? false) ||
+      historyState.previewOpen !== (window.history.state?.previewOpen ?? false);
 
     if (replace) {
       window.history.replaceState(historyState, '', hash);
-    } else if (window.location.hash !== hash) {
+    } else if (isStateDifferent) {
       window.history.pushState(historyState, '', hash);
+    }
+  };
+
+  const openSetCard = (exerciseIdx, setIdx, replace = false) => {
+    updateNavigationState({
+      showSetCard: true,
+      focusedSet: { exerciseIdx, setIdx }
+    }, replace);
+  };
+
+  const closeSetCard = () => {
+    if (window.history.state && window.history.state.showSetCard) {
+      window.history.back();
+    } else {
+      updateNavigationState({
+        showSetCard: false,
+        focusedSet: null
+      });
     }
   };
 
@@ -347,6 +399,8 @@ function App() {
       }
 
       // 如果处于最大化的训练界面，且后退试图退出训练界面 -> 则进行【最小化】处理而不丢弃数据
+      // 只有当后退到的状态为 sessionActive === false 时才需要最小化训练会话；
+      // 如果后退到的状态为 sessionActive === true，则说明只是从组编辑卡片返回了训练主界面，不应该最小化
       if (sessionState.isActive && !sessionState.isMinimized && !state.sessionActive) {
         setSessionState(prev => ({
           ...prev,
@@ -356,7 +410,9 @@ function App() {
         window.history.replaceState({
           ...state,
           sessionActive: true,
-          isMinimized: true
+          isMinimized: true,
+          showSetCard: false,
+          focusedSet: null
         }, '', window.location.hash);
         
         setActiveTab(state.tab || 'today');
@@ -367,6 +423,8 @@ function App() {
         setSelectedActiveProgramId(state.selectedActiveProgramId);
         setSelectedProgram(resolvedSelProg);
         setPreviewOpen(!!state.previewOpen);
+        setShowSetCard(false);
+        setFocusedSet(null);
         return;
       }
 
@@ -380,6 +438,8 @@ function App() {
       setSelectedActiveProgramId(state.selectedActiveProgramId);
       setSelectedProgram(resolvedSelProg);
       setPreviewOpen(!!state.previewOpen);
+      setShowSetCard(!!state.showSetCard);
+      setFocusedSet(state.focusedSet || null);
 
       setSessionState(prev => ({
         ...prev,
@@ -390,7 +450,7 @@ function App() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [loading, programs, sessionState.isActive, sessionState.isMinimized, activeTab, configProgram, selectedActiveProgramId, selectedProgram, previewOpen]);
+  }, [loading, programs, sessionState.isActive, sessionState.isMinimized, activeTab, configProgram, selectedActiveProgramId, selectedProgram, previewOpen, showSetCard, focusedSet]);
 
   useEffect(() => {
     const applyTheme = () => {
@@ -1193,6 +1253,10 @@ function App() {
             getExerciseCNName={getExerciseCNName}
             setDetails={setDetails}
             setSetDetails={setSetDetails}
+            showSetCard={showSetCard}
+            focusedSet={focusedSet}
+            openSetCard={openSetCard}
+            closeSetCard={closeSetCard}
             onMinimize={() => {
               if (window.location.hash === '#session') {
                 window.history.back();
