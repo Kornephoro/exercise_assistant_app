@@ -200,12 +200,64 @@ function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymE
   );
 }
 
+// ==================== STANDARD_PLATES 常量 ====================
+const STANDARD_PLATES = {
+  kg: [25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25, 0.5],
+  lbs: [45.0, 35.0, 25.0, 10.0, 5.0, 2.5]
+};
+
 // ==================== GymEquipmentModal 弹窗组件 ====================
 
 function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
   const [activeUnit, setActiveUnit] = useState('kg');
+  const [customPlateInput, setCustomPlateInput] = useState('');
   const [config, setConfig] = useState(() => {
-    return JSON.parse(JSON.stringify(initialConfig || DEFAULT_GYM_EQUIPMENT_CONFIG));
+    const raw = JSON.parse(JSON.stringify(initialConfig || DEFAULT_GYM_EQUIPMENT_CONFIG));
+    // 归一化所有的 kg 和 lbs 配置
+    for (const unit of ['kg', 'lbs']) {
+      if (!raw[unit]) raw[unit] = {};
+      
+      // 1. 杠铃片标准化与初始化
+      if (!raw[unit].barbell) raw[unit].barbell = {};
+      let plates = raw[unit].barbell.plates;
+      if (!plates || !Array.isArray(plates)) {
+        plates = [...STANDARD_PLATES[unit]];
+      } else {
+        // 保证标准片总是存在
+        const uniquePlates = new Set([...STANDARD_PLATES[unit], ...plates.map(p => parseFloat(p))]);
+        plates = Array.from(uniquePlates).sort((a, b) => b - a);
+      }
+      raw[unit].barbell.plates = plates;
+      
+      let enabled = raw[unit].barbell.enabled_plates;
+      if (!enabled || !Array.isArray(enabled)) {
+        // 默认 kg 排除最轻的 0.5，其他全启用
+        raw[unit].barbell.enabled_plates = plates.filter(p => unit === 'lbs' || p !== 0.5);
+      } else {
+        raw[unit].barbell.enabled_plates = enabled.map(p => parseFloat(p)).filter(p => plates.includes(p));
+      }
+      
+      // 2. 哑铃规则标准化与初始化
+      if (!raw[unit].dumbbell) raw[unit].dumbbell = {};
+      let rules = raw[unit].dumbbell.rules;
+      if (!rules || !Array.isArray(rules) || rules.length === 0) {
+        const threshold = raw[unit].dumbbell.threshold ?? (unit === 'kg' ? 10 : 20);
+        const smallStep = raw[unit].dumbbell.small_step ?? (unit === 'kg' ? 2 : 5);
+        const largeStep = raw[unit].dumbbell.large_step ?? (unit === 'kg' ? 2.5 : 5);
+        rules = [
+          { limit: threshold, step: smallStep },
+          { limit: null, step: largeStep }
+        ];
+      }
+      raw[unit].dumbbell.rules = rules;
+      
+      // 3. 龙门架标准化与初始化
+      if (!raw[unit].cable) raw[unit].cable = {};
+      if (raw[unit].cable.step === undefined) {
+        raw[unit].cable.step = unit === 'kg' ? 2.5 : 5.0;
+      }
+    }
+    return raw;
   });
 
   if (!isOpen) return null;
@@ -235,26 +287,47 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
     setUnitProp('barbell', 'enabled_plates', nextEnabled);
   };
 
+  const handleAddPlate = () => {
+    const val = parseFloat(customPlateInput);
+    if (isNaN(val) || val <= 0) return;
+    const roundedVal = Math.round(val * 100) / 100;
+    
+    setConfig(prev => {
+      const next = { ...prev };
+      const barbell = next[activeUnit].barbell;
+      const plates = barbell.plates || [];
+      const enabled = barbell.enabled_plates || [];
+      
+      if (!plates.includes(roundedVal)) {
+        const nextPlates = [...plates, roundedVal].sort((a, b) => b - a);
+        const nextEnabled = [...enabled, roundedVal].sort((a, b) => b - a);
+        next[activeUnit].barbell.plates = nextPlates;
+        next[activeUnit].barbell.enabled_plates = nextEnabled;
+      }
+      return next;
+    });
+    setCustomPlateInput('');
+  };
+
+  const handleDeletePlate = (plate) => {
+    if (STANDARD_PLATES[activeUnit].includes(plate)) return;
+    
+    setConfig(prev => {
+      const next = { ...prev };
+      const barbell = next[activeUnit].barbell;
+      next[activeUnit].barbell.plates = (barbell.plates || []).filter(p => p !== plate);
+      next[activeUnit].barbell.enabled_plates = (barbell.enabled_plates || []).filter(p => p !== plate);
+      return next;
+    });
+  };
+
   const handleAddDumbbellRule = () => {
     setConfig(prev => {
       const next = { ...prev };
-      if (!next[activeUnit]) next[activeUnit] = {};
-      if (!next[activeUnit].dumbbell) next[activeUnit].dumbbell = {};
-      
-      let currentRules = next[activeUnit].dumbbell.rules;
-      if (!currentRules || !Array.isArray(currentRules)) {
-        const threshold = next[activeUnit].dumbbell.threshold ?? (activeUnit === 'kg' ? 10 : 20);
-        const smallStep = next[activeUnit].dumbbell.small_step ?? (activeUnit === 'kg' ? 2 : 5);
-        const largeStep = next[activeUnit].dumbbell.large_step ?? (activeUnit === 'kg' ? 2.5 : 5);
-        currentRules = [
-          { limit: threshold, step: smallStep },
-          { limit: null, step: largeStep }
-        ];
-      }
-      
-      const newRules = [...currentRules];
+      const rules = next[activeUnit].dumbbell.rules;
+      const newRules = [...rules];
       const lastIndex = newRules.length - 1;
-      const lastRule = lastIndex >= 0 ? newRules[lastIndex] : { limit: null, step: 2.5 };
+      const lastRule = newRules[lastIndex];
       
       let newLimit = 10;
       const limitedRules = newRules.filter(r => r.limit !== null && r.limit !== undefined);
@@ -262,13 +335,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
         newLimit = Math.max(...limitedRules.map(r => parseFloat(r.limit) || 0)) + 10;
       }
       
-      if (newRules.length === 0) {
-        newRules.push({ limit: 10, step: 2.0 });
-        newRules.push({ limit: null, step: 2.5 });
-      } else {
-        newRules.splice(lastIndex, 0, { limit: newLimit, step: lastRule.step });
-      }
-      
+      newRules.splice(lastIndex, 0, { limit: newLimit, step: lastRule.step });
       next[activeUnit].dumbbell.rules = newRules;
       return next;
     });
@@ -277,23 +344,10 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
   const handleRemoveDumbbellRule = (index) => {
     setConfig(prev => {
       const next = { ...prev };
-      if (!next[activeUnit]) next[activeUnit] = {};
-      if (!next[activeUnit].dumbbell) next[activeUnit].dumbbell = {};
+      const rules = next[activeUnit].dumbbell.rules;
+      if (rules.length <= 1) return prev;
       
-      let currentRules = next[activeUnit].dumbbell.rules;
-      if (!currentRules || !Array.isArray(currentRules)) {
-        const threshold = next[activeUnit].dumbbell.threshold ?? (activeUnit === 'kg' ? 10 : 20);
-        const smallStep = next[activeUnit].dumbbell.small_step ?? (activeUnit === 'kg' ? 2 : 5);
-        const largeStep = next[activeUnit].dumbbell.large_step ?? (activeUnit === 'kg' ? 2.5 : 5);
-        currentRules = [
-          { limit: threshold, step: smallStep },
-          { limit: null, step: largeStep }
-        ];
-      }
-      
-      if (currentRules.length <= 1) return prev;
-      
-      const newRules = currentRules.filter((_, idx) => idx !== index);
+      const newRules = rules.filter((_, idx) => idx !== index);
       next[activeUnit].dumbbell.rules = newRules;
       return next;
     });
@@ -302,21 +356,8 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
   const handleChangeDumbbellRule = (index, field, value) => {
     setConfig(prev => {
       const next = { ...prev };
-      if (!next[activeUnit]) next[activeUnit] = {};
-      if (!next[activeUnit].dumbbell) next[activeUnit].dumbbell = {};
-      
-      let currentRules = next[activeUnit].dumbbell.rules;
-      if (!currentRules || !Array.isArray(currentRules)) {
-        const threshold = next[activeUnit].dumbbell.threshold ?? (activeUnit === 'kg' ? 10 : 20);
-        const smallStep = next[activeUnit].dumbbell.small_step ?? (activeUnit === 'kg' ? 2 : 5);
-        const largeStep = next[activeUnit].dumbbell.large_step ?? (activeUnit === 'kg' ? 2.5 : 5);
-        currentRules = [
-          { limit: threshold, step: smallStep },
-          { limit: null, step: largeStep }
-        ];
-      }
-      
-      const newRules = currentRules.map((rule, idx) => {
+      const rules = next[activeUnit].dumbbell.rules;
+      const newRules = rules.map((rule, idx) => {
         if (idx === index) {
           const updated = { ...rule };
           if (field === 'limit') {
@@ -328,7 +369,6 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
         }
         return rule;
       });
-      
       next[activeUnit].dumbbell.rules = newRules;
       return next;
     });
@@ -339,6 +379,11 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
     setConfig(prev => {
       const next = { ...prev };
       next[activeUnit] = JSON.parse(JSON.stringify(defaults));
+      // 重置后同样进行一次标准化
+      const rawUnit = next[activeUnit];
+      if (!rawUnit.barbell) rawUnit.barbell = {};
+      rawUnit.barbell.plates = [...STANDARD_PLATES[activeUnit]];
+      rawUnit.barbell.enabled_plates = rawUnit.barbell.plates.filter(p => activeUnit === 'lbs' || p !== 0.5);
       return next;
     });
   };
@@ -346,19 +391,8 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
   const handleSaveClick = () => {
     const nextConfig = JSON.parse(JSON.stringify(config));
     for (const unit of ['kg', 'lbs']) {
-      if (nextConfig[unit]?.dumbbell) {
-        let rules = nextConfig[unit].dumbbell.rules;
-        if (!rules || !Array.isArray(rules)) {
-          const threshold = nextConfig[unit].dumbbell.threshold ?? (unit === 'kg' ? 10 : 20);
-          const smallStep = nextConfig[unit].dumbbell.small_step ?? (unit === 'kg' ? 2 : 5);
-          const largeStep = nextConfig[unit].dumbbell.large_step ?? (unit === 'kg' ? 2.5 : 5);
-          rules = [
-            { limit: threshold, step: smallStep },
-            { limit: null, step: largeStep }
-          ];
-        }
-        
-        // 自动递增排序，将 null/Infinity 始终放置在最后
+      if (nextConfig[unit]?.dumbbell?.rules) {
+        const rules = nextConfig[unit].dumbbell.rules;
         const finite = rules.filter(r => r.limit !== null && r.limit !== undefined).sort((a, b) => a.limit - b.limit);
         const infinite = rules.filter(r => r.limit === null || r.limit === undefined);
         if (infinite.length === 0) {
@@ -371,22 +405,18 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
     onClose();
   };
 
-  const platesOptions = activeUnit === 'kg'
-    ? [25, 20, 15, 10, 5, 2.5, 1.25, 0.5]
-    : [45, 35, 25, 10, 5, 2.5];
+  const platesList = unitConfig.barbell?.plates || [];
+  const dumbbellRules = unitConfig.dumbbell?.rules || [];
 
-  // 计算当前的哑铃规则以供渲染
-  const dumbbellConfig = unitConfig.dumbbell || {};
-  let dumbbellRules = dumbbellConfig.rules;
-  if (!dumbbellRules || !Array.isArray(dumbbellRules)) {
-    const threshold = dumbbellConfig.threshold ?? (activeUnit === 'kg' ? 10 : 20);
-    const smallStep = dumbbellConfig.small_step ?? (activeUnit === 'kg' ? 2 : 5);
-    const largeStep = dumbbellConfig.large_step ?? (activeUnit === 'kg' ? 2.5 : 5);
-    dumbbellRules = [
-      { limit: threshold, step: smallStep },
-      { limit: null, step: largeStep }
-    ];
-  }
+  const getDumbbellLabel = (idx) => {
+    const isLast = idx === dumbbellRules.length - 1;
+    if (!isLast) return `上限 ≤`;
+    if (dumbbellRules.length > 1) {
+      const prevLimit = dumbbellRules[idx - 1].limit;
+      return `${prevLimit} ${activeUnit} 以上`;
+    }
+    return '全部重量';
+  };
 
   return (
     <dialog className="modal modal-open">
@@ -435,26 +465,64 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
             <div className="flex flex-col gap-1.5 mt-1">
               <span className="text-xs font-semibold text-text-secondary/80">勾选可用的杠铃片规格（单侧）：</span>
               <div className="grid grid-cols-4 gap-2">
-                {platesOptions.map(p => {
+                {platesList.map(p => {
                   const isEnabled = (unitConfig.barbell?.enabled_plates || []).includes(p);
+                  const isStandard = STANDARD_PLATES[activeUnit].includes(p);
                   return (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => handleTogglePlate(p)}
-                      className={`py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                        isEnabled
-                           ? 'bg-primary/10 border-primary text-primary font-black'
-                           : 'bg-bg-card dark:bg-bg-card-dark border-border-card/50 dark:border-border-card-dark/50 text-text-secondary hover:bg-bg-hover'
-                      }`}
-                    >
-                      {p} {activeUnit}
-                    </button>
+                    <div key={p} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePlate(p)}
+                        className={`w-full py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                          isEnabled
+                            ? 'bg-primary/10 border-primary text-primary font-black'
+                            : 'bg-bg-card dark:bg-bg-card-dark border-border-card/50 dark:border-border-card-dark/50 text-text-secondary hover:bg-bg-hover'
+                        }`}
+                      >
+                        {p} {activeUnit}
+                      </button>
+                      {!isStandard && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeletePlate(p);
+                          }}
+                          className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-error text-white text-[9px] font-bold rounded-full flex items-center justify-center border border-bg-card dark:border-bg-card-dark cursor-pointer opacity-80 hover:opacity-100"
+                          title="彻底删除此规格"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
               </div>
+
+              {/* 新增自定义杠铃片区域 */}
+              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border-card/30 dark:border-border-card-dark/30">
+                <span className="text-xs font-semibold text-text-secondary">自定义片重:</span>
+                <input
+                  type="number"
+                  step="0.05"
+                  min="0.05"
+                  value={customPlateInput}
+                  onChange={e => setCustomPlateInput(e.target.value)}
+                  className="input input-bordered input-sm w-20 text-center font-mono font-bold bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark"
+                  placeholder="重量"
+                />
+                <span className="text-xs font-semibold text-text-secondary">{activeUnit}</span>
+                <button
+                  type="button"
+                  onClick={handleAddPlate}
+                  className="btn-aux h-8 px-2 flex items-center justify-center font-bold bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 cursor-pointer"
+                >
+                  添加
+                </button>
+              </div>
+
               <p className="text-[10px] text-text-secondary mt-1 select-none">
-                💡 自动圆整将排除未勾选的片。若没有微型片（如1.25kg/0.5kg），系统将自动凑出最临近的 2.5kg 或 5kg 整配重。
+                💡 自动圆整将排除未勾选的片。常用标准片不能删除，自定义添加的非标片可点击右上角 `×` 彻底清除。
               </p>
             </div>
           </div>
@@ -473,7 +541,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
             </div>
             
             <p className="text-[10px] text-text-secondary dark:text-text-secondary-dark/80 select-none leading-relaxed">
-              💡 <b>多分段说明</b>：支持自定义多个重量区间的递增步长。比如设定上限为 10，步长为 2，即代表在 10{activeUnit} 以下生成“2, 4, 6, 8, 10”；最后一段“剩余以上重量”代表大于此前所有分段后的递增规格。如整个健身房为恒定步长，只保留一个“全部重量”段即可。系统会自动匹配最贴近的可用哑铃重量。
+              💡 <b>多分段说明</b>：支持自定义多个重量区间的递增步长。例如第一段上限设为 10，步长为 2，系统会生成 2 至 10{activeUnit} 的规格。第二段上限设为 20，步长为 2.5，系统会继续接续生成 12.5 至 20{activeUnit} 的规格（即包含开区间 `(10, 20]`）。最后的一段为无上限，代表超出之前所有上限后的步长。如果您的健身房所有哑铃都使用同一个递增步长，只需点击 🗑️ 删掉其他所有的分段规则，只留下最后一条「全部重量」分段并设置您的步长即可。
             </p>
 
             <div className="space-y-2.5 mt-1">
@@ -482,13 +550,11 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
                 return (
                   <div key={idx} className="flex items-center gap-2 bg-bg-card dark:bg-bg-card-dark p-2 rounded-lg border border-border-card/30 dark:border-border-card-dark/30">
                     <div className="flex-1 flex items-center gap-1.5 min-w-0">
-                      {isLast ? (
-                        <span className="text-xs font-semibold text-text-secondary truncate shrink-0">
-                          {dumbbellRules.length > 1 ? '剩余以上重量' : '全部哑铃重量'}
-                        </span>
-                      ) : (
+                      <span className="text-xs font-semibold text-text-secondary truncate shrink-0">
+                        {getDumbbellLabel(idx)}
+                      </span>
+                      {!isLast && (
                         <div className="flex items-center gap-1 min-w-0">
-                          <span className="text-xs font-semibold text-text-secondary shrink-0">上限 ≤</span>
                           <input
                             type="number"
                             step="0.5"
