@@ -75,8 +75,11 @@ function App() {
     active: false,
     total: 90,
     remaining: 90,
-    endTime: null
+    endTime: null,
+    isMinimized: false
   });
+
+
 
   // 训练会话状态
   const [sessionState, setSessionState] = useState(() => {
@@ -139,6 +142,86 @@ function App() {
   // 提升的动作组卡片状态
   const [showSetCard, setShowSetCard] = useState(false);
   const [focusedSet, setFocusedSet] = useState(null);
+
+  const restTimerRef = useRef(null);
+  const timerStateRef = useRef({ focusedSet: null, exercises: [], setsData: {} });
+
+  useEffect(() => {
+    timerStateRef.current = { 
+      focusedSet, 
+      exercises: todayWorkout?.exercises || [], 
+      setsData: sessionState.setsData || {} 
+    };
+  }, [focusedSet, todayWorkout, sessionState.setsData]);
+
+  const getNextSet = (currentExIdx, currentSetIdx, exercises, setsData) => {
+    const currentSets = setsData[currentExIdx] || [];
+    const nextInEx = currentSets.findIndex((s, idx) => idx > currentSetIdx && !s.completed && !s.skipped);
+    if (nextInEx !== -1) return { exerciseIdx: currentExIdx, setIdx: nextInEx };
+
+    for (let exIdx = currentExIdx + 1; exIdx < exercises.length; exIdx++) {
+      const sets = setsData[exIdx] || [];
+      const firstUncompleted = sets.findIndex(s => !s.completed && !s.skipped);
+      if (firstUncompleted !== -1) return { exerciseIdx: exIdx, setIdx: firstUncompleted };
+    }
+    return null;
+  };
+
+  const playRestEndSound = () => {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+      gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
+      
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.6);
+    } catch (e) {
+      console.warn("Failed to play rest audio:", e);
+    }
+  };
+
+  useEffect(() => {
+    if (restTimer.active && restTimer.endTime) {
+      restTimerRef.current = setInterval(() => {
+        const now = Date.now();
+        const diff = Math.max(0, Math.round((restTimer.endTime - now) / 1000));
+        
+        setRestTimer(prev => {
+          if (diff <= 0) {
+            clearInterval(restTimerRef.current);
+            playRestEndSound();
+            
+            // 自动打开下一组
+            const currentFocused = timerStateRef.current.focusedSet;
+            const currentExercises = timerStateRef.current.exercises;
+            const currentSetsData = timerStateRef.current.setsData;
+            if (currentFocused && currentExercises && currentSetsData) {
+              const { exerciseIdx, setIdx } = currentFocused;
+              const next = getNextSet(exerciseIdx, setIdx, currentExercises, currentSetsData);
+              if (next) {
+                openSetCard(next.exerciseIdx, next.setIdx);
+              }
+            }
+            return { ...prev, active: false, remaining: 0, isMinimized: false };
+          }
+          return { ...prev, remaining: diff };
+        });
+      }, 200);
+    }
+    return () => {
+      if (restTimerRef.current) {
+        clearInterval(restTimerRef.current);
+      }
+    };
+  }, [restTimer.active, restTimer.endTime]);
 
   // 初始化标记
   const hasInitializedRef = useRef(false);
@@ -1128,6 +1211,35 @@ function App() {
     return `${completed}/${total}`;
   };
 
+  const getCurrentSetProgress = (setsData, exercises) => {
+    if (!setsData || !exercises || exercises.length === 0) return '';
+    
+    const getAbbreviatedName = (name) => {
+      if (!name) return '';
+      let cleaned = name.replace(/杠铃|哑铃|坐姿|站姿|俯身|俯立|单臂|双臂|平板|上斜|下斜|绳索/g, '');
+      return cleaned.length > 3 ? cleaned.slice(0, 3) : cleaned;
+    };
+
+    for (let exIdx = 0; exIdx < exercises.length; exIdx++) {
+      const ex = exercises[exIdx];
+      const sets = setsData[exIdx] || [];
+      const firstUncompletedIdx = sets.findIndex(s => !s.completed && !s.skipped);
+      
+      if (firstUncompletedIdx !== -1) {
+        const set = sets[firstUncompletedIdx];
+        const cnName = getExerciseCNName(ex.exercise) || ex.exercise;
+        const shortName = getAbbreviatedName(cnName);
+        
+        const isWarmup = !!set.is_warmup;
+        const warmupCount = sets.filter(s => s.is_warmup).length;
+        const displaySetNum = isWarmup ? `W${set.set_number}` : `${set.set_number - warmupCount}`;
+        
+        return `${shortName} ${displaySetNum}`;
+      }
+    }
+    return '已完结';
+  };
+
   const getExerciseCNName = (exercise) => getCNName(exercise, exercisesMap);
 
   const getActiveProgram = () => {
@@ -1362,7 +1474,7 @@ function App() {
       {/* 悬浮球 */}
       {sessionState.isActive && sessionState.isMinimized && (
         <FloatingBall
-          progress={getSessionProgress(sessionState.setsData)}
+          progress={getCurrentSetProgress(sessionState.setsData, todayWorkout?.exercises)}
           restTimer={restTimer}
           onRestore={() => updateNavigationState({ sessionActive: true, isMinimized: false })}
           onCancel={handleCancelSession}

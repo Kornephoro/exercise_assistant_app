@@ -309,6 +309,8 @@ function TrainSession({
   onCancel,
   gymEquipmentConfig = null,
   unit = 'kg',
+  restTimer,
+  setRestTimer
 }) {
   const getRecordingMethod = (exerciseKey) => exercisesMap?.[exerciseKey]?.recording_method || 'standard';
 
@@ -321,7 +323,7 @@ function TrainSession({
   const getProgress = () => { const t = getTotalSets(); return t === 0 ? 0 : Math.round((getCompletedSets() / t) * 100); };
   const isSessionFinished = () => getProgress() === 100;
 
-  const [showRestCard, setShowRestCard] = useState(false);
+
   const [showPlateHelper, setShowPlateHelper] = useState(false);
 
   // 重量估算计算器状态
@@ -333,12 +335,7 @@ function TrainSession({
   const [calcFormulaReps, setCalcFormulaReps] = useState(5); // 无 RPE 公式目标次数 (1-36)
   const [calcLoading, setCalcLoading] = useState(false);
 
-  const [restTimer, setRestTimer] = useState({
-    active: false,
-    total: DEFAULT_REST_SECONDS,
-    remaining: DEFAULT_REST_SECONDS,
-    endTime: null
-  });
+
 
   const [secondsElapsed, setSecondsElapsed] = useState(0);
 
@@ -524,14 +521,7 @@ function TrainSession({
   };
 
   const audioContextRef = useRef(null);
-  const restTimerRef = useRef(null);
   const swipeStartRef = useRef(null);
-
-  // 用 Ref 维护定时器内部需要读取的易变状态，避免频繁重置定时器
-  const timerStateRef = useRef({ focusedSet, exercises: todayWorkout?.exercises, setsData: sessionState.setsData });
-  useEffect(() => {
-    timerStateRef.current = { focusedSet, exercises: todayWorkout?.exercises, setsData: sessionState.setsData };
-  }, [focusedSet, todayWorkout, sessionState.setsData]);
 
   // 全屏左滑手势 → 触发 onMinimize（非破坏性操作）
   const handleSwipeStart = (e) => {
@@ -573,43 +563,7 @@ function TrainSession({
     } catch { /* ignore */ }
   }, []);
 
-  const playRestEndSound = useCallback(() => {
-    playBeep(600, 150);
-    setTimeout(() => playBeep(800, 150), 200);
-    setTimeout(() => playBeep(1000, 200), 400);
-  }, [playBeep]);
 
-  useEffect(() => {
-    if (restTimer.active && restTimer.endTime) {
-      restTimerRef.current = setInterval(() => {
-        const now = Date.now();
-        const diff = Math.max(0, Math.round((restTimer.endTime - now) / 1000));
-
-        setRestTimer(prev => {
-          if (diff <= 0) { 
-            clearInterval(restTimerRef.current); 
-            playRestEndSound(); 
-            setShowRestCard(false);
-            
-            // 自动打开下一组
-            const currentFocused = timerStateRef.current.focusedSet;
-            const currentExercises = timerStateRef.current.exercises;
-            const currentSetsData = timerStateRef.current.setsData;
-            if (currentFocused && currentExercises && currentSetsData) {
-              const { exerciseIdx, setIdx } = currentFocused;
-              const next = getNextSet(exerciseIdx, setIdx, currentExercises, currentSetsData);
-              if (next) {
-                openSetCard(next.exerciseIdx, next.setIdx);
-              }
-            }
-            return { ...prev, active: false, remaining: 0, endTime: null }; 
-          }
-          return { ...prev, remaining: diff };
-        });
-      }, 1000);
-    }
-    return () => { if (restTimerRef.current) clearInterval(restTimerRef.current); };
-  }, [restTimer.active, restTimer.endTime, playRestEndSound]);
 
   const handleToggleSet = (exIndex, setIndex) => {
     setSessionState(prev => {
@@ -707,9 +661,9 @@ function TrainSession({
         active: true,
         total: customRestSeconds,
         remaining: customRestSeconds,
-        endTime: Date.now() + customRestSeconds * 1000
+        endTime: Date.now() + customRestSeconds * 1000,
+        isMinimized: false
       });
-      setShowRestCard(true);
     }
   };
 
@@ -749,14 +703,13 @@ function TrainSession({
   };
 
   const skipRest = () => {
-    setShowRestCard(false);
     setRestTimer({
       active: false,
       total: DEFAULT_REST_SECONDS,
       remaining: DEFAULT_REST_SECONDS,
-      endTime: null
+      endTime: null,
+      isMinimized: false
     });
-    if (restTimerRef.current) clearInterval(restTimerRef.current);
     if (focusedSet) {
       const { exerciseIdx, setIdx } = focusedSet;
       const next = getNextSet(exerciseIdx, setIdx, todayWorkout.exercises, sessionState.setsData);
@@ -1186,15 +1139,25 @@ function TrainSession({
 
   // ============ REST TIMER CARD ============
   const renderRestCard = () => {
-    if (!showRestCard) return null;
+    if (!restTimer.active || restTimer.isMinimized) return null;
     const progressValue = restTimer.total > 0 ? ((restTimer.total - restTimer.remaining) / restTimer.total) * 100 : 0;
     const circumference = 2 * Math.PI * 45;
     const strokeDashoffset = circumference * (1 - progressValue / 100);
 
     return (
-      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-3">
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 backdrop-blur-sm p-3">
         <div className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-md">
-          <div className="flex flex-col items-center gap-4 p-5">
+          <div className="flex flex-col items-center gap-4 p-5 relative">
+            {/* 右上角最小化按钮 */}
+            <button
+              type="button"
+              onClick={() => setRestTimer(prev => ({ ...prev, isMinimized: true }))}
+              className="absolute top-4 right-4 btn btn-ghost btn-circle btn-xs h-7 w-7 min-h-0 text-base-content/50 hover:bg-base-200 hover:text-base-content rounded-full flex items-center justify-center cursor-pointer"
+              title="最小化"
+            >
+              <span className="text-base">↘️</span>
+            </button>
+
             <span className="text-sm font-semibold text-base-content/60">组间休息</span>
 
             <div className="relative flex items-center justify-center" style={{ width: '8rem', height: '8rem' }}>
@@ -2220,6 +2183,34 @@ function TrainSession({
          onTouchStart={handleSwipeStart}
          onTouchEnd={handleSwipeEnd}
     >
+      {/* 最小化倒计时悬浮条 */}
+      {restTimer.active && restTimer.isMinimized && (
+        <div 
+          onClick={() => setRestTimer(prev => ({ ...prev, isMinimized: false }))}
+          className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] h-12 bg-warning/15 dark:bg-warning/25 border-b border-warning/30 backdrop-blur z-[60] flex items-center justify-between px-4 cursor-pointer animate-fadeIn shadow-md"
+        >
+          <span className="text-xs font-black text-warning flex items-center gap-1.5 animate-pulse">
+            ⏱️ 休息中: 还有 {restTimer.remaining} 秒 (点击恢复)
+          </span>
+          <div className="flex gap-2">
+            <button 
+              type="button"
+              onClick={(e) => { e.stopPropagation(); addRestTime(30); }} 
+              className="btn btn-warning btn-outline btn-xs h-7 min-h-0 font-bold px-2.5 rounded-lg active:scale-95 transition-all text-[11px]"
+            >
+              +30s
+            </button>
+            <button 
+              type="button"
+              onClick={(e) => { e.stopPropagation(); skipRest(); }} 
+              className="btn btn-warning btn-xs h-7 min-h-0 font-bold px-2.5 rounded-lg active:scale-95 transition-all text-warning-content text-[11px]"
+            >
+              跳过
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 顶部遮罩面板 */}
       <div className="bg-gradient-to-b from-base-100 via-base-100 to-base-100/95 border-b border-base-300 shadow-md px-4 pt-4 pb-3 flex flex-col gap-3 z-10 select-none">
         {/* 第一行：计时器与“完成”按钮 */}
