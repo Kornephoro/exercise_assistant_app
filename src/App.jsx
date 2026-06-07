@@ -91,7 +91,12 @@ function App() {
     return {
       isActive: false,
       isMinimized: false,
-      setsData: {}
+      setsData: {},
+      sessionDate: null,
+      startTime: null,
+      elapsedTime: 0,
+      isPaused: false,
+      sessionNotes: ''
     };
   });
 
@@ -114,6 +119,14 @@ function App() {
   useEffect(() => {
     localStorage.setItem('active_session_details', JSON.stringify(setDetails));
   }, [setDetails]);
+
+  useEffect(() => {
+    if (sessionState.isActive && todayWorkout) {
+      localStorage.setItem('active_today_workout', JSON.stringify(todayWorkout));
+    } else if (!sessionState.isActive) {
+      localStorage.removeItem('active_today_workout');
+    }
+  }, [todayWorkout, sessionState.isActive]);
 
   // 训练预览弹窗
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -603,8 +616,19 @@ function App() {
             histByExTier[row.exercise][row.tier].push(row);
           });
 
-          const result = getNextWorkout(activeProgram, activeUP, histByExTier, parsedConfig, exMap);
-          setTodayWorkout(result);
+          const savedWorkout = localStorage.getItem('active_today_workout');
+          if (sessionState.isActive && savedWorkout) {
+            try {
+              setTodayWorkout(JSON.parse(savedWorkout));
+            } catch (e) {
+              console.warn('Failed to parse active_today_workout:', e);
+              const result = getNextWorkout(activeProgram, activeUP, histByExTier, parsedConfig, exMap);
+              setTodayWorkout(result);
+            }
+          } else {
+            const result = getNextWorkout(activeProgram, activeUP, histByExTier, parsedConfig, exMap);
+            setTodayWorkout(result);
+          }
 
           // 计算日程相关值
           const schedule = activeUP.schedule || {};
@@ -710,7 +734,11 @@ function App() {
       isActive: true,
       isMinimized: false,
       setsData,
-      sessionDate
+      sessionDate,
+      startTime: Date.now(),
+      elapsedTime: 0,
+      isPaused: false,
+      sessionNotes: ''
     });
     updateNavigationState({ sessionActive: true, isMinimized: false });
   };
@@ -728,7 +756,11 @@ function App() {
       isActive: false,
       isMinimized: false,
       setsData: {},
-      sessionDate: null
+      sessionDate: null,
+      startTime: null,
+      elapsedTime: 0,
+      isPaused: false,
+      sessionNotes: ''
     });
     setSetDetails({});
     setRestTimer({
@@ -830,6 +862,7 @@ function App() {
     const setsToInsert = [];
     const workoutRecords = [];
     let hasValidationError = false;
+    let isFirstSetAdded = false;
 
     for (const [exIdx, tierEx] of (todayWorkout.exercises || []).entries()) {
       const tier = tierEx.tier || 'T1';
@@ -874,13 +907,22 @@ function App() {
       for (const [setIdx, s] of sets.entries()) {
         const setKey = `${tier}_${exIdx}_${setIdx}`;
         const detail = setDetails[setKey] || {};
+        
+        let finalNotes = detail.notes || null;
+        if (!isFirstSetAdded) {
+          if (sessionState.sessionNotes) {
+            finalNotes = `[训练心得: ${sessionState.sessionNotes}]` + (detail.notes ? `\n${detail.notes}` : '');
+          }
+          isFirstSetAdded = true;
+        }
+
         const base = {
           exercise: tierEx.exercise,
           tier,
           set_number: s.set_number,
           completed: s.completed,
           is_warmup: !!s.is_warmup,
-          notes: detail.notes || null,
+          notes: finalNotes,
           rpe: detail.record_rpe !== false ? (detail.rpe ?? null) : null,
           tempo_eccentric: detail.record_tempo !== false ? (detail.tempo_eccentric ?? null) : null,
           tempo_pause_bottom: detail.record_tempo !== false ? (detail.tempo_pause_bottom ?? null) : null,
@@ -1042,7 +1084,11 @@ function App() {
         isActive: false,
         isMinimized: false,
         setsData: {},
-        sessionDate: null
+        sessionDate: null,
+        startTime: null,
+        elapsedTime: 0,
+        isPaused: false,
+        sessionNotes: ''
       });
       setSetDetails({});
       setRestTimer({
@@ -1286,6 +1332,7 @@ function App() {
             sessionState={sessionState}
             setSessionState={setSessionState}
             todayWorkout={todayWorkout}
+            setTodayWorkout={setTodayWorkout}
             exercisesMap={exercisesMap}
             getExerciseCNName={getExerciseCNName}
             setDetails={setDetails}

@@ -295,6 +295,7 @@ function TrainSession({
   sessionState,
   setSessionState,
   todayWorkout,
+  setTodayWorkout,
   exercisesMap,
   getExerciseCNName,
   setDetails,
@@ -308,24 +309,20 @@ function TrainSession({
   onCancel,
   gymEquipmentConfig = null,
   unit = 'kg',
-  restTimer,
-  setRestTimer,
 }) {
+  const getRecordingMethod = (exerciseKey) => exercisesMap?.[exerciseKey]?.recording_method || 'standard';
+
+  const getTotalSets = () => (todayWorkout?.exercises || []).reduce((sum, ex, idx) => {
+    const sets = sessionState.setsData[idx] || [];
+    const nonSkipped = sets.filter(s => !s.skipped);
+    return sum + nonSkipped.length;
+  }, 0);
+  const getCompletedSets = () => Object.values(sessionState.setsData).flat().filter(s => s.completed && !s.skipped).length;
+  const getProgress = () => { const t = getTotalSets(); return t === 0 ? 0 : Math.round((getCompletedSets() / t) * 100); };
+  const isSessionFinished = () => getProgress() === 100;
+
   const [showRestCard, setShowRestCard] = useState(false);
   const [showPlateHelper, setShowPlateHelper] = useState(false);
-
-  // Bottom Sheets States
-  const [showSessionSettings, setShowSessionSettings] = useState(false);
-  const [showExerciseSettings, setShowExerciseSettings] = useState(false);
-  const [focusedExerciseIdx, setFocusedExerciseIdx] = useState(null);
-  const [showSetSettings, setShowSetSettings] = useState(false);
-  const [showNotesSheet, setShowNotesSheet] = useState(false);
-  const [sessionNotes, setSessionNotes] = useState(() => {
-    return localStorage.getItem('active_session_notes') || '';
-  });
-
-  const [countdownActive, setCountdownActive] = useState(false);
-  const countdownTimerRef = useRef(null);
 
   // 重量估算计算器状态
   const [calcOpen, setCalcOpen] = useState(false);
@@ -336,72 +333,146 @@ function TrainSession({
   const [calcFormulaReps, setCalcFormulaReps] = useState(5); // 无 RPE 公式目标次数 (1-36)
   const [calcLoading, setCalcLoading] = useState(false);
 
-  const [timerSeconds, setTimerSeconds] = useState(() => {
-    const saved = localStorage.getItem('active_session_state');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return parsed.timerSeconds || 0;
-      } catch {}
-    }
-    return 0;
-  });
-  const [timerIsRunning, setTimerIsRunning] = useState(() => {
-    const saved = localStorage.getItem('active_session_state');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return parsed.timerIsRunning !== false;
-      } catch {}
-    }
-    return true;
+  const [restTimer, setRestTimer] = useState({
+    active: false,
+    total: DEFAULT_REST_SECONDS,
+    remaining: DEFAULT_REST_SECONDS,
+    endTime: null
   });
 
+  const [secondsElapsed, setSecondsElapsed] = useState(0);
+
+  const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
+  const [showSessionNotesModal, setShowSessionNotesModal] = useState(false);
+  const [showSessionSettingsModal, setShowSessionSettingsModal] = useState(false);
+
+  // Group settings state
+  const [showSetSettingsModal, setShowSetSettingsModal] = useState(false);
+  const [settingsSetIndex, setSettingsSetIndex] = useState(null);
+  const [settingsExerciseIndex, setSettingsExerciseIndex] = useState(null);
+
+  // Exercise settings state
+  const [showExerciseSettingsModal, setShowExerciseSettingsModal] = useState(false);
+  const [settingsExIdx, setSettingsExIdx] = useState(null);
+
+  // Add exercise form state
+  const [addExerciseSearch, setAddExerciseSearch] = useState('');
+  const [chosenWeight, setChosenWeight] = useState(20);
+  const [chosenSets, setChosenSets] = useState(3);
+  const [chosenReps, setChosenReps] = useState(8);
+  const [selectedExToAdd, setSelectedExToAdd] = useState(null);
+
   useEffect(() => {
-    if (!timerIsRunning) return;
+    if (!sessionState.isActive) return;
+
+    const calculateElapsed = () => {
+      const start = sessionState.startTime || Date.now();
+      const elapsed = sessionState.elapsedTime || 0;
+      const paused = !!sessionState.isPaused;
+      if (paused) {
+        return elapsed;
+      } else {
+        return elapsed + Math.floor((Date.now() - start) / 1000);
+      }
+    };
+
+    setSecondsElapsed(calculateElapsed());
+
+    if (sessionState.isPaused) return;
+
     const interval = setInterval(() => {
-      setTimerSeconds(prev => {
-        const next = prev + 1;
-        const saved = localStorage.getItem('active_session_state');
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            parsed.timerSeconds = next;
-            parsed.timerIsRunning = timerIsRunning;
-            localStorage.setItem('active_session_state', JSON.stringify(parsed));
-          } catch {}
-        }
-        return next;
-      });
+      setSecondsElapsed(calculateElapsed());
     }, 1000);
+
     return () => clearInterval(interval);
-  }, [timerIsRunning]);
+  }, [sessionState.isActive, sessionState.startTime, sessionState.elapsedTime, sessionState.isPaused]);
 
-  useEffect(() => {
-    const saved = localStorage.getItem('active_session_state');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        parsed.timerIsRunning = timerIsRunning;
-        localStorage.setItem('active_session_state', JSON.stringify(parsed));
-      } catch {}
-    }
-  }, [timerIsRunning]);
-
-  const formatTimer = (totalSeconds) => {
+  const formatTime = (totalSeconds) => {
     const hrs = Math.floor(totalSeconds / 3600);
     const mins = Math.floor((totalSeconds % 3600) / 60);
     const secs = totalSeconds % 60;
-    const minStr = String(mins).padStart(2, '0');
-    const secStr = String(secs).padStart(2, '0');
+    
+    const pad = (num) => String(num).padStart(2, '0');
+    
     if (hrs > 0) {
-      const hrStr = String(hrs).padStart(2, '0');
-      return `${hrStr}:${minStr}:${secStr}`;
+      return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
     }
-    return `${minStr}:${secStr}`;
+    return `${pad(mins)}:${pad(secs)}`;
   };
 
-  // restTimer and setRestTimer are passed as props from App.jsx
+  const getNextSet = (currentExIdx, currentSetIdx, exercises, setsData) => {
+    let exIdx = currentExIdx;
+    let setIdx = currentSetIdx + 1;
+    
+    while (exIdx < exercises.length) {
+      const sets = setsData[exIdx] || [];
+      while (setIdx < sets.length) {
+        if (!sets[setIdx].skipped) {
+          return { exerciseIdx: exIdx, setIdx };
+        }
+        setIdx++;
+      }
+      exIdx++;
+      setIdx = 0;
+    }
+    return null;
+  };
+
+  // 训练实时统计数据计算
+  const totalSets = getTotalSets();
+  const completedSets = getCompletedSets();
+
+  const totalExercises = todayWorkout?.exercises?.length || 0;
+  const completedExercises = useMemo(() => {
+    return (todayWorkout?.exercises || []).reduce((count, ex, idx) => {
+      const sets = sessionState.setsData[idx] || [];
+      const nonSkipped = sets.filter(s => !s.skipped);
+      if (nonSkipped.length > 0 && nonSkipped.every(s => s.completed)) {
+        return count + 1;
+      }
+      return count;
+    }, 0);
+  }, [todayWorkout?.exercises, sessionState.setsData]);
+
+  const { displayPlannedVolume, displayCompletedVolume } = useMemo(() => {
+    let totalPlannedVolume = 0;
+    let completedVolume = 0;
+
+    (todayWorkout?.exercises || []).forEach((ex, exIdx) => {
+      const method = getRecordingMethod(ex.exercise);
+      const sets = sessionState.setsData[exIdx] || [];
+      
+      const isWeightBased = ['standard', 'bodyweight_added', 'bodyweight_assisted', 'loaded_carry'].includes(method);
+      if (!isWeightBased) return;
+
+      sets.forEach(s => {
+        if (s.skipped) return;
+        
+        const weightVal = s.weight_kg !== undefined && s.weight_kg !== '' ? Number(s.weight_kg) : (ex.weight || 0);
+        
+        let plannedReps = s.planned_reps || 0;
+        if (method === 'loaded_carry') {
+          plannedReps = s.planned_reps || 0;
+        }
+        
+        const plannedVol = weightVal * plannedReps;
+        totalPlannedVolume += plannedVol;
+
+        if (s.completed) {
+          let actualReps = s.actual_reps !== undefined && s.actual_reps !== '' ? Number(s.actual_reps) : (s.planned_reps || 0);
+          if (method === 'loaded_carry') {
+            actualReps = s.distance_meters !== undefined && s.distance_meters !== '' ? Number(s.distance_meters) : (s.planned_reps || 0);
+          }
+          completedVolume += weightVal * actualReps;
+        }
+      });
+    });
+
+    return {
+      displayPlannedVolume: Math.round(unit === 'lbs' ? convertWeight(totalPlannedVolume, 'lbs') : totalPlannedVolume),
+      displayCompletedVolume: Math.round(unit === 'lbs' ? convertWeight(completedVolume, 'lbs') : completedVolume)
+    };
+  }, [todayWorkout?.exercises, sessionState.setsData, unit]);
 
 
   useEffect(() => {
@@ -410,47 +481,6 @@ function TrainSession({
       setCalcOpen(false);
     }
   }, [showSetCard]);
-
-  // Synchronous pre-filling for standard sets on card opening to prevent layout flashing
-  const lastPrefilledSetRef = useRef(null);
-
-  useEffect(() => {
-    if (showSetCard && focusedSet) {
-      const { exerciseIdx, setIdx } = focusedSet;
-      const key = `${exerciseIdx}_${setIdx}`;
-      if (lastPrefilledSetRef.current === key) return;
-      lastPrefilledSetRef.current = key;
-
-      const ex = todayWorkout?.exercises?.[exerciseIdx];
-      const sets = sessionState.setsData[exerciseIdx] || [];
-      const set = sets[setIdx];
-      if (ex && set) {
-        const totalSets = sets.length;
-        const isAmrap = set.is_amrap !== undefined ? set.is_amrap : !!(ex.amrap_last && setIdx === totalSets - 1);
-        if (!isAmrap) {
-          const recordingMethod = getRecordingMethod(ex.exercise);
-          if (['standard', 'reps_only', 'bodyweight_added', 'bodyweight_assisted'].includes(recordingMethod)) {
-            if (set.actual_reps === '' || set.actual_reps === undefined || set.actual_reps === null) {
-              setSessionState(prev => {
-                const nextSets = (prev.setsData[exerciseIdx] || []).map((s, sIdx) => {
-                  if (sIdx === setIdx) {
-                    return { ...s, actual_reps: s.planned_reps };
-                  }
-                  return s;
-                });
-                return {
-                  ...prev,
-                  setsData: { ...prev.setsData, [exerciseIdx]: nextSets }
-                };
-              });
-            }
-          }
-        }
-      }
-    } else {
-      lastPrefilledSetRef.current = null;
-    }
-  }, [showSetCard, focusedSet, todayWorkout, setSessionState]);
 
   const [customRestSeconds, setCustomRestSeconds] = useState(DEFAULT_REST_SECONDS);
 
@@ -522,46 +552,7 @@ function TrainSession({
     }
   };
 
-  const getRecordingMethod = (exerciseKey) => exercisesMap?.[exerciseKey]?.recording_method || 'standard';
-
-  const getTotalSets = () => (todayWorkout?.exercises || []).reduce((sum, ex, idx) => sum + (sessionState.setsData[idx]?.length || 0), 0);
-  const getCompletedSets = () => Object.values(sessionState.setsData).flat().filter(s => s.completed).length;
-  const getProgress = () => { const t = getTotalSets(); return t === 0 ? 0 : Math.round((getCompletedSets() / t) * 100); };
-  const isSessionFinished = () => getProgress() === 100;
-
-  const getCompletedExercises = () => {
-    const exercises = todayWorkout?.exercises || [];
-    return exercises.filter((ex, idx) => {
-      const sets = sessionState.setsData[idx] || [];
-      return sets.length > 0 && sets.every(s => s.completed);
-    }).length;
-  };
-
-  const getCompletedVolume = () => {
-    let volume = 0;
-    (todayWorkout?.exercises || []).forEach((ex, idx) => {
-      const sets = sessionState.setsData[idx] || [];
-      sets.forEach(s => {
-        if (s.completed) {
-          const w = s.weight_kg ?? ex.weight ?? 0;
-          const r = s.actual_reps || s.planned_reps || 0;
-          volume += w * r;
-        }
-      });
-    });
-    return Math.round(volume);
-  };
-
-  const getPlannedVolume = () => {
-    let volume = 0;
-    (todayWorkout?.exercises || []).forEach((ex) => {
-      const w = ex.weight ?? 0;
-      const r = ex.reps ?? 0;
-      const s = ex.sets ?? 0;
-      volume += w * r * s;
-    });
-    return Math.round(volume);
-  };
+  // Helper methods moved to the top of the component body to avoid hoisting reference error
 
   const getSetKey = (exerciseIdx, setIdx) => {
     const ex = todayWorkout?.exercises?.[exerciseIdx];
@@ -606,11 +597,9 @@ function TrainSession({
             const currentSetsData = timerStateRef.current.setsData;
             if (currentFocused && currentExercises && currentSetsData) {
               const { exerciseIdx, setIdx } = currentFocused;
-              const totalSets = currentSetsData[exerciseIdx].length;
-              if (setIdx === totalSets - 1 && exerciseIdx < currentExercises.length - 1) {
-                openSetCard(exerciseIdx + 1, 0);
-              } else if (setIdx < totalSets - 1) {
-                openSetCard(exerciseIdx, setIdx + 1);
+              const next = getNextSet(exerciseIdx, setIdx, currentExercises, currentSetsData);
+              if (next) {
+                openSetCard(next.exerciseIdx, next.setIdx);
               }
             }
             return { ...prev, active: false, remaining: 0, endTime: null }; 
@@ -710,26 +699,10 @@ function TrainSession({
     // 解决异步状态更新滞后问题：提前预测并计算完成状态
     const targetSet = sessionState.setsData[exerciseIdx]?.[setIdx];
     if (!targetSet) return;
-    const willBeCompleted = !targetSet.completed; // 点击后的新状态
+    
+    const nextSet = getNextSet(exerciseIdx, setIdx, todayWorkout.exercises, sessionState.setsData);
 
-    let completedCount = 0;
-    let totalCount = 0;
-    Object.keys(sessionState.setsData).forEach(exKey => {
-      const sets = sessionState.setsData[exKey] || [];
-      totalCount += sets.length;
-      sets.forEach((set, sIdx) => {
-        const isCurrent = Number(exKey) === exerciseIdx && sIdx === setIdx;
-        const isCompleted = isCurrent ? willBeCompleted : set.completed;
-        if (isCompleted) completedCount++;
-      });
-    });
-
-    const isSessionFinishedNew = totalCount > 0 && completedCount === totalCount;
-    const totalSets = sessionState.setsData[exerciseIdx].length;
-    const isLastExercise = exerciseIdx === todayWorkout.exercises.length - 1;
-    const isLastSet = setIdx === totalSets - 1;
-
-    if (!(isSessionFinishedNew || (isLastSet && isLastExercise))) {
+    if (nextSet) {
       setRestTimer({
         active: true,
         total: customRestSeconds,
@@ -737,6 +710,41 @@ function TrainSession({
         endTime: Date.now() + customRestSeconds * 1000
       });
       setShowRestCard(true);
+    }
+  };
+
+  const skipSetAction = (exIdx, setIdx) => {
+    setSessionState(prev => {
+      const nextSets = (prev.setsData[exIdx] || []).map((s, sIdx) => {
+        if (sIdx === setIdx) {
+          return { 
+            ...s, 
+            skipped: true,
+            completed: false
+          };
+        }
+        return s;
+      });
+      return {
+        ...prev,
+        setsData: { ...prev.setsData, [exIdx]: nextSets }
+      };
+    });
+    closeSetCard();
+
+    // 解决异步状态更新滞后问题：提前预测并计算完成状态
+    const nextSetsData = {
+      ...sessionState.setsData,
+      [exIdx]: (sessionState.setsData[exIdx] || []).map((s, sIdx) => {
+        if (sIdx === setIdx) {
+          return { ...s, skipped: true, completed: false };
+        }
+        return s;
+      })
+    };
+    const nextSet = getNextSet(exIdx, setIdx, todayWorkout.exercises, nextSetsData);
+    if (nextSet) {
+      openSetCard(nextSet.exerciseIdx, nextSet.setIdx);
     }
   };
 
@@ -751,9 +759,10 @@ function TrainSession({
     if (restTimerRef.current) clearInterval(restTimerRef.current);
     if (focusedSet) {
       const { exerciseIdx, setIdx } = focusedSet;
-      const totalSets = sessionState.setsData[exerciseIdx].length;
-      if (setIdx === totalSets - 1 && exerciseIdx < todayWorkout.exercises.length - 1) openSetCard(exerciseIdx + 1, 0);
-      else if (setIdx < totalSets - 1) openSetCard(exerciseIdx, setIdx + 1);
+      const next = getNextSet(exerciseIdx, setIdx, todayWorkout.exercises, sessionState.setsData);
+      if (next) {
+        openSetCard(next.exerciseIdx, next.setIdx);
+      }
     }
   };
 
@@ -790,152 +799,6 @@ function TrainSession({
   // ============ FIELD INPUT GROUP (hoisted outside) ============
 
   // ============ SET DETAIL CARD (floating centered) ============
-  const handleToggleAmrap = (exIndex, setIndex) => {
-    setSessionState(prev => {
-      const nextSets = (prev.setsData[exIndex] || []).map((set, sIdx) => {
-        if (sIdx === setIndex) {
-          const currentlyAmrap = set.is_amrap !== undefined 
-            ? set.is_amrap 
-            : !!(todayWorkout?.exercises?.[exIndex]?.amrap_last && sIdx === (prev.setsData[exIndex].length - 1));
-          
-          const nextAmrap = !currentlyAmrap;
-          return { 
-            ...set, 
-            is_amrap: nextAmrap,
-            actual_reps: nextAmrap ? '' : set.planned_reps
-          };
-        }
-        return set;
-      });
-      return {
-        ...prev,
-        setsData: { ...prev.setsData, [exIndex]: nextSets }
-      };
-    });
-  };
-
-  const handleBatchApply = (exIndex, setIndex) => {
-    const currentSet = sessionState.setsData[exIndex]?.[setIndex];
-    if (!currentSet) return;
-    setSessionState(prev => {
-      const nextSets = (prev.setsData[exIndex] || []).map((set, sIdx) => {
-        if (sIdx > setIndex) {
-          return {
-            ...set,
-            weight_kg: currentSet.weight_kg,
-            planned_reps: currentSet.planned_reps,
-            actual_reps: currentSet.actual_reps
-          };
-        }
-        return set;
-      });
-      return {
-        ...prev,
-        setsData: { ...prev.setsData, [exIndex]: nextSets }
-      };
-    });
-  };
-
-  const handleSkipSet = (exIndex, setIndex) => {
-    setSessionState(prev => {
-      const nextSets = (prev.setsData[exIndex] || []).map((set, sIdx) => {
-        if (sIdx === setIndex) {
-          return {
-            ...set,
-            completed: true,
-            skipped: true,
-            actual_reps: 0,
-            duration_seconds: 0,
-            distance_meters: 0
-          };
-        }
-        return set;
-      });
-      return {
-        ...prev,
-        setsData: { ...prev.setsData, [exIndex]: nextSets }
-      };
-    });
-    setShowSetSettings(false);
-    closeSetCard();
-  };
-
-  const handleSkipExerciseUnfinishedSets = (exIndex) => {
-    setSessionState(prev => {
-      const nextSets = (prev.setsData[exIndex] || []).map((set) => {
-        if (!set.completed) {
-          return {
-            ...set,
-            completed: true,
-            skipped: true,
-            actual_reps: 0,
-            duration_seconds: 0,
-            distance_meters: 0
-          };
-        }
-        return set;
-      });
-      return {
-        ...prev,
-        setsData: { ...prev.setsData, [exIndex]: nextSets }
-      };
-    });
-    setShowExerciseSettings(false);
-  };
-
-  const handleNotesChange = (val) => {
-    setSessionNotes(val);
-    localStorage.setItem('active_session_notes', val);
-  };
-
-  // Stop countdown when card closes
-  useEffect(() => {
-    if (!showSetCard) {
-      setCountdownActive(false);
-      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
-    }
-  }, [showSetCard]);
-
-  // Handle countdown tick
-  useEffect(() => {
-    if (countdownActive && showSetCard && focusedSet) {
-      const { exerciseIdx, setIdx } = focusedSet;
-      countdownTimerRef.current = setInterval(() => {
-        setSessionState(prev => {
-          const sets = prev.setsData[exerciseIdx] || [];
-          const set = sets[setIdx];
-          if (!set) {
-            clearInterval(countdownTimerRef.current);
-            setCountdownActive(false);
-            return prev;
-          }
-          const currentDuration = set.duration_seconds !== undefined && set.duration_seconds !== '' ? set.duration_seconds : set.planned_reps;
-          if (currentDuration <= 0) {
-            clearInterval(countdownTimerRef.current);
-            setCountdownActive(false);
-            playBeep(900, 300);
-            setTimeout(() => {
-              completeSet();
-            }, 100);
-            return prev;
-          }
-          const nextSets = sets.map((s, sIdx) => {
-            if (sIdx === setIdx) {
-              return { ...s, duration_seconds: currentDuration - 1 };
-            }
-            return s;
-          });
-          return {
-            ...prev,
-            setsData: { ...prev.setsData, [exerciseIdx]: nextSets }
-          };
-        });
-      }, 1000);
-    }
-    return () => { if (countdownTimerRef.current) clearInterval(countdownTimerRef.current); };
-  }, [countdownActive, showSetCard, focusedSet, setSessionState]);
-
-  // ============ SET DETAIL CARD (floating centered) ============
   const renderSetCard = () => {
     if (!showSetCard || !focusedSet) return null;
     const { exerciseIdx, setIdx } = focusedSet;
@@ -952,7 +815,8 @@ function TrainSession({
     const detail = setDetails[setKey] || {};
     const rpeValue = detail.rpe ?? 7;
     const totalSets = sessionState.setsData[exerciseIdx].length;
-    const isWarmup = !!set.is_warmup;
+    const isSkipped = !!set.skipped;
+    const isCompleted = !!set.completed;
 
     const METHOD_CONFIG = {
       standard:           { summary: (s, ex) => `${s.planned_reps} 次 @ ${ex.weight?.toFixed(1)}kg`,    fields: ['reps', 'weight'],        showTempo: true  },
@@ -973,33 +837,50 @@ function TrainSession({
     };
 
     return (
-      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-2" onClick={closeSetCard}>
-        <div className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-[460px] mx-1" onClick={(e) => e.stopPropagation()}>
-          <div className="p-4 flex flex-col gap-3">
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-3" onClick={closeSetCard}>
+        <div className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+          <div className="p-3.5 flex flex-col gap-2.5">
             {/* Header */}
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-base-content/50">
-                {isWarmup ? `热身组 H${setIdx + 1} / 共 ${totalSets} 组` : `第 ${setIdx + 1 - (sessionState.setsData[exerciseIdx]?.filter(s => s.is_warmup).length || 0)} 组 / 共 ${totalSets} 组`}
-              </span>
+              <span className="text-sm font-semibold text-base-content/50">第 {set.set_number} 组 / 共 {totalSets} 组</span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettingsExerciseIndex(exerciseIdx);
+                    setSettingsSetIndex(setIdx);
+                    setShowSetSettingsModal(true);
+                  }}
+                  className="btn btn-ghost btn-xs text-primary font-bold gap-1 rounded hover:bg-primary/10 cursor-pointer text-[11px]"
+                >
+                  ⚙️ 组管理
+                </button>
+                <button 
+                  type="button" 
+                  onClick={closeSetCard}
+                  className="btn btn-ghost btn-circle btn-xs h-7 w-7 text-base-content/50 hover:bg-base-200"
+                  aria-label="关闭"
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
 
             {/* Summary Line - Large Typography */}
             <div className="p-2.5 rounded-xl bg-base-200/50">
               <div className="text-xl font-bold text-base-content">
-                {isWarmup ? `${set.planned_reps} 次 @ ${(set.weight_kg ?? ex.weight ?? 0).toFixed(1)}kg (热身)` : config.summary(set, ex)}
+                {config.summary(set, ex)}
               </div>
-              {!isWarmup && (
-                <div className="text-base font-semibold text-base-content/60 mt-0.5">
-                  RPE {set.planned_rpe ?? 7}
-                  {config.showTempo && <> | 节奏 {set.tempo ?? '3110'}</>}
-                  <> | 休息 {customRestSeconds}秒</>
-                </div>
-              )}
+              <div className="text-base font-semibold text-base-content/60 mt-0.5">
+                RPE {set.planned_rpe ?? 7}
+                {config.showTempo && <> | 节奏 {set.tempo ?? '3110'}</>}
+                <> | 休息 {customRestSeconds}秒</>
+              </div>
             </div>
 
             {/* Dynamic Input Area - method-aware */}
             <FieldInputGroup
-              fields={isWarmup ? ['reps', 'weight'] : config.fields}
+              fields={config.fields}
               valueMap={{
                 reps:     set.actual_reps,
                 weight:   set.weight_kg ?? ex.weight,
@@ -1018,212 +899,284 @@ function TrainSession({
               }}
               showPlateHelperBtn={isBarbell}
               onShowPlateHelper={() => setShowPlateHelper(true)}
-              showCalcBtn={!isWarmup && config.fields.includes('weight')}
+              showCalcBtn={config.fields.includes('weight')}
               onShowCalculator={() => handleOpenCalculator(ex, set.weight_kg)}
             />
 
-            {method === 'duration_only' && (
-              <div className="flex items-center justify-center gap-3 py-2 bg-base-200/40 rounded-xl mt-1">
-                <button
-                  type="button"
-                  className={`btn btn-circle btn-sm ${countdownActive ? 'btn-warning' : 'btn-primary'} shadow active:scale-95`}
-                  onClick={() => setCountdownActive(!countdownActive)}
-                >
-                  {countdownActive ? <Pause size={14} /> : <Play size={14} className="ml-[1px]" />}
-                </button>
-                <span className="text-sm font-bold text-base-content/80 select-none">
-                  {countdownActive ? '正在计时倒计时...' : '启动倒计时计时器'}
-                </span>
-              </div>
-            )}
+            <div className="divider my-0" />
 
-            {!isWarmup && (
-              <>
-                <div className="divider my-0" />
-
-                {/* RPE */}
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between h-8">
-                    <div className="flex items-center gap-2 select-none">
-                      <label className="text-xs font-semibold text-base-content/50">RPE</label>
-                      <label className="flex items-center gap-1 cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          className="checkbox checkbox-primary checkbox-xs rounded" 
-                          checked={detail.record_rpe !== false} 
-                          onChange={(e) => updateSetDetail(setKey, 'record_rpe', e.target.checked)} 
-                        />
-                        <span className="text-[11px] text-base-content/40 font-bold">记录</span>
-                      </label>
-                    </div>
-                    {detail.record_rpe !== false ? (
-                      <span className={`text-2xl font-bold font-mono ${getRpeColor(rpeValue)}`}>{rpeValue.toFixed(1)}</span>
-                    ) : (
-                      <span className="text-xs font-semibold text-base-content/30">不记录</span>
-                    )}
-                  </div>
-                  <div className={`transition-all duration-200 ${detail.record_rpe === false ? 'opacity-30 pointer-events-none' : ''}`}>
+            {/* RPE */}
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between h-8">
+                <div className="flex items-center gap-2 select-none">
+                  <label className="text-xs font-semibold text-base-content/50">RPE</label>
+                  <label className="flex items-center gap-1 cursor-pointer">
                     <input 
-                      type="range" 
-                      min="0" 
-                      max="10" 
-                      step="0.5" 
-                      value={rpeValue} 
-                      className="range range-primary w-full" 
-                      disabled={detail.record_rpe === false}
-                      onChange={(e) => updateSetDetail(setKey, 'rpe', parseFloat(e.target.value))} 
+                      type="checkbox" 
+                      className="checkbox checkbox-primary checkbox-xs rounded" 
+                      checked={detail.record_rpe !== false} 
+                      onChange={(e) => updateSetDetail(setKey, 'record_rpe', e.target.checked)} 
                     />
-                    <div className="flex justify-between px-1 text-[10px] text-base-content/30 font-mono select-none"><span>0</span><span>2</span><span>4</span><span>6</span><span>8</span><span>10</span></div>
-                  </div>
+                    <span className="text-[11px] text-base-content/40 font-bold">记录</span>
+                  </label>
                 </div>
-
-                {/* Tempo */}
-                {config.showTempo && (
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between h-6">
-                      <div className="flex items-center gap-2 select-none">
-                        <label className="text-xs font-semibold text-base-content/50">动作节奏</label>
-                        <label className="flex items-center gap-1 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            className="checkbox checkbox-primary checkbox-xs rounded" 
-                            checked={detail.record_tempo !== false} 
-                            onChange={(e) => updateSetDetail(setKey, 'record_tempo', e.target.checked)} 
-                          />
-                          <span className="text-[11px] text-base-content/40 font-bold">记录</span>
-                        </label>
-                      </div>
-                      {detail.record_tempo === false && (
-                        <span className="text-xs font-semibold text-base-content/30">不记录</span>
-                      )}
-                    </div>
-                    <div className={`flex gap-2.5 items-stretch transition-all duration-200 ${detail.record_tempo === false ? 'opacity-30 pointer-events-none' : ''}`}>
-                      <div className="flex-1 flex flex-col gap-1 justify-between">
-                        {TEMPO_PRESETS.slice(0, 3).map((preset, idx) => (
-                          <button 
-                            key={idx} 
-                            type="button" 
-                            disabled={detail.record_tempo === false}
-                            className={`btn btn-ghost h-6 min-h-0 px-2 text-xs w-full whitespace-nowrap rounded-full ${preset.values === null ? 'btn-outline' : ''}`} 
-                            onClick={() => applyTempoPreset(setKey, preset.values)}
-                          >
-                            {preset.label}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="flex-1 grid grid-cols-4 gap-1.5">
-                        {TEMPO_LABELS.map((label, idx) => {
-                          const fields = ['tempo_eccentric', 'tempo_pause_bottom', 'tempo_concentric', 'tempo_pause_top'];
-                          const defaults = [3, 1, 1, 0];
-                          return (
-                            <div key={fields[idx]} className="flex flex-col gap-1 items-center">
-                              <span className="text-[10px] text-base-content/40">{label}</span>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                pattern="[0-9]"
-                                maxLength={1}
-                                disabled={detail.record_tempo === false}
-                                className="input input-bordered text-center !text-center font-mono font-bold w-full h-12 text-xl rounded-md px-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                value={detail[fields[idx]] ?? defaults[idx]}
-                                onChange={(e) => {
-                                  const raw = e.target.value.replace(/\D/g, '').slice(-1);
-                                  const v = raw === '' ? defaults[idx] : Math.min(9, Math.max(0, parseInt(raw, 10)));
-                                  updateSetDetail(setKey, fields[idx], v);
-                                }}
-                                onBeforeInput={(e) => {
-                                  if (e.data && !/^[0-9]$/.test(e.data)) e.preventDefault();
-                                }}
-                                onKeyDown={(e) => {
-                                  if (!/^[0-9]$/.test(e.key) && !['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                                    e.preventDefault();
-                                  }
-                                }}
-                                onFocus={(e) => {
-                                  requestAnimationFrame(() => e.target.select());
-                                }}
-                                onClick={(e) => e.target.select()}
-                                onTouchStart={(e) => e.target.select()}
-                                onPaste={(e) => {
-                                  const pasted = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(-1);
-                                  e.preventDefault();
-                                  const v = pasted === '' ? defaults[idx] : Math.min(9, Math.max(0, parseInt(pasted, 10)));
-                                  updateSetDetail(setKey, fields[idx], v);
-                                }}
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
+                {detail.record_rpe !== false ? (
+                  <span className={`text-2xl font-bold font-mono ${getRpeColor(rpeValue)}`}>{rpeValue.toFixed(1)}</span>
+                ) : (
+                  <span className="text-xs font-semibold text-base-content/30">不记录</span>
                 )}
+              </div>
+              <div className={`transition-all duration-200 ${detail.record_rpe === false ? 'opacity-30 pointer-events-none' : ''}`}>
+                <input 
+                  type="range" 
+                  min="0" 
+                  max="10" 
+                  step="0.5" 
+                  value={rpeValue} 
+                  className="range range-primary w-full" 
+                  disabled={detail.record_rpe === false}
+                  onChange={(e) => updateSetDetail(setKey, 'rpe', parseFloat(e.target.value))} 
+                />
+                <div className="flex justify-between px-1 text-[10px] text-base-content/30 font-mono select-none"><span>0</span><span>2</span><span>4</span><span>6</span><span>8</span><span>10</span></div>
+              </div>
+            </div>
 
-                {/* Rest duration */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold text-base-content/50">组间休息（秒）</label>
-                  <div className="flex items-stretch gap-1.5">
-                    <button type="button" onClick={() => adjustCustomRest(-30)}
-                      className="btn btn-outline h-12 w-12 rounded-md font-bold text-sm text-base-content/70 hover:text-error hover:border-error/50 active:scale-95"
-                      aria-label="减少 30 秒"
-                    >-30s</button>
-                    <button type="button" onClick={() => adjustCustomRest(-10)}
-                      className="btn btn-outline h-12 w-12 rounded-md font-bold text-sm text-base-content/70 hover:text-error hover:border-error/50 active:scale-95"
-                      aria-label="减少 10 秒"
-                    >-10s</button>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={4}
-                      className="input input-bordered text-center !text-center font-mono text-2xl font-bold flex-1 h-12 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      value={customRestSeconds}
-                      onChange={(e) => {
-                        const raw = e.target.value.replace(/\D/g, '');
-                        setCustomRestSeconds(raw === '' ? 0 : parseInt(raw, 10));
-                      }}
-                      onBlur={(e) => {
-                        if (e.target.value === '' || isNaN(parseInt(e.target.value, 10))) {
-                          setCustomRestSeconds(0);
-                        }
-                      }}
-                      onFocus={(e) => requestAnimationFrame(() => e.target.select())}
-                      onClick={(e) => e.target.select()}
-                      onTouchStart={(e) => e.target.select()}
-                      onPaste={(e) => {
-                        const pasted = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 4);
-                        e.preventDefault();
-                        setCustomRestSeconds(pasted === '' ? 0 : parseInt(pasted, 10));
-                      }}
+            {/* Tempo: presets left, fields right - method-aware visibility */}
+            {config.showTempo && (
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between h-6">
+                <div className="flex items-center gap-2 select-none">
+                  <label className="text-xs font-semibold text-base-content/50">动作节奏</label>
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="checkbox checkbox-primary checkbox-xs rounded" 
+                      checked={detail.record_tempo !== false} 
+                      onChange={(e) => updateSetDetail(setKey, 'record_tempo', e.target.checked)} 
                     />
-                    <button type="button" onClick={() => adjustCustomRest(10)}
-                      className="btn btn-outline h-12 w-12 rounded-md font-bold text-sm text-primary hover:bg-primary hover:text-primary-content hover:border-primary active:scale-95"
-                      aria-label="增加 10 秒"
-                    >+10s</button>
-                    <button type="button" onClick={() => adjustCustomRest(30)}
-                      className="btn btn-outline h-12 w-12 rounded-md font-bold text-sm text-primary hover:bg-primary hover:text-primary-content hover:border-primary active:scale-95"
-                      aria-label="增加 30 秒"
-                    >+30s</button>
-                  </div>
+                    <span className="text-[11px] text-base-content/40 font-bold">记录</span>
+                  </label>
                 </div>
-
-                {/* Notes */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold text-base-content/50">备注/感受</label>
-                  <textarea
-                    className="textarea textarea-bordered w-full h-16 text-xs"
-                    placeholder="记录本组感受..."
-                    value={detail.notes || ''}
-                    onChange={(e) => updateSetDetail(setKey, 'notes', e.target.value)}
-                  />
+                {detail.record_tempo === false && (
+                  <span className="text-xs font-semibold text-base-content/30">不记录</span>
+                )}
+              </div>
+              <div className={`flex gap-2.5 items-stretch transition-all duration-200 ${detail.record_tempo === false ? 'opacity-30 pointer-events-none' : ''}`}>
+                {/* 左侧：3 个预设按钮垂直排列，占 50%，均匀分布 */}
+                <div className="flex-1 flex flex-col gap-1 justify-between">
+                  {TEMPO_PRESETS.slice(0, 3).map((preset, idx) => (
+                    <button 
+                      key={idx} 
+                      type="button" 
+                      disabled={detail.record_tempo === false}
+                      className={`btn btn-ghost h-6 min-h-0 px-2 text-xs w-full whitespace-nowrap rounded-full ${preset.values === null ? 'btn-outline' : ''}`} 
+                      onClick={() => applyTempoPreset(setKey, preset.values)}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
                 </div>
-              </>
+                {/* 右侧：4 个输入框横向并排，占 50% */}
+                <div className="flex-1 grid grid-cols-4 gap-1.5">
+                  {TEMPO_LABELS.map((label, idx) => {
+                    const fields = ['tempo_eccentric', 'tempo_pause_bottom', 'tempo_concentric', 'tempo_pause_top'];
+                    const defaults = [3, 1, 1, 0];
+                    return (
+                      <div key={fields[idx]} className="flex flex-col gap-1 items-center">
+                        <span className="text-[10px] text-base-content/40">{label}</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]"
+                          maxLength={1}
+                          disabled={detail.record_tempo === false}
+                          className="input input-bordered text-center !text-center font-mono font-bold w-full h-12 text-xl rounded-md px-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          value={detail[fields[idx]] ?? defaults[idx]}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/\D/g, '').slice(-1);
+                            const v = raw === '' ? defaults[idx] : Math.min(9, Math.max(0, parseInt(raw, 10)));
+                            updateSetDetail(setKey, fields[idx], v);
+                          }}
+                          onBeforeInput={(e) => {
+                            if (e.data && !/^[0-9]$/.test(e.data)) e.preventDefault();
+                          }}
+                          onKeyDown={(e) => {
+                            if (!/^[0-9]$/.test(e.key) && !['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                              e.preventDefault();
+                            }
+                          }}
+                          onFocus={(e) => {
+                            requestAnimationFrame(() => e.target.select());
+                          }}
+                          onClick={(e) => e.target.select()}
+                          onTouchStart={(e) => e.target.select()}
+                          onPaste={(e) => {
+                            const pasted = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(-1);
+                            e.preventDefault();
+                            const v = pasted === '' ? defaults[idx] : Math.min(9, Math.max(0, parseInt(pasted, 10)));
+                            updateSetDetail(setKey, fields[idx], v);
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
             )}
+
+            {/* 组间休息调整 */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-base-content/50">组间休息（秒）</label>
+              <div className="flex items-stretch gap-1.5">
+                <button type="button" onClick={() => adjustCustomRest(-30)}
+                  className="btn btn-outline h-12 w-12 rounded-md font-bold text-sm text-base-content/70 hover:text-error hover:border-error/50 active:scale-95"
+                  aria-label="减少 30 秒"
+                >-30s</button>
+                <button type="button" onClick={() => adjustCustomRest(-10)}
+                  className="btn btn-outline h-12 w-12 rounded-md font-bold text-sm text-base-content/70 hover:text-error hover:border-error/50 active:scale-95"
+                  aria-label="减少 10 秒"
+                >-10s</button>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={4}
+                  className="input input-bordered text-center !text-center font-mono text-2xl font-bold flex-1 h-12 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  value={customRestSeconds}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/\D/g, '');
+                    setCustomRestSeconds(raw === '' ? 0 : parseInt(raw, 10));
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === '' || isNaN(parseInt(e.target.value, 10))) {
+                      setCustomRestSeconds(0);
+                    }
+                  }}
+                  onFocus={(e) => requestAnimationFrame(() => e.target.select())}
+                  onClick={(e) => e.target.select()}
+                  onTouchStart={(e) => e.target.select()}
+                  onPaste={(e) => {
+                    const pasted = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 4);
+                    e.preventDefault();
+                    setCustomRestSeconds(pasted === '' ? 0 : parseInt(pasted, 10));
+                  }}
+                />
+                <button type="button" onClick={() => adjustCustomRest(10)}
+                  className="btn btn-outline h-12 w-12 rounded-md font-bold text-sm text-primary hover:bg-primary hover:text-primary-content hover:border-primary active:scale-95"
+                  aria-label="增加 10 秒"
+                >+10s</button>
+                <button type="button" onClick={() => adjustCustomRest(30)}
+                  className="btn btn-outline h-12 w-12 rounded-md font-bold text-sm text-primary hover:bg-primary hover:text-primary-content hover:border-primary active:scale-95"
+                  aria-label="增加 30 秒"
+                >+30s</button>
+              </div>
+            </div>
+
+            {/* 备注/感受 */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-base-content/50">备注/感受</label>
+              <textarea
+                className="textarea textarea-bordered w-full h-16 text-xs"
+                placeholder="记录本组感受..."
+                value={detail.notes || ''}
+                onChange={(e) => updateSetDetail(setKey, 'notes', e.target.value)}
+              />
+            </div>
 
             {/* Actions */}
             <div className="flex gap-2.5 mt-2">
-              <button type="button" className="btn btn-primary flex-1 font-bold gap-2 h-12 text-base" onClick={completeSet}><Check size={18} />完成本组</button>
-              <button type="button" className="btn btn-ghost btn-outline flex-1 font-semibold gap-2 h-12 text-base" onClick={() => { handleToggleSet(exerciseIdx, setIdx); closeSetCard(); }}><SkipForward size={18} />跳过</button>
+              {isSkipped ? (
+                <>
+                  <button 
+                    type="button" 
+                    className="btn btn-primary flex-1 font-bold gap-2 h-12 text-base" 
+                    onClick={() => {
+                      setSessionState(prev => {
+                        const nextSets = (prev.setsData[exerciseIdx] || []).map((s, sIdx) => {
+                          if (sIdx === setIdx) {
+                            return { ...s, skipped: false, completed: false };
+                          }
+                          return s;
+                        });
+                        return {
+                          ...prev,
+                          setsData: { ...prev.setsData, [exerciseIdx]: nextSets }
+                        };
+                      });
+                    }}
+                  >
+                    <Play size={18} />
+                    恢复训练
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-outline border-base-300 flex-1 font-semibold gap-2 h-12 text-base text-base-content/70 hover:bg-base-200" 
+                    onClick={closeSetCard}
+                  >
+                    <X size={18} />
+                    关闭
+                  </button>
+                </>
+              ) : isCompleted ? (
+                <>
+                  <button 
+                    type="button" 
+                    className="btn btn-primary flex-1 font-bold gap-2 h-12 text-base" 
+                    onClick={closeSetCard}
+                  >
+                    <Check size={18} />
+                    保存修改
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-error btn-outline flex-1 font-semibold gap-2 h-12 text-base" 
+                    onClick={() => {
+                      setSessionState(prev => {
+                        const nextSets = (prev.setsData[exerciseIdx] || []).map((s, sIdx) => {
+                          if (sIdx === setIdx) {
+                            return { 
+                              ...s, 
+                              completed: false, 
+                              actual_reps: '', 
+                              duration_seconds: '',
+                              distance_meters: ''
+                            };
+                          }
+                          return s;
+                        });
+                        return {
+                          ...prev,
+                          setsData: { ...prev.setsData, [exerciseIdx]: nextSets }
+                        };
+                      });
+                      closeSetCard();
+                    }}
+                  >
+                    <X size={18} />
+                    撤销完成
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button 
+                    type="button" 
+                    className="btn btn-primary flex-1 font-bold gap-2 h-12 text-base" 
+                    onClick={completeSet}
+                  >
+                    <Check size={18} />
+                    完成本组
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-ghost btn-outline flex-1 font-semibold gap-2 h-12 text-base" 
+                    onClick={() => skipSetAction(exerciseIdx, setIdx)}
+                  >
+                    <SkipForward size={18} />
+                    跳过
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1278,7 +1231,7 @@ function TrainSession({
               <div className="flex gap-2 w-full">
                 <button type="button" className="btn btn-ghost btn-outline flex-1 font-bold gap-1 h-11 text-sm" onClick={() => addRestTime(-10)}>-10s</button>
                 <button type="button" className="btn btn-ghost btn-outline flex-1 font-bold gap-1 h-11 text-sm" onClick={() => addRestTime(10)}>+10s</button>
-                <button type="button" className="btn btn-ghost btn-outline flex-1 font-bold gap-1 h-11 text-sm" onClick={() => addRestTime(30)}><Plus size={16} />+30s</button>
+                <button type="button" className="btn btn-ghost btn-outline flex-1 font-bold gap-1 h-11 text-sm" onClick={() => addRestTime(30)}>+30s</button>
               </div>
               <button type="button" className="btn btn-warning w-full font-bold gap-2 h-11 text-sm" onClick={skipRest}><FastForward size={16} />跳过休息</button>
             </div>
@@ -1301,33 +1254,15 @@ function TrainSession({
           const completedCount = sets.filter(s => s.completed).length;
           const isFullyCompleted = completedCount === sets.length && sets.length > 0;
 
-          const tierBadge = tier === 'T1' 
-            ? 'bg-primary/10 text-primary' 
-            : tier === 'T2' 
-              ? 'bg-secondary/10 text-secondary' 
-              : tier === 'T3' 
-                ? 'bg-accent/10 text-accent'
-                : tier === 'warmup'
-                  ? 'bg-orange-500/10 text-orange-500'
-                  : 'bg-teal-500/10 text-teal-500';
-
-          const tierBorder = tier === 'T1' 
-            ? 'border-l-primary' 
-            : tier === 'T2' 
-              ? 'border-l-secondary' 
-              : tier === 'T3' 
-                ? 'border-l-accent'
-                : tier === 'warmup'
-                  ? 'border-l-orange-400'
-                  : 'border-l-teal-400';
-
-          const tierLabel = tier === 'warmup' ? '✨ 热身' : tier === 'stretching' ? '🧘 拉伸' : tier;
+          const tierBadge = tier === 'T1' ? 'bg-primary/10 text-primary' : tier === 'T2' ? 'bg-secondary/10 text-secondary' : 'bg-accent/10 text-accent';
+          const tierBorder = tier === 'T1' ? 'border-l-primary' : tier === 'T2' ? 'border-l-secondary' : 'border-l-accent';
 
           return (
-            <div key={exIdx} className={`card !p-3.5 bg-base-100 border border-base-300 border-l-4 ${tierBorder} shadow-sm transition-all duration-300 flex flex-col gap-3.5 ${isFullyCompleted ? 'opacity-50' : ''}`}>
-                <div className="flex items-center justify-between">
+            <div key={exIdx} className={`card bg-base-100 border border-base-300 border-l-4 ${tierBorder} shadow-sm transition-all duration-300 ${isFullyCompleted ? 'opacity-50' : ''}`}>
+              <div className="card-body px-0 py-3 gap-2">
+                <div className="flex items-center justify-between px-3">
                   <div className="flex items-center gap-2">
-                    <span className={`badge ${tierBadge} font-bold text-xs`}>{tierLabel}</span>
+                    <span className={`badge ${tierBadge} font-bold text-xs`}>{tier}</span>
                     <span className="text-sm font-bold text-base-content">{getExerciseCNName(ex.exercise)}</span>
                     <span className="text-xs font-mono font-bold text-base-content/40 bg-base-200 px-1.5 py-0.5 rounded">
                       {unit === 'lbs' ? `${convertWeight(ex.weight, 'lbs').toFixed(1)}lbs` : `${ex.weight?.toFixed(1)}kg`}
@@ -1335,15 +1270,15 @@ function TrainSession({
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-semibold text-base-content/40">{completedCount}/{sets.length}</span>
-                    <button 
-                      type="button" 
-                      className="btn btn-ghost btn-circle btn-xs h-6 w-6 min-h-0 text-base-content/40 hover:text-base-content hover:bg-base-200 rounded-full"
+                    <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setFocusedExerciseIdx(exIdx);
-                        setShowExerciseSettings(true);
+                        setSettingsExIdx(exIdx);
+                        setShowExerciseSettingsModal(true);
                       }}
-                      aria-label="动作设置"
+                      className="btn btn-ghost btn-circle btn-xs h-6 w-6 min-h-0 text-base-content/50 hover:bg-base-200 hover:text-base-content rounded-full flex items-center justify-center cursor-pointer"
+                      title="动作设置"
                     >
                       <Settings size={13} />
                     </button>
@@ -1365,7 +1300,7 @@ function TrainSession({
                   const breakdown = getBarbellPlateBreakdown(weightInUnit, barWeight, enabledPlates, plateLimits);
                    if (!breakdown || breakdown.plates.length === 0) {
                     return (
-                      <div className="flex flex-col gap-1.5 mb-2 select-none w-full">
+                      <div className="flex flex-col gap-1.5 mb-2 select-none w-full px-3">
                         <div className="text-[10px] text-base-content/45 bg-base-200/50 px-2.5 py-1.5 rounded-lg font-semibold w-fit border border-base-300/40">
                           💡 配片: 空杆 {barWeight}{unit}
                         </div>
@@ -1380,7 +1315,7 @@ function TrainSession({
                     .map(([plate, count]) => `${plate}${unit} × ${count}`);
                   
                   return (
-                    <div className="flex flex-col gap-1.5 mb-2 select-none w-full">
+                    <div className="flex flex-col gap-1.5 mb-2 select-none w-full px-3">
                       <div className="text-[10px] text-primary dark:text-primary-dark bg-primary/5 dark:bg-primary/10 border border-primary/10 rounded-lg px-2.5 py-1.5 flex items-center gap-1 font-semibold">
                         <span>💡 配片建议:</span>
                         <span>{barWeight}{unit} 空杆 + 单侧 [{plateTexts.join(', ')}]</span>
@@ -1389,71 +1324,68 @@ function TrainSession({
                   );
                 })()}
 
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-2.5">
                   {sets.map((set, setIdx) => {
                     const setKey = getSetKey(exIdx, setIdx);
                     const detail = setDetails[setKey] || {};
                     const isLastSet = setIdx === sets.length - 1;
-                    const warmupCount = sets.filter(s => s.is_warmup).length;
-                    const displayLabel = set.is_warmup ? `H${setIdx + 1}` : `${setIdx + 1 - warmupCount}`;
+                    const isSkipped = !!set.skipped;
+                    const isExhausted = !!detail.is_exhausted;
+                    
+                    let btnClassName = `flex items-center justify-between p-4 rounded-2xl border-2 transition-all duration-200 text-left w-full `;
+                    if (isSkipped) {
+                      btnClassName += `border-dashed border-base-300 bg-base-200/20 opacity-50`;
+                    } else if (set.completed) {
+                      btnClassName += `border-green-500/30 bg-green-500/5`;
+                    } else if (isLastSet && !set.completed) {
+                      btnClassName += `border-primary/40 bg-primary/5`;
+                    } else {
+                      btnClassName += `border-base-300 bg-base-200/30 hover:border-base-content/15`;
+                    }
 
                     return (
-                      <button key={setIdx} type="button" className={`flex items-center justify-between p-2.5 rounded-xl border-2 transition-all duration-200 text-left w-full ${set.completed ? 'border-green-500/30 bg-green-500/5' : isLastSet && !set.completed ? 'border-primary/40 bg-primary/5' : 'border-base-300 bg-base-200/30 hover:border-base-content/15'}`} onClick={() => openSetCard(exIdx, setIdx)}>
-                        <div className="flex items-center gap-2.5">
-                          {set.completed ? (
-                            <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center"><Check size={12} className="text-white" /></div>
-                          ) : set.is_warmup ? (
-                            <div className="w-6 h-6 rounded-full border-2 border-orange-400 bg-orange-500/5 flex items-center justify-center"><span className="text-[9px] font-black text-orange-500">{displayLabel}</span></div>
+                      <button key={setIdx} type="button" className={btnClassName} onClick={() => openSetCard(exIdx, setIdx)}>
+                        <div className="flex items-center gap-3">
+                          {isSkipped ? (
+                            <div className="w-8 h-8 rounded-full border border-base-300 flex items-center justify-center"><span className="text-xs text-base-content/30 font-bold">⏭️</span></div>
+                          ) : set.completed ? (
+                            <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center"><Check size={14} className="text-white" /></div>
                           ) : (
-                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${isLastSet ? 'border-primary' : 'border-base-300'}`}><span className="text-[9px] font-bold text-base-content/40">{displayLabel}</span></div>
+                            <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${isLastSet ? 'border-primary' : 'border-base-300'}`}><span className="text-xs font-bold text-base-content/40">{set.set_number}</span></div>
                           )}
                           <div className="flex flex-col">
-                            <div className="flex items-center gap-1.5">
-                              <span className={`text-xs font-semibold ${set.completed ? 'text-base-content/30 line-through' : 'text-base-content'}`}>
-                                {set.is_warmup ? `热身组 H${setIdx + 1}` : `第 ${displayLabel} 组`}
-                              </span>
-                              {!set.is_warmup && (
-                                <button 
-                                  type="button" 
-                                  className="btn btn-ghost btn-circle btn-xs h-5 w-5 min-h-0 text-base-content/30 hover:text-base-content hover:bg-base-200 rounded-full"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setFocusedSet({ exerciseIdx: exIdx, setIdx });
-                                    setShowSetSettings(true);
-                                  }}
-                                  aria-label="组设置"
-                                >
-                                  <Settings size={11} />
-                                </button>
-                              )}
-                            </div>
-                            <span className="text-[10px] text-base-content/30">
-                              {set.is_warmup ? '热身' : '正式组'} • 目标: {set.planned_reps}次
+                            <span className={`text-sm font-bold ${isSkipped ? 'text-base-content/40' : set.completed ? 'text-base-content/30 line-through' : 'text-base-content'}`}>
+                              第 {set.set_number} 组
+                              {isExhausted && <span className="text-[10px] text-warning ml-1">★ 力竭</span>}
                             </span>
+                            <span className="text-xs font-semibold text-base-content/40">目标: {set.planned_reps}次</span>
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          {detail.record_rpe !== false && detail.rpe !== undefined && detail.rpe !== null && (
-                            <span className={`text-[10px] font-bold font-mono ${getRpeColor(detail.rpe)}`}>RPE {detail.rpe.toFixed(1)}</span>
-                          )}
-                          {['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(getRecordingMethod(ex.exercise)) && (
-                            <span className="text-xs font-mono font-bold text-base-content/50">
-                              {unit === 'lbs' 
-                                ? `${convertWeight(set.weight_kg || ex.weight, 'lbs').toFixed(1)}lbs` 
-                                : `${(set.weight_kg || ex.weight)?.toFixed(1)}kg`
-                              }
-                            </span>
-                          )}
-                          {set.completed && (
-                            <span className="text-xs font-mono font-bold text-green-500">
-                              {set.skipped ? '已跳过' : `${set.actual_reps ?? set.planned_reps}次`}
-                            </span>
+                          {isSkipped ? (
+                            <span className="text-xs font-bold text-base-content/30">已跳过</span>
+                          ) : (
+                            <>
+                              {detail.record_rpe !== false && detail.rpe !== undefined && detail.rpe !== null && (
+                                <span className={`text-xs font-bold font-mono ${getRpeColor(detail.rpe)}`}>RPE {detail.rpe.toFixed(1)}</span>
+                              )}
+                              {['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(getRecordingMethod(ex.exercise)) && (
+                                <span className="text-sm font-mono font-bold text-base-content/60">
+                                  {unit === 'lbs' 
+                                    ? `${convertWeight(set.weight_kg || ex.weight, 'lbs').toFixed(1)}lbs` 
+                                    : `${(set.weight_kg || ex.weight)?.toFixed(1)}kg`
+                                  }
+                                </span>
+                              )}
+                              {set.completed && <span className="text-base font-mono font-black text-green-500">{set.actual_reps ?? set.planned_reps}次</span>}
+                            </>
                           )}
                         </div>
                       </button>
                     );
                   })}
                 </div>
+              </div>
             </div>
           );
         })}
@@ -1462,8 +1394,6 @@ function TrainSession({
   };
 
   const progress = getProgress();
-  const completedVolume = unit === 'lbs' ? Math.round(convertWeight(getCompletedVolume(), 'lbs')) : getCompletedVolume();
-  const plannedVolume = unit === 'lbs' ? Math.round(convertWeight(getPlannedVolume(), 'lbs')) : getPlannedVolume();
 
   // ============ BOTTOM SHEET PLATE HELPER ============
   const renderPlateHelperSheet = () => {
@@ -1846,161 +1776,411 @@ function TrainSession({
     );
   };
 
-  const renderBackdrop = (show, onClose) => {
-    if (!show) return null;
+  // ============ ADD EXERCISE MODAL ============
+  const renderAddExerciseModal = () => {
+    if (!showAddExerciseModal) return null;
+    
+    // Get all exercises from exercisesMap values
+    const allExs = Object.values(exercisesMap || {});
+    const filtered = allExs.filter(ex => 
+      ex.name?.toLowerCase().includes(addExerciseSearch.toLowerCase()) ||
+      getExerciseCNName(ex.name)?.includes(addExerciseSearch)
+    );
+
+    const handleConfirmAdd = () => {
+      if (!selectedExToAdd) return;
+      
+      const newEx = {
+        exercise: selectedExToAdd.name,
+        tier: 'T3',
+        weight: parseFloat(chosenWeight) || 0,
+        sets: parseInt(chosenSets, 10) || 3,
+        reps: parseInt(chosenReps, 10) || 8,
+        recording_method: selectedExToAdd.recording_method || 'standard'
+      };
+
+      const extraFields = {};
+      if (newEx.recording_method === 'duration_only') extraFields.duration_seconds = 0;
+      else if (['distance_only', 'loaded_carry'].includes(newEx.recording_method)) extraFields.distance_meters = 0;
+
+      const newExIdx = todayWorkout.exercises.length;
+      const newSets = Array.from({ length: newEx.sets }, (_, sIdx) => ({
+        set_number: sIdx + 1,
+        planned_reps: newEx.reps,
+        actual_reps: newEx.reps,
+        completed: false,
+        weight_kg: newEx.weight,
+        is_warmup: false,
+        ...extraFields
+      }));
+
+      setTodayWorkout(prev => ({
+        ...prev,
+        exercises: [...prev.exercises, newEx]
+      }));
+
+      setSessionState(prev => ({
+        ...prev,
+        setsData: {
+          ...prev.setsData,
+          [newExIdx]: newSets
+        }
+      }));
+
+      setSelectedExToAdd(null);
+      setAddExerciseSearch('');
+      setShowAddExerciseModal(false);
+    };
+
     return (
-      <div 
-        className="bottom-sheet-backdrop animate-sheet-fade-in" 
-        onClick={onClose} 
-      />
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 backdrop-blur-sm p-4">
+        <div className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[85vh]">
+          <div className="p-4 border-b border-base-300 flex items-center justify-between">
+            <span className="font-bold text-base text-base-content">添加自定义动作</span>
+            <button type="button" onClick={() => { setShowAddExerciseModal(false); setSelectedExToAdd(null); }} className="btn btn-ghost btn-circle btn-xs h-6 w-6"><X size={16} /></button>
+          </div>
+
+          <div className="p-4 overflow-y-auto flex flex-col gap-4 flex-1">
+            <input
+              type="text"
+              placeholder="搜索动作名称..."
+              value={addExerciseSearch}
+              onChange={(e) => setAddExerciseSearch(e.target.value)}
+              className="input input-bordered w-full h-11 text-sm rounded-xl"
+            />
+
+            {!selectedExToAdd ? (
+              <div className="flex flex-col gap-1 max-h-[240px] overflow-y-auto border border-base-300 rounded-xl p-1 bg-base-200/20">
+                {filtered.slice(0, 30).map((ex, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setSelectedExToAdd(ex)}
+                    className="flex items-center justify-between p-2.5 hover:bg-base-200 rounded-lg text-left text-sm text-base-content cursor-pointer transition-all border-0 bg-transparent w-full"
+                  >
+                    <span>{getExerciseCNName(ex.name)}</span>
+                    <span className="text-xs text-base-content/40 font-mono capitalize">{ex.category}</span>
+                  </button>
+                ))}
+                {filtered.length === 0 && (
+                  <div className="p-4 text-center text-xs text-base-content/40">无匹配的动作</div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3.5 bg-base-200/50 p-3.5 rounded-xl border border-base-300 animate-fadeIn">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm text-primary">{getExerciseCNName(selectedExToAdd.name)}</span>
+                  <button type="button" onClick={() => setSelectedExToAdd(null)} className="text-xs text-base-content/50 hover:underline">重新选择</button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-base-content/50">重量 ({unit})</label>
+                    <input
+                      type="number"
+                      value={chosenWeight}
+                      onChange={(e) => setChosenWeight(e.target.value)}
+                      className="input input-bordered w-full h-10 text-center font-mono text-sm rounded-lg"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-base-content/50">组数</label>
+                    <input
+                      type="number"
+                      value={chosenSets}
+                      onChange={(e) => setChosenSets(e.target.value)}
+                      className="input input-bordered w-full h-10 text-center font-mono text-sm rounded-lg"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-base-content/50">次数</label>
+                    <input
+                      type="number"
+                      value={chosenReps}
+                      onChange={(e) => setChosenReps(e.target.value)}
+                      className="input input-bordered w-full h-10 text-center font-mono text-sm rounded-lg"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="p-4 border-t border-base-300 flex justify-end gap-2.5">
+            <button type="button" onClick={() => { setShowAddExerciseModal(false); setSelectedExToAdd(null); }} className="btn btn-ghost btn-sm h-9 px-4 rounded-xl text-xs font-semibold">取消</button>
+            <button
+              type="button"
+              disabled={!selectedExToAdd}
+              onClick={handleConfirmAdd}
+              className="btn btn-primary btn-sm h-9 px-5 rounded-xl text-xs font-bold text-primary-content"
+            >
+              确认添加
+            </button>
+          </div>
+        </div>
+      </div>
     );
   };
 
-  const renderSheet = (show, onClose, content) => {
-    if (!show) return null;
+  // ============ SESSION NOTES MODAL ============
+  const renderSessionNotesModal = () => {
+    if (!showSessionNotesModal) return null;
     return (
-      <>
-        {renderBackdrop(show, onClose)}
-        <div className="bottom-sheet-container animate-sheet-slide-up flex flex-col gap-4 pb-8 select-none">
-          <div className="w-12 h-1 bg-base-300 rounded-full mx-auto mb-1 opacity-60" />
-          {content}
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 backdrop-blur-sm p-4">
+        <div className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
+          <div className="p-4 border-b border-base-300 flex items-center justify-between">
+            <span className="font-bold text-base text-base-content">记录今日训练心得</span>
+            <button type="button" onClick={() => setShowSessionNotesModal(false)} className="btn btn-ghost btn-circle btn-xs h-6 w-6"><X size={16} /></button>
+          </div>
+
+          <div className="p-4 flex flex-col gap-2.5">
+            <label className="text-xs font-semibold text-base-content/50">心得体会 / 整体感受</label>
+            <textarea
+              value={sessionState.sessionNotes || ''}
+              onChange={(e) => setSessionState(prev => ({ ...prev, sessionNotes: e.target.value }))}
+              placeholder="记录本次训练的总结，例如：今天状态拉满、深蹲动作很顺畅、卧推最后有些力竭等..."
+              className="textarea textarea-bordered w-full h-32 text-sm rounded-xl focus:border-primary"
+            />
+          </div>
+
+          <div className="p-4 border-t border-base-300 flex justify-end gap-2.5">
+            <button type="button" onClick={() => setShowSessionNotesModal(false)} className="btn btn-primary btn-sm h-9 px-5 rounded-xl text-xs font-bold text-primary-content">
+              保存心得
+            </button>
+          </div>
         </div>
-      </>
+      </div>
     );
   };
 
-  const renderSessionSettingsSheet = () => {
-    if (!showSessionSettings) return null;
-    const content = (
-      <div className="flex flex-col gap-4">
-        <div className="text-base font-extrabold text-base-content text-center pb-1 border-b border-base-200">
-          会话设置
+  // ============ SESSION SETTINGS MODAL ============
+  const renderSessionSettingsModal = () => {
+    if (!showSessionSettingsModal) return null;
+    return (
+      <div className="fixed inset-0 z-[70] flex items-end justify-center">
+        <div className="bottom-sheet-backdrop animate-sheet-fade-in" onClick={() => setShowSessionSettingsModal(false)} />
+        <div className="bottom-sheet-container animate-sheet-slide-up w-full flex flex-col gap-4 pb-8">
+          <div className="flex items-center justify-between pb-2 border-b border-base-300">
+            <span className="font-bold text-sm text-base-content">训练会话设置</span>
+            <button type="button" onClick={() => setShowSessionSettingsModal(false)} className="btn btn-ghost btn-circle btn-xs h-6 w-6"><X size={16} /></button>
+          </div>
+
+          <div className="flex flex-col gap-3 my-2">
+            <p className="text-xs text-base-content/60 leading-relaxed">
+              在这里可以调整本次训练的整体状态。如果您需要结束本次训练，建议您完成所有动作后点击右上角的“完成”；若需要作废数据退出，请点击下方的放弃按钮。
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setShowSessionSettingsModal(false);
+              handleAbort();
+            }}
+            className="btn btn-error w-full h-11 rounded-xl text-sm font-bold text-white shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+          >
+            <X size={16} />
+            <span>放弃本次训练 (数据将不保存)</span>
+          </button>
         </div>
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between text-xs font-semibold text-base-content/60 px-1">
-            <span>默认休息时长: {customRestSeconds} 秒</span>
-            <div className="flex gap-1">
-              <button type="button" className="btn btn-xs btn-outline rounded px-2 py-1" onClick={() => adjustCustomRest(-15)}>-15s</button>
-              <button type="button" className="btn btn-xs btn-outline rounded px-2 py-1" onClick={() => adjustCustomRest(15)}>+15s</button>
+      </div>
+    );
+  };
+
+  // ============ SET SETTINGS MODAL ============
+  const renderSetSettingsModal = () => {
+    if (!showSetSettingsModal || settingsSetIndex === null || settingsExerciseIndex === null) return null;
+    
+    const exIdx = settingsExerciseIndex;
+    const setIdx = settingsSetIndex;
+    const ex = todayWorkout.exercises[exIdx];
+    const set = sessionState.setsData[exIdx]?.[setIdx];
+    if (!set) return null;
+    
+    const setKey = getSetKey(exIdx, setIdx);
+    const detail = setDetails[setKey] || {};
+    const isExhausted = !!detail.is_exhausted;
+    const isSkipped = !!set.skipped;
+
+    const toggleExhaustion = () => {
+      updateSetDetail(setKey, 'is_exhausted', !isExhausted);
+      setShowSetSettingsModal(false);
+    };
+
+    const toggleSkipSet = () => {
+      setSessionState(prev => {
+        const nextSets = (prev.setsData[exIdx] || []).map((s, sIdx) => {
+          if (sIdx === setIdx) {
+            const nextSkipped = !s.skipped;
+            return { 
+              ...s, 
+              skipped: nextSkipped,
+              completed: nextSkipped ? false : s.completed
+            };
+          }
+          return s;
+        });
+        return {
+          ...prev,
+          setsData: { ...prev.setsData, [exIdx]: nextSets }
+        };
+      });
+      setShowSetSettingsModal(false);
+      if (focusedSet && focusedSet.exerciseIdx === exIdx && focusedSet.setIdx === setIdx) {
+        closeSetCard();
+      }
+    };
+
+    const handleSyncToSubsequent = () => {
+      const currentWeight = set.weight_kg ?? ex.weight;
+      const currentReps = set.actual_reps ?? set.planned_reps;
+      
+      setSessionState(prev => {
+        const nextSets = (prev.setsData[exIdx] || []).map((s, sIdx) => {
+          if (sIdx > setIdx && !s.completed && !s.skipped) {
+            return { ...s, weight_kg: currentWeight, planned_reps: currentReps };
+          }
+          return s;
+        });
+        return {
+          ...prev,
+          setsData: { ...prev.setsData, [exIdx]: nextSets }
+        };
+      });
+      setShowSetSettingsModal(false);
+    };
+
+    return (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 backdrop-blur-sm p-4" onClick={() => setShowSetSettingsModal(false)}>
+        <div className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col p-4 gap-4" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between pb-1 border-b border-base-300">
+            <span className="font-bold text-sm text-base-content">第 {set.set_number} 组管理菜单</span>
+            <button type="button" onClick={() => setShowSetSettingsModal(false)} className="btn btn-ghost btn-circle btn-xs h-6 w-6"><X size={16} /></button>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={toggleExhaustion}
+              className={`btn btn-outline w-full h-11 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                isExhausted ? 'btn-warning border-warning bg-warning/5 text-warning-content' : 'border-base-300'
+              }`}
+            >
+              ⭐ {isExhausted ? '取消标记力竭/失败' : '标记为力竭组 (Fail Set)'}
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleSkipSet}
+              className={`btn btn-outline w-full h-11 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                isSkipped ? 'btn-primary border-primary bg-primary/5 text-primary-content' : 'btn-error border-error bg-error/5 text-error-content'
+              }`}
+            >
+              ⏭️ {isSkipped ? '恢复此组训练' : '跳过本组 (Skip Set)'}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSyncToSubsequent}
+              className="btn btn-outline border-base-300 w-full h-11 rounded-xl text-sm font-bold text-base-content/85 hover:bg-base-200 active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              🔄 同步重量和次数到后续组
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ============ EXERCISE SETTINGS MODAL ============
+  const renderExerciseSettingsModal = () => {
+    if (!showExerciseSettingsModal || settingsExIdx === null) return null;
+    
+    const exIdx = settingsExIdx;
+    const ex = todayWorkout.exercises[exIdx];
+    if (!ex) return null;
+
+    const currentCategory = exercisesMap?.[ex.exercise]?.category;
+    const allExs = Object.values(exercisesMap || {});
+    const alternatives = allExs.filter(e => e.category === currentCategory && e.name !== ex.exercise);
+
+    const handleReplaceExercise = (alternativeName) => {
+      setTodayWorkout(prev => {
+        const nextExs = (prev.exercises || []).map((e, idx) => {
+          if (idx === exIdx) {
+            return {
+              ...e,
+              exercise: alternativeName
+            };
+          }
+          return e;
+        });
+        return { ...prev, exercises: nextExs };
+      });
+
+      setShowExerciseSettingsModal(false);
+      setSettingsExIdx(null);
+    };
+
+    const handleSkipExercise = () => {
+      const confirmSkip = window.confirm(`确定要跳过整组动作“${getExerciseCNName(ex.exercise)}”吗？`);
+      if (confirmSkip) {
+        setSessionState(prev => {
+          const sets = prev.setsData[exIdx] || [];
+          const nextSets = sets.map(s => ({ ...s, skipped: true, completed: false }));
+          return {
+            ...prev,
+            setsData: { ...prev.setsData, [exIdx]: nextSets }
+          };
+        });
+        setShowExerciseSettingsModal(false);
+        setSettingsExIdx(null);
+      }
+    };
+
+    return (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 backdrop-blur-sm p-4" onClick={() => { setShowExerciseSettingsModal(false); setSettingsExIdx(null); }}>
+        <div className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
+          <div className="p-4 border-b border-base-300 flex items-center justify-between">
+            <span className="font-bold text-base text-base-content">动作管理: {getExerciseCNName(ex.exercise)}</span>
+            <button type="button" onClick={() => { setShowExerciseSettingsModal(false); setSettingsExIdx(null); }} className="btn btn-ghost btn-circle btn-xs h-6 w-6"><X size={16} /></button>
+          </div>
+
+          <div className="p-4 overflow-y-auto flex flex-col gap-4 flex-1">
+            <div className="flex flex-col gap-2">
+              <span className="text-[10px] font-bold text-base-content/50 uppercase pl-1">快捷管理</span>
+              <button
+                type="button"
+                onClick={handleSkipExercise}
+                className="btn btn-outline border-error bg-error/5 hover:bg-error hover:text-white text-error w-full h-11 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+              >
+                ⏭️ 跳过整组动作
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-2.5">
+              <span className="text-[10px] font-bold text-base-content/50 uppercase pl-1">平替动作更换（同类别: {currentCategory}）</span>
+              <div className="flex flex-col gap-1 border border-base-300 rounded-xl p-1 bg-base-200/20 max-h-[220px] overflow-y-auto">
+                {alternatives.map((alt, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleReplaceExercise(alt.name)}
+                    className="flex items-center justify-between p-2.5 hover:bg-base-200 rounded-lg text-left text-sm text-base-content cursor-pointer transition-all border-0 bg-transparent w-full"
+                  >
+                    <span>{getExerciseCNName(alt.name)}</span>
+                    <span className="text-xs text-primary font-bold">更换</span>
+                  </button>
+                ))}
+                {alternatives.length === 0 && (
+                  <div className="p-4 text-center text-xs text-base-content/40">同类别下暂无备选动作</div>
+                )}
+              </div>
             </div>
           </div>
         </div>
-        <div className="divider my-0" />
-        <button 
-          type="button" 
-          className="btn btn-error btn-block font-bold h-12 text-sm text-error-content rounded-xl"
-          onClick={() => {
-            setShowSessionSettings(false);
-            handleAbort();
-          }}
-        >
-          放弃本次训练
-        </button>
       </div>
     );
-    return renderSheet(showSessionSettings, () => setShowSessionSettings(false), content);
-  };
-
-  const renderExerciseSettingsSheet = () => {
-    if (!showExerciseSettings || focusedExerciseIdx === null) return null;
-    const ex = todayWorkout?.exercises?.[focusedExerciseIdx];
-    if (!ex) return null;
-    const content = (
-      <div className="flex flex-col gap-4">
-        <div className="text-base font-extrabold text-base-content text-center pb-1 border-b border-base-200">
-          动作设置: {getExerciseCNName(ex.exercise)}
-        </div>
-        <button 
-          type="button" 
-          className="btn btn-ghost border border-base-300 btn-block justify-start font-bold h-12 text-sm rounded-xl px-4 hover:bg-base-200"
-          onClick={() => handleSkipExerciseUnfinishedSets(focusedExerciseIdx)}
-        >
-          ⏭️ 跳过此动作的未完成组
-        </button>
-      </div>
-    );
-    return renderSheet(showExerciseSettings, () => { setShowExerciseSettings(false); setFocusedExerciseIdx(null); }, content);
-  };
-
-  const renderSetSettingsSheet = () => {
-    if (!showSetSettings || !focusedSet) return null;
-    const { exerciseIdx, setIdx } = focusedSet;
-    const ex = todayWorkout?.exercises?.[exerciseIdx];
-    const sets = sessionState.setsData[exerciseIdx] || [];
-    const set = sets[setIdx];
-    if (!ex || !set) return null;
-
-    const totalSets = sets.length;
-    const isAmrap = set.is_amrap !== undefined ? set.is_amrap : !!(ex.amrap_last && setIdx === totalSets - 1);
-
-    const content = (
-      <div className="flex flex-col gap-4">
-        <div className="text-base font-extrabold text-base-content text-center pb-1 border-b border-base-200">
-          组设置: 第 {setIdx + 1} 组
-        </div>
-        
-        <div className="flex flex-col gap-2">
-          <button 
-            type="button" 
-            className="btn btn-ghost border border-base-300 btn-block justify-between font-bold h-12 text-sm rounded-xl px-4 hover:bg-base-200"
-            onClick={() => {
-              handleToggleAmrap(exerciseIdx, setIdx);
-              setShowSetSettings(false);
-            }}
-          >
-            <span>🔥 {isAmrap ? '改为普通组' : '改为力竭组 (AMRAP)'}</span>
-            <span className="badge badge-sm">{isAmrap ? '当前: AMRAP' : '当前: 普通'}</span>
-          </button>
-
-          <button 
-            type="button" 
-            className="btn btn-ghost border border-base-300 btn-block justify-start font-bold h-12 text-sm rounded-xl px-4 hover:bg-base-200"
-            onClick={() => {
-              handleBatchApply(exerciseIdx, setIdx);
-              setShowSetSettings(false);
-            }}
-          >
-            📋 批量应用重量/次数到所有后续组
-          </button>
-
-          <button 
-            type="button" 
-            className="btn btn-ghost border border-error/30 text-error btn-block justify-start font-bold h-12 text-sm rounded-xl px-4 hover:bg-error/10"
-            onClick={() => {
-              handleSkipSet(exerciseIdx, setIdx);
-            }}
-          >
-            🚫 跳过这一组训练
-          </button>
-        </div>
-      </div>
-    );
-    return renderSheet(showSetSettings, () => setShowSetSettings(false), content);
-  };
-
-  const renderNotesSheet = () => {
-    if (!showNotesSheet) return null;
-    const content = (
-      <div className="flex flex-col gap-4">
-        <div className="text-base font-extrabold text-base-content text-center pb-1 border-b border-base-200">
-          记录本次训练心得
-        </div>
-        <textarea
-          className="textarea textarea-bordered w-full h-32 text-xs rounded-xl p-3"
-          placeholder="写下今天的训练心得、力量表现、状态反馈等..."
-          value={sessionNotes}
-          onChange={(e) => handleNotesChange(e.target.value)}
-        />
-        <button 
-          type="button" 
-          className="btn btn-primary btn-block font-bold h-12 text-sm rounded-xl"
-          onClick={() => setShowNotesSheet(false)}
-        >
-          保存心得
-        </button>
-      </div>
-    );
-    return renderSheet(showNotesSheet, () => setShowNotesSheet(false), content);
   };
 
   return (
@@ -2008,68 +2188,81 @@ function TrainSession({
          onTouchStart={handleSwipeStart}
          onTouchEnd={handleSwipeEnd}
     >
-      {/* Top Header Card */}
-      <div className="bg-base-100 border-b border-base-300 rounded-b-[24px] pt-5 pb-4 px-4.5 flex flex-col gap-2.5 shadow-md z-10 select-none animate-fadeIn relative overflow-hidden">
-        {/* Row 1: Timer & Action Buttons */}
+      {/* 顶部遮罩面板 */}
+      <div className="bg-gradient-to-b from-base-100 via-base-100 to-base-100/95 border-b border-base-300 shadow-md px-4 pt-4 pb-3 flex flex-col gap-3 z-10 select-none">
+        {/* 第一行：计时器与“完成”按钮 */}
         <div className="flex items-center justify-between">
+          {/* 计时器显示 */}
           <div className="flex items-center gap-2">
-            <span className="text-3xl font-black font-mono tracking-tight text-base-content select-none">
-              {formatTimer(timerSeconds)}
+            <span className="text-3xl font-black font-mono tracking-tight text-base-content">
+              {formatTime(secondsElapsed)}
             </span>
             <button
               type="button"
-              className="w-7 h-7 rounded-full flex items-center justify-center bg-base-200 hover:bg-base-300 text-base-content transition-colors cursor-pointer border-0 active:scale-95 shadow-sm"
-              onClick={() => setTimerIsRunning(!timerIsRunning)}
-              aria-label={timerIsRunning ? "暂停" : "开始"}
+              onClick={() => {
+                setSessionState(prev => {
+                  if (prev.isPaused) {
+                    return { ...prev, isPaused: false, startTime: Date.now() };
+                  } else {
+                    const currentElapsed = (prev.elapsedTime || 0) + Math.floor((Date.now() - (prev.startTime || Date.now())) / 1000);
+                    return { ...prev, isPaused: true, elapsedTime: currentElapsed };
+                  }
+                });
+              }}
+              className={`btn btn-circle btn-xs h-7 w-7 min-h-0 border-0 flex items-center justify-center transition-all ${
+                sessionState.isPaused
+                  ? 'bg-primary text-primary-content hover:bg-primary/95 animate-pulse'
+                  : 'bg-base-200 text-base-content/70 hover:bg-base-300'
+              }`}
+              title={sessionState.isPaused ? "继续计时" : "暂停计时"}
             >
-              {timerIsRunning ? <Pause size={12} className="fill-current" /> : <Play size={12} className="fill-current ml-[1px]" />}
+              {sessionState.isPaused ? <Play size={11} fill="currentColor" /> : <Pause size={11} fill="currentColor" />}
             </button>
           </div>
-          <div className="flex items-center gap-1">
-            <button 
-              type="button" 
-              className="btn btn-sm btn-ghost hover:bg-base-300/40 text-xs font-bold text-base-content/60 rounded-full h-8 px-2.5 active:scale-95" 
-              onClick={onMinimize}
-            >
-              缩小
-            </button>
-            <button 
-              type="button" 
-              className="btn btn-sm btn-ghost hover:bg-error/10 text-xs font-bold text-error rounded-full h-8 px-2.5 active:scale-95" 
-              onClick={handleAbort}
-            >
-              放弃
-            </button>
-            <button 
-              type="button" 
-              className="btn btn-sm bg-[#007AFF] hover:bg-[#0066CC] text-white rounded-full h-8 px-4 font-bold border-0 cursor-pointer shadow-md ml-1 active:scale-95" 
-              onClick={() => onSave(setDetails)}
-            >
-              完成
-            </button>
+
+          {/* 右上角：“完成”打卡按钮 */}
+          <button
+            type="button"
+            className="btn btn-primary btn-sm h-8 px-4 rounded-xl text-xs font-bold text-primary-content shadow-md active:scale-95 transition-all cursor-pointer"
+            onClick={() => onSave(setDetails)}
+          >
+            完成
+          </button>
+        </div>
+
+        {/* 第二行：计划DAY标题与实时训练统计数据 */}
+        <div className="flex items-end justify-between">
+          <div className="flex items-center gap-1.5 text-base-content font-black text-lg">
+            <span>{currentDay}</span>
+          </div>
+          
+          <div className="text-right text-[10px] font-bold text-base-content/50 leading-tight">
+            <div>
+              {completedSets}/{totalSets}组 &nbsp;
+              {completedExercises}/{totalExercises}动作
+            </div>
+            <div className="mt-0.5 font-mono text-[9.5px]">
+              {displayCompletedVolume}/{displayPlannedVolume}{unit}容量
+            </div>
           </div>
         </div>
 
-        {/* Row 2: Title & Stats */}
-        <div className="flex items-end justify-between mt-1">
-          <span className="text-base font-extrabold text-base-content flex items-center gap-1.5 select-none">
-            <Dumbbell size={15} className="text-base-content/65" />
-            <span>{currentDay || '今日训练'}</span>
+        {/* 第三行：细长的进度条 */}
+        <div className="flex items-center gap-2.5">
+          <div className="relative flex-1 h-1.5 bg-base-200 dark:bg-base-300/40 rounded-full overflow-hidden">
+            <div
+              className="absolute top-0 left-0 h-full bg-primary transition-all duration-500 ease-out rounded-full"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <span className="text-[10px] font-black font-mono text-base-content/50 w-8 text-right">
+            {progress}%
           </span>
-          <div className="flex flex-col items-end text-[10px] font-bold text-base-content/60 font-mono leading-tight text-right select-none">
-            <span>{getCompletedSets()}/{getTotalSets()} 组 | {getCompletedExercises()}/{todayWorkout?.exercises?.length || 0} 动作</span>
-            <span className="text-primary mt-0.5">{completedVolume}/{plannedVolume}{unit} 容量</span>
-          </div>
-        </div>
-
-        {/* Progress Bar flat at the bottom border */}
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-base-200 overflow-hidden">
-          <div className="bg-[#007AFF] h-full transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-2.5 py-3.5 flex flex-col gap-3.5 pb-24">
+      <div className="flex-1 overflow-y-auto px-2 py-3 flex flex-col gap-3 pb-24">
         {renderExerciseList()}
         {isSessionFinished() && (
           <div className="mt-2 animate-fadeIn">
@@ -2079,57 +2272,38 @@ function TrainSession({
       </div>
 
       {/* Bottom Dock */}
-      <div className="fixed bottom-0 left-0 right-0 h-20 bg-base-100 border-t border-base-300 max-w-[480px] mx-auto px-4 flex items-center justify-between shadow-lg z-20 select-none">
-        {/* 最小化 */}
-        <button 
-          type="button" 
-          className="flex flex-col items-center gap-1 flex-1 text-base-content/60 hover:text-primary active:scale-95 transition-all"
+      <div className="bg-base-100/95 border-t border-base-300 py-2.5 px-4 grid grid-cols-4 gap-1 z-10 shadow-lg select-none">
+        <button
+          type="button"
           onClick={onMinimize}
+          className="flex flex-col items-center justify-center gap-1 text-base-content/70 hover:text-base-content active:scale-95 transition-all cursor-pointer"
         >
-          <Minimize2 size={18} />
+          <span className="text-lg">↘️</span>
           <span className="text-[10px] font-bold">最小化</span>
         </button>
-
-        {/* 加动作 */}
-        <button 
-          type="button" 
-          className="flex flex-col items-center gap-1 flex-1 text-base-content/60 hover:text-primary active:scale-95 transition-all"
-          onClick={() => alert("加动作功能将在后续阶段实现")}
+        <button
+          type="button"
+          onClick={() => setShowAddExerciseModal(true)}
+          className="flex flex-col items-center justify-center gap-1 text-base-content/70 hover:text-base-content active:scale-95 transition-all cursor-pointer"
         >
-          <Plus size={18} />
+          <span className="text-lg">➕</span>
           <span className="text-[10px] font-bold">加动作</span>
         </button>
-
-        {/* 写心得 */}
-        <button 
-          type="button" 
-          className="flex flex-col items-center gap-1 flex-1 text-base-content/60 hover:text-primary active:scale-95 transition-all"
-          onClick={() => setShowNotesSheet(true)}
+        <button
+          type="button"
+          onClick={() => setShowSessionNotesModal(true)}
+          className="flex flex-col items-center justify-center gap-1 text-base-content/70 hover:text-base-content active:scale-95 transition-all cursor-pointer"
         >
-          <Sparkles size={18} />
+          <span className="text-lg">📝</span>
           <span className="text-[10px] font-bold">写心得</span>
         </button>
-
-        {/* 设置 */}
-        <button 
-          type="button" 
-          className="flex flex-col items-center gap-1 flex-1 text-base-content/60 hover:text-primary active:scale-95 transition-all"
-          onClick={() => setShowSessionSettings(true)}
+        <button
+          type="button"
+          onClick={() => setShowSessionSettingsModal(true)}
+          className="flex flex-col items-center justify-center gap-1 text-base-content/70 hover:text-base-content active:scale-95 transition-all cursor-pointer"
         >
-          <Settings size={18} />
+          <span className="text-lg">⚙️</span>
           <span className="text-[10px] font-bold">设置</span>
-        </button>
-
-        {/* 在表练 */}
-        <button 
-          type="button" 
-          className={`flex flex-col items-center gap-1 flex-1 transition-all ${
-            timerIsRunning ? 'text-[#007AFF] font-extrabold animate-pulse' : 'text-base-content/60'
-          } hover:text-primary active:scale-95`}
-          onClick={() => setTimerIsRunning(!timerIsRunning)}
-        >
-          {timerIsRunning ? <Pause size={18} /> : <Play size={18} />}
-          <span className="text-[10px] font-mono leading-none">在表练 {formatTimer(timerSeconds)}</span>
         </button>
       </div>
 
@@ -2137,10 +2311,11 @@ function TrainSession({
       {renderRestCard()}
       {renderPlateHelperSheet()}
       {renderWeightCalculatorSheet()}
-      {renderSessionSettingsSheet()}
-      {renderExerciseSettingsSheet()}
-      {renderSetSettingsSheet()}
-      {renderNotesSheet()}
+      {renderAddExerciseModal()}
+      {renderSessionNotesModal()}
+      {renderSessionSettingsModal()}
+      {renderSetSettingsModal()}
+      {renderExerciseSettingsModal()}
     </div>
   );
 }
