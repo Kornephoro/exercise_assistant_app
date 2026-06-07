@@ -3,6 +3,8 @@
  * 数据库统一存储 kg，前端根据用户设置显示
  */
 
+import { MAIN_LIFT_KEYS } from './oneRmUtils';
+
 const KG_TO_LBS = 2.20462;
 const LBS_TO_KG = 1 / KG_TO_LBS;
 
@@ -352,7 +354,7 @@ export function roundExerciseWeight(targetWeight, exerciseInfo, config, unit = '
   const name = (exerciseInfo?.name || '').toLowerCase();
 
   const isBarbell = equipments.includes('barbell') ||
-                    ['squat', 'bench', 'deadlift', 'press'].includes(name);
+                    MAIN_LIFT_KEYS.includes(name);
 
   if (isBarbell) {
     const barWeight = eqConfig.barbell?.bar_weight ?? (unit === 'kg' ? 20 : 45);

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { getNextSet } from '../utils/trainingUtils';
 
 const DEFAULT_REST_SECONDS = 90;
 
@@ -33,18 +34,7 @@ export function useRestTimer({ getFocusedSet, getExercises, getSetsData, openSet
     };
   });
 
-  // 寻找下一组
-  const getNextSet = (currentExIdx, currentSetIdx, exercises, setsData) => {
-    const currentSets = setsData[currentExIdx] || [];
-    const nextInEx = currentSets.findIndex((s, idx) => idx > currentSetIdx && !s.completed && !s.skipped);
-    if (nextInEx !== -1) return { exerciseIdx: currentExIdx, setIdx: nextInEx };
-    for (let exIdx = currentExIdx + 1; exIdx < exercises.length; exIdx++) {
-      const sets = setsData[exIdx] || [];
-      const firstUncompleted = sets.findIndex(s => !s.completed && !s.skipped);
-      if (firstUncompleted !== -1) return { exerciseIdx: exIdx, setIdx: firstUncompleted };
-    }
-    return null;
-  };
+  // getNextSet 已提取到 utils/trainingUtils.js
 
   // 休息结束提示音
   const playRestEndSound = () => {

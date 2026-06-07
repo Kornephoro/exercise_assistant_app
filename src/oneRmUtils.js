@@ -62,6 +62,9 @@ export const MAIN_LIFTS = [
   { key: 'press', cn: '推举', color: 'purple' },
 ];
 
+/** 四大主项 key 集合（统一引用，避免多处硬编码） */
+export const MAIN_LIFT_KEYS = MAIN_LIFTS.map(l => l.key);
+
 /**
  * 从历史记录中挑出每个主项的最新一条
  * @param {Array} records

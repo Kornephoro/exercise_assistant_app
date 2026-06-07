@@ -126,8 +126,14 @@ function BodyMetrics() {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadData();
+    let cancelled = false;
+    const wrappedLoad = async () => {
+      await Promise.resolve(); // 保持原有的微任务延迟
+      if (cancelled) return;
+      loadData();
+    };
+    wrappedLoad();
+    return () => { cancelled = true; };
   }, []);
 
   // 3. 提交保存今日身体数据 (如果当天已有记录则更新，无则新增)
@@ -451,7 +457,7 @@ function BodyMetrics() {
                   if (!showLabel) return null;
                   return (
                     <text
-                      key={idx}
+                      key={p.date || idx}
                       x={p.x}
                       y={yMax + 15}
                       textAnchor="middle"
@@ -479,7 +485,7 @@ function BodyMetrics() {
                 {/* 3. 散点标记 */}
                 {points.map((p, idx) => (
                   <circle
-                    key={idx}
+                    key={p.date || idx}
                     cx={p.x}
                     cy={p.y}
                     r={hoveredIdx === idx ? 4 : 2}
@@ -647,11 +653,11 @@ function BodyMetrics() {
 
           {liveBmi && (
             <div className="bg-bg-main/30 dark:bg-bg-main-dark/30 rounded-xl p-2.5 border border-border-card/40 flex flex-col gap-1 select-none text-[10.5px] leading-relaxed text-text-secondary">
-              <div>📈 **BMI（身体质量指数）**: <strong className="font-mono text-text-main dark:text-text-main-dark text-xs">{liveBmi.bmi}</strong>
+              <div>📈 BMI（身体质量指数）: <strong className="font-mono text-text-main dark:text-text-main-dark text-xs">{liveBmi.bmi}</strong>
                 <span className={`ml-2 badge badge-sm font-bold scale-90 ${liveBmi.badgeColor}`}>{liveBmi.label}</span>
               </div>
               {liveWhtr && (
-                <div className="mt-0.5">📏 **WHtR（腰围身高比）**: <strong className="font-mono text-text-main dark:text-text-main-dark text-xs">{liveWhtr.whtr}</strong>
+                <div className="mt-0.5">📏 WHtR（腰围身高比）: <strong className="font-mono text-text-main dark:text-text-main-dark text-xs">{liveWhtr.whtr}</strong>
                   <span className={`ml-2 badge badge-sm font-bold scale-90 ${liveWhtr.badgeColor}`}>{liveWhtr.label}</span>
                 </div>
               )}

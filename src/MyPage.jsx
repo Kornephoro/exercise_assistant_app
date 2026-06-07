@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Sun, Moon, Settings, BookOpen, RotateCcw, Info, ChevronRight, Dumbbell, Scale } from 'lucide-react';
 import { DEFAULT_GYM_EQUIPMENT_CONFIG } from './unitUtils';
 import { saveUserProfile } from './services/profileService';
@@ -212,7 +212,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
   const [activeUnit, setActiveUnit] = useState('kg');
   const [customPlateInput, setCustomPlateInput] = useState('');
   const [config, setConfig] = useState(() => {
-    const raw = JSON.parse(JSON.stringify(initialConfig || DEFAULT_GYM_EQUIPMENT_CONFIG));
+    const raw = structuredClone(initialConfig || DEFAULT_GYM_EQUIPMENT_CONFIG);
     // 归一化所有的 kg 和 lbs 配置
     for (const unit of ['kg', 'lbs']) {
       if (!raw[unit]) raw[unit] = {};
@@ -283,7 +283,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
 
   const setUnitProp = (section, key, val) => {
     setConfig(prev => {
-      const next = JSON.parse(JSON.stringify(prev));
+      const next = structuredClone(prev);
       if (!next[activeUnit]) next[activeUnit] = {};
       if (!next[activeUnit][section]) next[activeUnit][section] = {};
       next[activeUnit][section][key] = val;
@@ -293,7 +293,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
 
   const handleTogglePlate = (plate) => {
     setConfig(prev => {
-      const next = JSON.parse(JSON.stringify(prev));
+      const next = structuredClone(prev);
       const barbell = next[activeUnit].barbell;
       if (!barbell.enabled_plates) barbell.enabled_plates = [];
       if (!barbell.plate_limits) barbell.plate_limits = {};
@@ -332,7 +332,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
     const roundedVal = Math.round(val * 100) / 100;
     
     setConfig(prev => {
-      const next = JSON.parse(JSON.stringify(prev));
+      const next = structuredClone(prev);
       const barbell = next[activeUnit].barbell;
       const plates = barbell.plates || [];
       const enabled = barbell.enabled_plates || [];
@@ -352,7 +352,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
     if (STANDARD_PLATES[activeUnit].includes(plate)) return;
     
     setConfig(prev => {
-      const next = JSON.parse(JSON.stringify(prev));
+      const next = structuredClone(prev);
       const barbell = next[activeUnit].barbell;
       next[activeUnit].barbell.plates = (barbell.plates || []).filter(p => p !== plate);
       next[activeUnit].barbell.enabled_plates = (barbell.enabled_plates || []).filter(p => p !== plate);
@@ -365,7 +365,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
 
   const handleAddDumbbellRule = () => {
     setConfig(prev => {
-      const next = JSON.parse(JSON.stringify(prev));
+      const next = structuredClone(prev);
       const rules = next[activeUnit].dumbbell.rules;
       const newRules = [...rules];
       const lastIndex = newRules.length - 1;
@@ -385,7 +385,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
 
   const handleRemoveDumbbellRule = (index) => {
     setConfig(prev => {
-      const next = JSON.parse(JSON.stringify(prev));
+      const next = structuredClone(prev);
       const rules = next[activeUnit].dumbbell.rules;
       if (rules.length <= 1) return prev;
       
@@ -397,7 +397,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
 
   const handleChangeDumbbellRule = (index, field, value) => {
     setConfig(prev => {
-      const next = JSON.parse(JSON.stringify(prev));
+      const next = structuredClone(prev);
       const rules = next[activeUnit].dumbbell.rules;
       const newRules = rules.map((rule, idx) => {
         if (idx === index) {
@@ -419,8 +419,8 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
   const handleReset = () => {
     const defaults = DEFAULT_GYM_EQUIPMENT_CONFIG[activeUnit];
     setConfig(prev => {
-      const next = JSON.parse(JSON.stringify(prev));
-      next[activeUnit] = JSON.parse(JSON.stringify(defaults));
+      const next = structuredClone(prev);
+      next[activeUnit] = structuredClone(defaults);
       // 重置后同样进行一次标准化
       const rawUnit = next[activeUnit];
       if (!rawUnit.barbell) rawUnit.barbell = {};
@@ -432,7 +432,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
   };
 
   const handleSaveClick = () => {
-    const nextConfig = JSON.parse(JSON.stringify(config));
+    const nextConfig = structuredClone(config);
     for (const unit of ['kg', 'lbs']) {
       if (nextConfig[unit]?.dumbbell?.rules) {
         const rules = nextConfig[unit].dumbbell.rules;
@@ -616,7 +616,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
               {dumbbellRules.map((rule, idx) => {
                 const isLast = idx === dumbbellRules.length - 1;
                 return (
-                  <div key={idx} className="flex flex-wrap items-center justify-between gap-2.5 bg-bg-card dark:bg-bg-card-dark p-2.5 rounded-lg border border-border-card/30 dark:border-border-card-dark/30">
+                  <div key={rule.step ?? idx} className="flex flex-wrap items-center justify-between gap-2.5 bg-bg-card dark:bg-bg-card-dark p-2.5 rounded-lg border border-border-card/30 dark:border-border-card-dark/30">
                     <div className="flex items-center gap-1.5 min-w-[120px] flex-1">
                       <span className="text-xs font-semibold text-text-secondary shrink-0">
                         {getDumbbellLabel(idx)}

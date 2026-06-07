@@ -1,5 +1,7 @@
 // This file is auto-generated from the Excel sheet.
 // Data credit: B站UP主 - 好人松松
+// NOTE: Some entries share identical coeff/expenditures (e.g. coeff 5.5 used by multiple
+// activities). This is by-design data duplication from the source spreadsheet — not DRY violation.
 
 
 export const WEIGHT_LEVELS = [50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120];

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
+import ConfirmDialog from './components/ConfirmDialog';
 
 /**
  * 悬浮球组件 - 在打卡会话最小化时在屏幕右下角悬浮，支持鼠标与触屏拖拽、碰撞视口边界、展示当前组打卡进度
@@ -11,6 +12,8 @@ import { X } from 'lucide-react';
  * @param {Function} props.onCancel 点击小叉号终止训练界面的回调
  */
 function FloatingBall({ progress, restTimer, onRestore, onCancel }) {
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
   // 悬浮球的宽高度
   const BALL_SIZE = 64;
   
@@ -133,10 +136,8 @@ function FloatingBall({ progress, restTimer, onRestore, onCancel }) {
 
   // 处理丢弃打卡
   const handleDiscard = (e) => {
-    e.stopPropagation(); // 阻止冒泡到球体点击事件
-    if (window.confirm("确定放弃本次训练？所有当前已记录的组进度将被丢弃且无法找回。")) {
-      onCancel();
-    }
+    e.stopPropagation();
+    setShowDiscardConfirm(true);
   };
 
   // 是否正在休息计时
@@ -216,6 +217,15 @@ function FloatingBall({ progress, restTimer, onRestore, onCancel }) {
           </span>
         </div>
       </div>
+      <ConfirmDialog
+        isOpen={showDiscardConfirm}
+        title="放弃训练"
+        message="确定放弃本次训练？所有当前已记录的组进度将被丢弃且无法找回。"
+        variant="error"
+        confirmLabel="放弃训练"
+        onConfirm={() => { setShowDiscardConfirm(false); onCancel(); }}
+        onCancel={() => setShowDiscardConfirm(false)}
+      />
     </div>
   );
 }

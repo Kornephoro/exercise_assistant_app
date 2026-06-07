@@ -4,6 +4,10 @@ import { convertWeight, getBarbellPlateBreakdown, toStorageWeight } from './unit
 import BarbellVisualizer from './BarbellVisualizer';
 import { fetchLatestOneRmForExercises } from './services/workoutService';
 import InfiniteScrollPicker from './components/InfiniteScrollPicker';
+import ConfirmDialog from './components/ConfirmDialog';
+import { EXERCISE_TYPE_MAP } from './exerciseNames';
+import { getNextSet } from './utils/trainingUtils';
+import { MAIN_LIFT_KEYS } from './oneRmUtils';
 
 const DEFAULT_REST_SECONDS = 90;
 
@@ -16,15 +20,6 @@ const TEMPO_PRESETS = [
 ];
 
 const TEMPO_LABELS = ['离心', '底部', '向心', '顶部'];
-
-const EXERCISE_TYPE_MAP = {
-  strength: '力量训练',
-  stretching: '拉伸训练',
-  animal_flow: '动物流',
-  mobility: '关节活动',
-  myofascial_release: '筋膜放松',
-  functional: '功能性训练',
-};
 
 const RPE_PERCENTAGE_CHART = {
   1:  { 10: 1.0,   9.5: 0.978, 9: 0.955, 8.5: 0.939, 8: 0.922, 7.5: 0.907, 7: 0.892, 6.5: 0.878, 6: 0.864 },
@@ -182,6 +177,7 @@ function TrainSession({
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [showSessionNotesModal, setShowSessionNotesModal] = useState(false);
   const [showSessionSettingsModal, setShowSessionSettingsModal] = useState(false);
+  const [confirmState, setConfirmState] = useState(null); // { title, message, onConfirm, variant }
 
   // Group settings state
   const [showSetSettingsModal, setShowSetSettingsModal] = useState(false);
@@ -192,7 +188,6 @@ function TrainSession({
   const [showExerciseSettingsModal, setShowExerciseSettingsModal] = useState(false);
   const [settingsExIdx, setSettingsExIdx] = useState(null);
   const [replaceExerciseSearch, setReplaceExerciseSearch] = useState('');
-  const [replaceCategoryFilter, setReplaceCategoryFilter] = useState('');
   const [showReplaceSheet, setShowReplaceSheet] = useState(false);
 
   // Shared exercise filter states (for add & replace)
@@ -245,23 +240,7 @@ function TrainSession({
     return `${pad(mins)}:${pad(secs)}`;
   };
 
-  const getNextSet = (currentExIdx, currentSetIdx, exercises, setsData) => {
-    let exIdx = currentExIdx;
-    let setIdx = currentSetIdx + 1;
-    
-    while (exIdx < exercises.length) {
-      const sets = setsData[exIdx] || [];
-      while (setIdx < sets.length) {
-        if (!sets[setIdx].skipped) {
-          return { exerciseIdx: exIdx, setIdx };
-        }
-        setIdx++;
-      }
-      exIdx++;
-      setIdx = 0;
-    }
-    return null;
-  };
+  // getNextSet 已提取到 utils/trainingUtils.js（同时修复了遗漏 completed 检查的 bug）
 
   // 训练实时统计数据计算
   const totalSets = getTotalSets();
@@ -600,10 +579,13 @@ function TrainSession({
   const getRpeColor = (v) => v <= 4 ? 'text-green-500' : v <= 7 ? 'text-yellow-500' : 'text-red-500';
 
   const handleAbort = () => {
-    const confirmDiscard = window.confirm("确定要放弃本次训练吗？所有未保存的训练数据都将丢失！");
-    if (confirmDiscard) {
-      onCancel();
-    }
+    setConfirmState({
+      title: '放弃本次训练',
+      message: '确定要放弃本次训练吗？所有未保存的训练数据都将丢失！',
+      variant: 'error',
+      confirmLabel: '放弃训练',
+      onConfirm: () => { setConfirmState(null); onCancel(); }
+    });
   };
 
   // Replaces the exercise at settingsExIdx with the selected alternative
@@ -669,7 +651,7 @@ function TrainSession({
 
     const exInfo = exercisesMap?.[ex.exercise];
     const isBarbell = exInfo?.equipment?.includes('barbell') || 
-                      ['squat', 'bench', 'deadlift', 'press'].includes(ex.exercise.toLowerCase());
+                      MAIN_LIFT_KEYS.includes(ex.exercise.toLowerCase());
 
     const method = getRecordingMethod(ex.exercise);
     const setKey = getSetKey(exerciseIdx, setIdx);
@@ -826,9 +808,9 @@ function TrainSession({
               <div className={`flex gap-2.5 items-stretch transition-all duration-200 ${detail.record_tempo === false ? 'opacity-30 pointer-events-none' : ''}`}>
                 {/* 左侧：3 个预设按钮垂直排列，占 50%，均匀分布 */}
                 <div className="flex-1 flex flex-col gap-1 justify-between">
-                  {TEMPO_PRESETS.slice(0, 3).map((preset, idx) => (
-                    <button 
-                      key={idx} 
+                  {TEMPO_PRESETS.slice(0, 3).map((preset) => (
+                    <button
+                      key={preset.label}
                       type="button" 
                       disabled={detail.record_tempo === false}
                       className={`btn btn-ghost h-6 min-h-0 px-2 text-xs w-full whitespace-nowrap rounded-full ${preset.values === null ? 'btn-outline' : ''}`} 
@@ -1163,7 +1145,7 @@ function TrainSession({
                 {(() => {
                   const exInfo = exercisesMap?.[ex.exercise];
                   const isBarbell = exInfo?.equipment?.includes('barbell') || 
-                                    ['squat', 'bench', 'deadlift', 'press'].includes(ex.exercise.toLowerCase());
+                                    MAIN_LIFT_KEYS.includes(ex.exercise.toLowerCase());
                   if (!isBarbell || !gymEquipmentConfig) return null;
                   
                   const configForUnit = gymEquipmentConfig[unit] || gymEquipmentConfig.kg;
@@ -2027,19 +2009,22 @@ function TrainSession({
     if (!ex) return null;
 
     const handleSkipExercise = () => {
-      const confirmSkip = window.confirm(`确定要跳过整组动作“${getExerciseCNName(ex.exercise)}”吗？`);
-      if (confirmSkip) {
-        setSessionState(prev => {
-          const sets = prev.setsData[exIdx] || [];
-          const nextSets = sets.map(s => ({ ...s, skipped: true, completed: false }));
-          return {
-            ...prev,
-            setsData: { ...prev.setsData, [exIdx]: nextSets }
-          };
-        });
-        setShowExerciseSettingsModal(false);
-        setSettingsExIdx(null);
-      }
+      setConfirmState({
+        title: '跳过整组动作',
+        message: `确定要跳过整组动作”${getExerciseCNName(ex.exercise)}”吗？`,
+        variant: 'warning',
+        confirmLabel: '跳过',
+        onConfirm: () => {
+          setConfirmState(null);
+          setSessionState(prev => {
+            const sets = prev.setsData[exIdx] || [];
+            const nextSets = sets.map(s => ({ ...s, skipped: true, completed: false }));
+            return { ...prev, setsData: { ...prev.setsData, [exIdx]: nextSets } };
+          });
+          setShowExerciseSettingsModal(false);
+          setSettingsExIdx(null);
+        }
+      });
     };
 
     return (
@@ -2426,6 +2411,15 @@ function TrainSession({
       {renderSetSettingsModal()}
       {renderExerciseSettingsModal()}
       {renderReplaceExerciseSheet()}
+      <ConfirmDialog
+        isOpen={!!confirmState}
+        title={confirmState?.title || ''}
+        message={confirmState?.message || ''}
+        confirmLabel={confirmState?.confirmLabel}
+        variant={confirmState?.variant}
+        onConfirm={confirmState?.onConfirm || (() => {})}
+        onCancel={() => setConfirmState(null)}
+      />
     </div>
   );
 }

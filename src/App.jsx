@@ -12,7 +12,7 @@ import {
   saveOneRmRecords
 } from './services/workoutService';
 import { getNextWorkout, getNextDay, isTodayTrainingDay, getNextTrainingDate, getDaysUntilStart } from './programEngine';
-import { calcE1RM } from './oneRmUtils';
+import { calcE1RM, MAIN_LIFT_KEYS } from './oneRmUtils';
 import { DEFAULT_GYM_EQUIPMENT_CONFIG } from './unitUtils';
 import { getCNName } from './exerciseNames';
 import { useRestTimer } from './hooks/useRestTimer';
@@ -107,20 +107,30 @@ function App() {
     return {};
   });
 
+  // 防抖持久化：500ms 延迟合并高频写入，避免每组完成时触发同步磁盘 I/O
   useEffect(() => {
-    localStorage.setItem('active_session_state', JSON.stringify(sessionState));
+    const timer = setTimeout(() => {
+      localStorage.setItem('active_session_state', JSON.stringify(sessionState));
+    }, 500);
+    return () => clearTimeout(timer);
   }, [sessionState]);
 
   useEffect(() => {
-    localStorage.setItem('active_session_details', JSON.stringify(setDetails));
+    const timer = setTimeout(() => {
+      localStorage.setItem('active_session_details', JSON.stringify(setDetails));
+    }, 500);
+    return () => clearTimeout(timer);
   }, [setDetails]);
 
   useEffect(() => {
-    if (sessionState.isActive && todayWorkout) {
-      localStorage.setItem('active_today_workout', JSON.stringify(todayWorkout));
-    } else if (!sessionState.isActive) {
-      localStorage.removeItem('active_today_workout');
-    }
+    const timer = setTimeout(() => {
+      if (sessionState.isActive && todayWorkout) {
+        localStorage.setItem('active_today_workout', JSON.stringify(todayWorkout));
+      } else if (!sessionState.isActive) {
+        localStorage.removeItem('active_today_workout');
+      }
+    }, 500);
+    return () => clearTimeout(timer);
   }, [todayWorkout, sessionState.isActive]);
 
   // 训练预览弹窗
@@ -196,7 +206,6 @@ function App() {
 
   // 核心数据加载
   const loadWorkoutData = async (overrideActiveProgramId) => {
-    await Promise.resolve();
     setLoading(true);
     setError(null);
     try {
@@ -661,7 +670,6 @@ function App() {
       // ============== 任务 6: 自动推算 + 写入 one_rm_records ==============
       // 规则: 4 个主项 (squat/bench/deadlift/press) T1 高强度组 (reps ≤ 5) 自动推算 1RM
       // 过滤: 如果新 e1rm < 当前 latest × 0.9, 视为脏数据跳过
-      const MAIN_LIFTS = ['squat', 'bench', 'deadlift', 'press'];
       const todayISO = sessionState.sessionDate || (() => {
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -671,7 +679,7 @@ function App() {
       const candidates = [];
       (todayWorkout.exercises || []).forEach((tierEx, exIdx) => {
         const liftKey = tierEx.exercise;
-        if (!MAIN_LIFTS.includes(liftKey)) return;
+        if (!MAIN_LIFT_KEYS.includes(liftKey)) return;
         const tier = tierEx.tier || 'T1';
         const sets = setsData[exIdx] || [];
         const workSets = sets.filter(s => !s.is_warmup);

@@ -368,7 +368,7 @@ export function BarbellVisualizer({ plates = [], barWeight = 20, unit = 'kg', en
           {alternatives.length > 0 ? (
             alternatives.map((combo, idx) => (
               <button
-                key={idx}
+                key={combo.join('-') || 'empty'}
                 type="button"
                 onClick={() => setSelectedIdx(idx)}
                 className={`text-xs font-bold p-1.5 rounded-lg border text-left transition-all leading-snug break-all ${

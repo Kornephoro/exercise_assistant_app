@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Play, ChevronDown, ChevronRight } from 'lucide-react';
 import { convertWeight, getBarbellPlateBreakdown } from './unitUtils';
+import { MAIN_LIFT_KEYS } from './oneRmUtils';
 import BarbellVisualizer from './BarbellVisualizer';
 
 const TIER_COLORS = {
@@ -117,7 +118,7 @@ function WorkoutPreviewModal({
                     {(() => {
                       const exInfo = exercisesMap?.[ex.exercise];
                       const isBarbell = exInfo?.equipment?.includes('barbell') || 
-                                        ['squat', 'bench', 'deadlift', 'press'].includes(ex.exercise.toLowerCase());
+                                        MAIN_LIFT_KEYS.includes(ex.exercise.toLowerCase());
                       if (!isBarbell || !gymEquipmentConfig) return null;
                       
                       const configForUnit = gymEquipmentConfig[unit] || gymEquipmentConfig.kg;

@@ -1,10 +1,10 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { saveUserProgram, fetchExercises, fetchWorkoutTemplates, saveWorkoutTemplate, deleteWorkoutTemplate } from './services/programService';
 import { Search, ChevronRight, X, Users, Calendar, Zap, Target, BookOpen, Pause, Play, StopCircle, Settings, AlertTriangle, Plus, Trash2, Edit, Save, FolderOpen, Heart, Activity, Sparkles, FolderUp, Loader2 } from 'lucide-react';
 import ProgramConfigScreen from './ProgramConfigScreen';
 import ExerciseLibrary from './ExerciseLibrary';
 import ExercisePickerModal from './components/ExercisePickerModal';
-import { getCNName, FEATURE_LABELS } from './exerciseNames';
+import { getCNName, FEATURE_LABELS, EXERCISE_TYPE_MAP } from './exerciseNames';
 
 const DIFFICULTY_MAP = {
   beginner: { label: '初学者', color: 'badge-success' },
@@ -54,14 +54,7 @@ const RECORDING_METHOD_MAP = {
   bodyweight_assisted: '自重辅助',
 };
 
-const EXERCISE_TYPE_MAP = {
-  strength: '力量训练',
-  stretching: '拉伸训练',
-  animal_flow: '动物流',
-  mobility: '关节活动',
-  myofascial_release: '筋膜放松',
-  functional: '功能性训练',
-};
+// EXERCISE_TYPE_MAP 已从 exerciseNames 导入
 
 function PlanScreen({
   programs,
@@ -269,7 +262,7 @@ function PlanScreen({
     return { program: prog, userProgram: up };
   }, [selectedActiveProgramId, userPrograms, programs]);
 
-  const filteredPrograms = programs.filter(p => {
+  const filteredPrograms = useMemo(() => programs.filter(p => {
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       if (!(p.name || '').toLowerCase().includes(q)
@@ -280,11 +273,11 @@ function PlanScreen({
     if (difficultyFilter && p.difficulty !== difficultyFilter) return false;
     if (daysFilter && p.days_per_week !== parseInt(daysFilter)) return false;
     return true;
-  });
+  }), [programs, searchQuery, categoryFilter, difficultyFilter, daysFilter]);
 
-  const isProgramActive = (programId) => {
+  const isProgramActive = useCallback((programId) => {
     return userPrograms.some(up => up.program_id === programId && up.is_active);
-  };
+  }, [userPrograms]);
 
   const handleStartProgram = (program) => {
     setConfigProgram(program);
@@ -943,7 +936,7 @@ function PlanScreen({
                             ? `${item.sets}组 × ${item.duration_seconds || item.reps || 30}秒`
                             : `${item.sets}组 × ${item.reps || 10}次`;
                           return (
-                            <div key={idx} className="flex justify-between items-center py-0.5 border-b border-border-card/25 dark:border-border-card-dark/25 last:border-b-0">
+                            <div key={item.exercise || idx} className="flex justify-between items-center py-0.5 border-b border-border-card/25 dark:border-border-card-dark/25 last:border-b-0">
                               <span className="font-semibold truncate max-w-[60%]">{exName}</span>
                               <span className="text-text-secondary/70">{detailText}</span>
                             </div>
@@ -1082,7 +1075,7 @@ function PlanScreen({
                       const isDuration = item.recording_method === 'duration_only';
                       const typeLabel = EXERCISE_TYPE_MAP[exInfo?.exercise_type] || exInfo?.exercise_type || '其他';
                       return (
-                        <div key={idx} className="flex items-center justify-between gap-3 p-3 bg-bg-main/20 dark:bg-bg-main-dark/20 rounded-xl border border-border-card/50 dark:border-border-card-dark/50 animate-fadeIn">
+                        <div key={item.exercise || idx} className="flex items-center justify-between gap-3 p-3 bg-bg-main/20 dark:bg-bg-main-dark/20 rounded-xl border border-border-card/50 dark:border-border-card-dark/50 animate-fadeIn">
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-bold text-text-main dark:text-text-main-dark truncate">{exName}</p>
                             <span className="badge badge-outline border-border-card text-[8px] scale-90 -translate-x-1 font-bold whitespace-nowrap bg-bg-main/30">

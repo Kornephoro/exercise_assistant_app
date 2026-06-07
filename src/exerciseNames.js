@@ -28,6 +28,16 @@ export const FALLBACK_CN_NAMES = {
   squat_jump: '跳箱',
 };
 
+// 动作流派 → 中文
+export const EXERCISE_TYPE_MAP = {
+  strength: '力量训练',
+  stretching: '拉伸训练',
+  animal_flow: '动物流',
+  mobility: '关节活动',
+  myofascial_release: '筋膜放松',
+  functional: '功能性训练',
+};
+
 // 计划 features 标签 → 中文
 export const FEATURE_LABELS = {
   auto_progression: '自动进阶',

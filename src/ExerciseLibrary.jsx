@@ -4,6 +4,7 @@ import {
   Loader2, Search, ChevronDown, ChevronRight, X,
   ShieldAlert, Filter
 } from 'lucide-react';
+import { EXERCISE_TYPE_MAP } from './exerciseNames';
 
 const RECORDING_METHOD_MAP = {
   standard: '常规力量',
@@ -13,15 +14,6 @@ const RECORDING_METHOD_MAP = {
   loaded_carry: '负重行走',
   bodyweight_added: '自重附加',
   bodyweight_assisted: '自重辅助',
-};
-
-const EXERCISE_TYPE_MAP = {
-  strength: '力量训练',
-  stretching: '拉伸训练',
-  animal_flow: '动物流',
-  mobility: '关节活动',
-  myofascial_release: '筋膜放松',
-  functional: '功能性训练',
 };
 
 function ExerciseLibrary() {
@@ -34,22 +26,26 @@ function ExerciseLibrary() {
   const [filterEquipment, setFilterEquipment] = useState('');
   const [expandedId, setExpandedId] = useState(null);
 
-  const fetchData = async () => {
+  const fetchData = async (signal) => {
     setLoading(true);
     setError(null);
     try {
       const data = await fetchExercisesForLibrary();
+      if (signal?.aborted) return;
       setExercises(data || []);
     } catch (err) {
+      if (signal?.aborted) return;
       const msg = err instanceof Error ? err.message : String(err);
       setError('加载动作库失败：' + msg);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    const controller = new AbortController();
+    fetchData(controller.signal);
+    return () => controller.abort();
   }, []);
 
   const movementPatterns = useMemo(() => {
@@ -57,7 +53,7 @@ function ExerciseLibrary() {
     exercises.forEach(ex => {
       if (ex.movement_pattern) set.add(ex.movement_pattern);
     });
-    return Array.from(set).sort();
+    return [...set].sort();
   }, [exercises]);
 
   const equipmentOptions = useMemo(() => {
@@ -65,7 +61,7 @@ function ExerciseLibrary() {
     exercises.forEach(ex => {
       (ex.equipment || []).forEach(eq => set.add(eq));
     });
-    return Array.from(set).sort();
+    return [...set].sort();
   }, [exercises]);
 
   const filteredExercises = useMemo(() => {
@@ -131,6 +127,7 @@ function ExerciseLibrary() {
           <Search size={16} className="text-text-secondary/50 shrink-0" />
           <input
             type="text"
+            aria-label="搜索动作"
             className="w-full bg-transparent text-sm font-semibold text-text-main dark:text-text-main-dark focus:outline-none"
             placeholder="搜索动作、流派或部位..."
             value={searchQuery}
@@ -150,6 +147,7 @@ function ExerciseLibrary() {
 
       <div className="grid grid-cols-3 gap-2">
         <select
+          aria-label="按动作流派筛选"
           className="select-standard !h-9 !text-[11px] !rounded-lg w-full px-1.5"
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}
@@ -161,6 +159,7 @@ function ExerciseLibrary() {
         </select>
 
         <select
+          aria-label="按动作模式筛选"
           className="select-standard !h-9 !text-[11px] !rounded-lg w-full px-1.5"
           value={filterPattern}
           onChange={(e) => setFilterPattern(e.target.value)}
@@ -172,6 +171,7 @@ function ExerciseLibrary() {
         </select>
 
         <select
+          aria-label="按器械筛选"
           className="select-standard !h-9 !text-[11px] !rounded-lg w-full px-1.5"
           value={filterEquipment}
           onChange={(e) => setFilterEquipment(e.target.value)}
@@ -219,8 +219,12 @@ function ExerciseLibrary() {
                   return (
                     <div
                       key={ex.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={expandedId === ex.id}
                       className="card !p-4 hover:border-primary/30 transition-all duration-200 cursor-pointer animate-fadeIn"
                       onClick={() => toggleExpand(ex.id)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpand(ex.id); } }}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex flex-col gap-1 flex-1 min-w-0">

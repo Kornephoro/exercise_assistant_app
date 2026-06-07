@@ -339,7 +339,10 @@ function processTierExercise(tier, ex, historyByExerciseTier, exConfig, config,
   gymEquipmentConfig, exercisesMap, unit, _getWarmupSets, _gzclpGetTierProgression) {
   const hist = (historyByExerciseTier[ex] && historyByExerciseTier[ex][tier]) || [];
   const userEx = exConfig[ex] || {};
-  const initWeight = userEx.initial_weight ?? config.default_weights?.[ex];
+  // T1/T2 分别读取各自的起始重量，向后兼容旧的单值 initial_weight
+  const initWeight = tier === 'T1'
+    ? (userEx.initial_weight_t1 ?? userEx.initial_weight ?? config.default_weights?.[ex])
+    : (userEx.initial_weight_t2 ?? userEx.initial_weight ?? config.default_weights?.[ex]);
   const incrKey = tier === 'T1' ? 'increment_t1' : 'increment_t2';
   const incrDefault = config.default_increment?.[tier] ?? 2.5;
   const incr = (userEx[incrKey]) ?? incrDefault;
@@ -412,7 +415,8 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier, gymEqui
     for (const ex of t3Exercises) {
       const hist = (historyByExerciseTier[ex] && historyByExerciseTier[ex]['T3']) || [];
       const userEx = exConfig[ex] || {};
-      const initWeight = userEx.initial_weight ?? config.default_weights?.[ex] ?? 10;
+      // T3 起始重量（暂无 T1/T2 区分，沿用 initial_weight）
+  const initWeight = userEx.initial_weight ?? config.default_weights?.[ex] ?? 10;
       const incr = userEx.increment_t3 ?? config.default_increment?.['T3'] ?? 2.5;
       const threshold = userEx.target_reps ?? scheme.success_threshold ?? 25;
       const result = gzclpGetTierProgression(ex, hist, [scheme], initWeight, incr, threshold, gymEquipmentConfig, exercisesMap[ex], unit);

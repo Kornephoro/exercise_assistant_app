@@ -11,6 +11,34 @@ const TIER_COLORS = {
   T3: { bg: 'bg-tier-t3/10', text: 'text-tier-t3', darkText: 'dark:text-tier-t3-dark', border: 'border-tier-t3/20', darkBorder: 'dark:border-tier-t3-dark/20' },
 };
 
+// 训练摘要纯展示组件（从 JSX IIFE 提取）
+const TIER_MINUTES = { T1: 3.5, T2: 2.5, T3: 1.5 };
+const WARMUP_MIN = 10;
+const TRANSITION_MIN_PER_EX = 3;
+
+function WorkoutSummary({ exercises }) {
+  const { exCount, totalWeight, estMinutes } = useMemo(() => {
+    const exCount = exercises.length;
+    const totalWeight = exercises.reduce((sum, ex) => sum + ((ex.weight || 0) * (ex.sets || 0)), 0);
+    const transitionMin = Math.max(0, exCount - 1) * TRANSITION_MIN_PER_EX;
+    const setsMin = exercises.reduce((sum, ex) => {
+      const sets = ex.sets || 0;
+      const factor = TIER_MINUTES[ex.tier] || 2;
+      return sum + (sets * factor);
+    }, 0);
+    const estMinutes = Math.max(15, Math.round(WARMUP_MIN + transitionMin + setsMin));
+    return { exCount, totalWeight, estMinutes };
+  }, [exercises]);
+
+  return (
+    <div className="flex flex-col gap-2 text-sm text-text-secondary dark:text-text-secondary-dark">
+      <div className="flex items-center gap-2"><span>💪</span><span><span className="font-bold text-text-main dark:text-text-main-dark">{exCount}</span> 个动作</span></div>
+      <div className="flex items-center gap-2"><span>🏋️</span><span>总训练量 <span className="font-bold text-text-main dark:text-text-main-dark font-mono">{totalWeight.toFixed(1)}kg</span></span></div>
+      <div className="flex items-center gap-2"><span>⏱️</span><span>预计耗时 <span className="font-bold text-text-main dark:text-text-main-dark">{estMinutes}</span> 分钟</span></div>
+    </div>
+  );
+}
+
 function TodayScreen({
   activeProgram,
   activeUserProgram,
@@ -631,9 +659,9 @@ function TodayScreen({
               className="range range-primary range-xs cursor-pointer"
             />
             <div className="flex justify-between text-xs text-text-secondary/40 font-mono font-bold px-1 select-none">
-              <span className="cursor-pointer hover:text-primary transition-colors" onClick={() => setFatigue('1')}>充沛 1</span>
-              <span className="cursor-pointer hover:text-primary transition-colors" onClick={() => setFatigue('5')}>5</span>
-              <span className="cursor-pointer hover:text-primary transition-colors" onClick={() => setFatigue('10')}>疲惫 10</span>
+              <span role="button" tabIndex={0} aria-label="疲劳度设为1" className="cursor-pointer hover:text-primary transition-colors" onClick={() => setFatigue('1')} onKeyDown={(e) => { if (e.key === 'Enter') setFatigue('1'); }}>充沛 1</span>
+              <span role="button" tabIndex={0} aria-label="疲劳度设为5" className="cursor-pointer hover:text-primary transition-colors" onClick={() => setFatigue('5')} onKeyDown={(e) => { if (e.key === 'Enter') setFatigue('5'); }}>5</span>
+              <span role="button" tabIndex={0} aria-label="疲劳度设为10" className="cursor-pointer hover:text-primary transition-colors" onClick={() => setFatigue('10')} onKeyDown={(e) => { if (e.key === 'Enter') setFatigue('10'); }}>疲惫 10</span>
             </div>
           </div>
 
@@ -861,42 +889,7 @@ function TodayScreen({
               </div>
 
               <div className="border-t border-border-card/50 dark:border-border-card-dark/50 mb-3" />
-
-              {(() => {
-                const exercises = todayWorkout.exercises || [];
-                const exCount = exercises.length;
-                const totalWeight = exercises.reduce((sum, ex) => sum + ((ex.weight || 0) * (ex.sets || 0)), 0);
-                
-                // 更符合真实健身房训练的耗时估算模型
-                // 1. 基础热身准备时间：10 分钟
-                // 2. 动作间换位调整时间：每个间隔 3 分钟
-                // 3. 各组加权耗时：T1 动作 3.5 分钟/组，T2 动作 2.5 分钟/组，T3 动作 1.5 分钟/组，其他默认 2 分钟/组
-                const warmupMin = 10;
-                const transitionMin = Math.max(0, exCount - 1) * 3;
-                const setsMin = exercises.reduce((sum, ex) => {
-                  const sets = ex.sets || 0;
-                  const tier = ex.tier || 'T1';
-                  const factor = tier === 'T1' ? 3.5 : tier === 'T2' ? 2.5 : tier === 'T3' ? 1.5 : 2;
-                  return sum + (sets * factor);
-                }, 0);
-                const estMinutes = Math.max(15, Math.round(warmupMin + transitionMin + setsMin));
-                return (
-                  <div className="flex flex-col gap-2 text-sm text-text-secondary dark:text-text-secondary-dark">
-                    <div className="flex items-center gap-2">
-                      <span>💪</span>
-                      <span><span className="font-bold text-text-main dark:text-text-main-dark">{exCount}</span> 个动作</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span>🏋️</span>
-                      <span>总训练量 <span className="font-bold text-text-main dark:text-text-main-dark font-mono">{totalWeight.toFixed(1)}kg</span></span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span>⏱️</span>
-                      <span>预计耗时 <span className="font-bold text-text-main dark:text-text-main-dark">{estMinutes}</span> 分钟</span>
-                    </div>
-                  </div>
-                );
-              })()}
+              <WorkoutSummary exercises={todayWorkout?.exercises || []} />
             </button>
 
             {/* 卡片下方：开始训练 + 跳过 */}

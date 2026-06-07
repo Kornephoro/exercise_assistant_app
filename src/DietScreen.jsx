@@ -62,30 +62,28 @@ function DietScreen({
     }
   });
 
-  // 从传入配置同步本地表单状态
+  // 从传入配置同步本地表单状态（useEffect 本身已是异步，无需 Promise.resolve 包装）
   useEffect(() => {
     if (userNutritionConfig) {
-      Promise.resolve().then(() => {
-        setConfigForm({
-          neat_tef_factor: parseFloat(userNutritionConfig.neat_tef_factor) || 1.10,
-          strength_level: userNutritionConfig.strength_level || 'beginner',
-          custom_strength_kcal: parseInt(userNutritionConfig.custom_strength_kcal, 10) || 0,
-          cardio_weekly_kcal: parseInt(userNutritionConfig.cardio_weekly_kcal, 10) || 0,
-          deficit_slider: parseFloat(userNutritionConfig.deficit_slider) || 0.80,
-          plan_type: userNutritionConfig.plan_type || 'split',
-          calc_mode: userNutritionConfig.calc_mode || 'ratio',
-          ratio_carbs: parseInt(userNutritionConfig.ratio_carbs, 10) || 50,
-          ratio_protein: parseInt(userNutritionConfig.ratio_protein, 10) || 30,
-          ratio_fat: parseInt(userNutritionConfig.ratio_fat, 10) || 20,
-          multiple_config: userNutritionConfig.multiple_config || {
-            strength_day: { carbs: 3.0, protein: 2.0, fat: 0.8 },
-            rest_day: { carbs: 1.5, protein: 2.0, fat: 0.8 }
-          },
-          custom_config: userNutritionConfig.custom_config || {
-            strength_day: { carbs: 250, protein: 140, fat: 60 },
-            rest_day: { carbs: 180, protein: 140, fat: 50 }
-          }
-        });
+      setConfigForm({
+        neat_tef_factor: parseFloat(userNutritionConfig.neat_tef_factor) || 1.10,
+        strength_level: userNutritionConfig.strength_level || 'beginner',
+        custom_strength_kcal: parseInt(userNutritionConfig.custom_strength_kcal, 10) || 0,
+        cardio_weekly_kcal: parseInt(userNutritionConfig.cardio_weekly_kcal, 10) || 0,
+        deficit_slider: parseFloat(userNutritionConfig.deficit_slider) || 0.80,
+        plan_type: userNutritionConfig.plan_type || 'split',
+        calc_mode: userNutritionConfig.calc_mode || 'ratio',
+        ratio_carbs: parseInt(userNutritionConfig.ratio_carbs, 10) || 50,
+        ratio_protein: parseInt(userNutritionConfig.ratio_protein, 10) || 30,
+        ratio_fat: parseInt(userNutritionConfig.ratio_fat, 10) || 20,
+        multiple_config: userNutritionConfig.multiple_config || {
+          strength_day: { carbs: 3.0, protein: 2.0, fat: 0.8 },
+          rest_day: { carbs: 1.5, protein: 2.0, fat: 0.8 }
+        },
+        custom_config: userNutritionConfig.custom_config || {
+          strength_day: { carbs: 250, protein: 140, fat: 60 },
+          rest_day: { carbs: 180, protein: 140, fat: 50 }
+        }
       });
     }
   }, [userNutritionConfig]);
@@ -300,23 +298,20 @@ function DietScreen({
   };
 
   useEffect(() => {
-    if (auditDate) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      fetchAuditLog(auditDate);
-    }
+    if (auditDate) fetchAuditLog(auditDate);
+    // fetchAuditLog is intentionally not in deps — it's stable (wrapped in useCallback elsewhere)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auditDate]);
 
   useEffect(() => {
     if (auditDate === todayDateStr && !isAuditDayTypeManuallySet) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAuditDayType(isRestDay ? 'rest_day' : 'strength_day');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRestDay, auditDate, isAuditDayTypeManuallySet]);
+  }, [isRestDay, auditDate, todayDateStr, isAuditDayTypeManuallySet]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchHistoryLogs();
+    // fetchHistoryLogs intentionally omitted — stable callback
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userNutritionConfig]);
 

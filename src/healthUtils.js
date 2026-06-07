@@ -26,7 +26,7 @@ export const getBmiInfo = (weight, heightCm) => {
     label = '肥胖';
     badgeColor = 'bg-red-500/10 text-red-500 border-red-500/20';
   }
-  return { bmi: bmi.toFixed(1), label, badgeColor };
+  return { bmi: Math.round(bmi * 10) / 10, label, badgeColor };
 };
 
 /**
@@ -53,5 +53,5 @@ export const getWhtrInfo = (waistCm, heightCm) => {
     label = '腹部肥胖';
     badgeColor = 'bg-red-500/10 text-red-500 border-red-500/20';
   }
-  return { whtr: whtr.toFixed(3), label, badgeColor };
+  return { whtr: Math.round(whtr * 1000) / 1000, label, badgeColor };
 };
