@@ -722,6 +722,7 @@ function App() {
         completed: false,
         weight_kg: ex.weight,
         is_warmup: isWarmupEx ? true : false,
+        is_amrap: !!(ex.amrap_last && setIdx === ex.sets - 1),
         ...extra
       }));
 

@@ -215,7 +215,7 @@ const FieldInput = ({ kind, value, onChange, placeholder = '' }) => {
       pattern={isInt ? '[0-9]*' : undefined}
       maxLength={maxLen}
       placeholder={placeholder}
-      className="input input-bordered text-center !text-center font-mono text-2xl font-bold w-full h-12 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      className="input input-bordered text-center !text-center font-mono text-2xl font-bold w-full h-12 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-lg placeholder:font-black placeholder:text-base-content/40"
       value={value ?? ''}
       onChange={(e) => {
         const raw = e.target.value.replace(isInt ? /\D/g : /[^\d.]/g, '');
@@ -895,7 +895,7 @@ function TrainSession({
               }}
               fieldLabel={FIELD_LABEL}
               placeholderMap={{
-                reps: ex.amrap_last && (set.actual_reps === '' || set.actual_reps === undefined) ? 'AMRAP' : '',
+                reps: set.is_amrap ? 'AMRAP' : String(set.planned_reps),
               }}
               showPlateHelperBtn={isBarbell}
               onShowPlateHelper={() => setShowPlateHelper(true)}
@@ -1358,7 +1358,7 @@ function TrainSession({
                               第 {set.set_number} 组
                               {isExhausted && <span className="text-[10px] text-warning ml-1">★ 力竭</span>}
                             </span>
-                            <span className="text-xs font-semibold text-base-content/40">目标: {set.planned_reps}次</span>
+                            <span className="text-xs font-semibold text-base-content/40">目标: {set.planned_reps}{set.is_amrap ? '+' : ''}次</span>
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5">
@@ -2001,9 +2001,31 @@ function TrainSession({
     const detail = setDetails[setKey] || {};
     const isExhausted = !!detail.is_exhausted;
     const isSkipped = !!set.skipped;
+    const isAmrap = !!set.is_amrap;
 
     const toggleExhaustion = () => {
       updateSetDetail(setKey, 'is_exhausted', !isExhausted);
+      setShowSetSettingsModal(false);
+    };
+
+    const toggleAmrapSet = () => {
+      const nextAmrap = !isAmrap;
+      setSessionState(prev => {
+        const nextSets = (prev.setsData[exIdx] || []).map((s, sIdx) => {
+          if (sIdx === setIdx) {
+            return { 
+              ...s, 
+              is_amrap: nextAmrap,
+              actual_reps: nextAmrap ? '' : s.planned_reps
+            };
+          }
+          return s;
+        });
+        return {
+          ...prev,
+          setsData: { ...prev.setsData, [exIdx]: nextSets }
+        };
+      });
       setShowSetSettingsModal(false);
     };
 
@@ -2059,6 +2081,16 @@ function TrainSession({
           </div>
 
           <div className="flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={toggleAmrapSet}
+              className={`btn btn-outline w-full h-11 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                isAmrap ? 'btn-accent border-accent bg-accent/5 text-accent-content' : 'border-base-300'
+              }`}
+            >
+              ⚡ {isAmrap ? '回退为普通组' : '改为 AMRAP 组'}
+            </button>
+
             <button
               type="button"
               onClick={toggleExhaustion}
