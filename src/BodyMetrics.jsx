@@ -657,7 +657,7 @@ function BodyMetrics() {
                 <span className={`ml-2 badge badge-sm font-bold scale-90 ${liveBmi.badgeColor}`}>{liveBmi.label}</span>
               </div>
               {liveWhtr && (
-                <div className="mt-0.5">📏 WHtR（腰围身高比）: <strong className="font-mono text-text-main dark:text-text-main-dark text-xs">{liveWhtr.whtr}</strong>
+                <div className="mt-0.5"><Ruler size={14} className="inline shrink-0" /> WHtR（腰围身高比）: <strong className="font-mono text-text-main dark:text-text-main-dark text-xs">{liveWhtr.whtr}</strong>
                   <span className={`ml-2 badge badge-sm font-bold scale-90 ${liveWhtr.badgeColor}`}>{liveWhtr.label}</span>
                 </div>
               )}

@@ -3,7 +3,7 @@ import { calcCalorieBudget, calcMacronutrientTargets } from './dietUtils';
 import { saveDietLog } from './services/dietService';
 import { saveBodyMetrics } from './services/bodyService';
 import { getBmiInfo, getWhtrInfo } from './healthUtils';
-import { Play, RotateCcw, CheckCircle, Heart, Utensils, Calendar, ChevronDown, ArrowRight, SkipForward, Flag, Loader2, Zap, Dumbbell, Timer, Scale, Moon, ClipboardList, Pause } from 'lucide-react';
+import { Play, RotateCcw, CheckCircle, Heart, Utensils, Calendar, ChevronDown, ArrowRight, SkipForward, Flag, Loader2, Zap, Dumbbell, Timer, Scale, Moon, ClipboardList, Pause, Ruler } from 'lucide-react';
 
 const TIER_COLORS = {
   T1: { bg: 'bg-tier-t1/10', text: 'text-tier-t1', darkText: 'dark:text-tier-t1-dark', border: 'border-tier-t1/20', darkBorder: 'dark:border-tier-t1-dark/20' },
@@ -525,7 +525,7 @@ function TodayScreen({
             </div>
 
             <div className="bg-bg-main/20 dark:bg-bg-main-dark/20 p-2.5 rounded-xl border border-border-card/30 flex flex-col justify-center">
-              <span className="text-text-secondary/70 font-semibold select-none text-xs">📏 腰围</span>
+              <span className="text-text-secondary/70 font-semibold select-none text-xs"><Ruler size={12} className="inline mr-0.5" />腰围</span>
               <strong className="text-lg font-extrabold text-text-main dark:text-text-main-dark font-mono mt-0.5">
                 {todayBodyMetrics.waist_cm ? `${todayBodyMetrics.waist_cm.toFixed(1)} cm` : '未录入'}
               </strong>
@@ -537,7 +537,7 @@ function TodayScreen({
             </div>
 
             <div className="bg-bg-main/20 dark:bg-bg-main-dark/20 p-2.5 rounded-xl border border-border-card/30 flex flex-col justify-center">
-              <span className="text-text-secondary/70 font-semibold select-none text-xs">💓 静息心率</span>
+              <span className="text-text-secondary/70 font-semibold select-none text-xs"><Heart size={12} className="inline mr-0.5" />静息心率</span>
               <strong className="text-lg font-extrabold text-text-main dark:text-text-main-dark font-mono mt-0.5">
                 {todayBodyMetrics.heart_rate ? `${todayBodyMetrics.heart_rate} bpm` : '未录入'}
               </strong>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Lock, LockOpen, Scale, Settings, Dumbbell, Pause, Zap, Pen, Target, TrendingDown, Frown, Lightbulb, AlertTriangle } from 'lucide-react';
+import { Lock, LockOpen, Scale, Settings, Dumbbell, Pause, Zap, Pen, Target, TrendingDown, TrendingUp, Frown, Lightbulb, AlertTriangle, Activity, Inbox, PieChart } from 'lucide-react';
 import {
   fetchDietLog,
   saveDietLog,
@@ -272,11 +272,14 @@ function DietScreen({
           fat: actual.fat - expected.fat
         };
 
-        let evaluation = '🎯 合理';
+        let evaluation = '合理';
+        let evalType = 'ok';
         if (variance.calories > 120) {
-          evaluation = '🔺 盈余';
+          evaluation = '盈余';
+          evalType = 'surplus';
         } else if (variance.calories < -120) {
-          evaluation = '🔻 赤字';
+          evaluation = '赤字';
+          evalType = 'deficit';
         }
 
         return {
@@ -286,6 +289,7 @@ function DietScreen({
           expected,
           variance,
           evaluation,
+          evalType,
           notes: row.notes
         };
       });
@@ -628,7 +632,7 @@ function DietScreen({
 
         {/* 有氧周消耗计算器 (Cardio Weekly Calculator) */}
         <div className="p-4 md:p-5 bg-primary/5 dark:bg-primary/10 rounded-xl border border-primary/10 flex flex-col gap-4">
-          <h4 className="text-sm md:text-base font-black text-primary flex items-center gap-1">🏊 有氧运动周消耗计算器</h4>
+          <h4 className="text-sm md:text-base font-black text-primary flex items-center gap-1"><Activity size={16} /> 有氧运动周消耗计算器</h4>
           <p className="text-xs md:text-sm text-text-secondary dark:text-text-secondary-dark/80 leading-normal">
             系统将基于您当前的体重 <strong>{latestWeight} kg</strong> 按照科学系数线性估算每次运动卡路里。汇总出的周有氧总消耗将平均折算到每一天。
           </p>
@@ -736,7 +740,7 @@ function DietScreen({
             </div>
           ) : (
             <div className="text-center py-5 text-text-secondary dark:text-text-secondary-dark italic text-xs md:text-sm border border-dashed rounded-xl bg-bg-card/50 dark:bg-bg-card-dark/30">
-              📭 暂无有氧运动计划，在上方添加一个吧！
+              <Inbox size={48} className="text-text-secondary/30 mb-2" /><span className="text-text-secondary">暂无有氧运动计划，在上方添加一个吧！</span>
             </div>
           )}
 
@@ -864,7 +868,7 @@ function DietScreen({
         {/* 计算模式选择 Tab */}
         <div className="grid grid-cols-3 bg-bg-main/30 dark:bg-bg-main-dark/30 rounded-xl p-1 gap-1 select-none">
           {[
-            { key: 'ratio', label: '热量占比', icon: '📊' },
+            { key: 'ratio', label: '热量占比', icon: PieChart },
             { key: 'weight_multiple', label: '体重倍数', icon: Scale },
             { key: 'custom', label: '自定义克数', icon: Settings },
           ].map(({ key, label, icon: Icon }) => (
@@ -1750,7 +1754,7 @@ function DietScreen({
           </div>
         ) : historyList.length === 0 ? (
           <div className="text-center text-text-secondary dark:text-text-secondary-dark text-xs md:text-sm p-8 bg-bg-main/20 dark:bg-bg-main-dark/20 border border-dashed border-border-card/70 dark:border-border-card-dark/70 rounded-xl select-none">
-            📭 暂无历史饮食记录。请在上方输入实际数据并保存对账！
+            <Inbox size={48} className="text-text-secondary/30 mb-2" /><span className="text-text-secondary">暂无历史饮食记录。请在上方输入实际数据并保存对账！</span>
           </div>
         ) : (
           <div className="flex flex-col gap-4 max-h-96 overflow-y-auto pr-1">
@@ -1767,7 +1771,7 @@ function DietScreen({
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs md:text-sm font-black text-text-main dark:text-text-main-dark">{item.evaluation}</span>
+                    <span className="text-xs md:text-sm font-black text-text-main dark:text-text-main-dark">{item.evalType === 'ok' ? <Target size={14} className="inline shrink-0 mr-0.5" /> : item.evalType === 'surplus' ? <TrendingUp size={14} className="inline shrink-0 mr-0.5" /> : <TrendingDown size={14} className="inline shrink-0 mr-0.5" />}{item.evaluation}</span>
                     <button
                       type="button"
                       onClick={() => handleDeleteAuditLog(item.date)}
