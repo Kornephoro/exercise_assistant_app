@@ -41,7 +41,7 @@ export const fetchLastEndedUserProgram = async (programId) => {
 export const fetchExercises = async () => {
   const { data, error } = await supabase
     .from('exercises')
-    .select('id, name, name_cn, primary_muscles, secondary_muscles, equipment, exercise_type, recording_method')
+    .select('id, name, name_cn, category, movement_pattern, primary_muscles, secondary_muscles, equipment, exercise_type, recording_method')
     .order('name');
 
   if (error) throw error;

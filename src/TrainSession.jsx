@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Minimize2, X, Check, Sparkles, SkipForward, Plus, FastForward, Dumbbell, Calculator, Play, Pause, Settings } from 'lucide-react';
+import { Minimize2, X, Check, Sparkles, SkipForward, Plus, FastForward, Dumbbell, Calculator, Play, Pause, Settings, PenLine, Filter, Search, ChevronDown } from 'lucide-react';
 import { convertWeight, getBarbellPlateBreakdown, toStorageWeight } from './unitUtils';
 import BarbellVisualizer from './BarbellVisualizer';
 import { fetchLatestOneRmForExercises } from './services/workoutService';
@@ -15,6 +15,15 @@ const TEMPO_PRESETS = [
 ];
 
 const TEMPO_LABELS = ['离心', '底部', '向心', '顶部'];
+
+const EXERCISE_TYPE_MAP = {
+  strength: '力量训练',
+  stretching: '拉伸训练',
+  animal_flow: '动物流',
+  mobility: '关节活动',
+  myofascial_release: '筋膜放松',
+  functional: '功能性训练',
+};
 
 const RPE_PERCENTAGE_CHART = {
   1:  { 10: 1.0,   9.5: 0.978, 9: 0.955, 8.5: 0.939, 8: 0.922, 7.5: 0.907, 7: 0.892, 6.5: 0.878, 6: 0.864 },
@@ -351,6 +360,14 @@ function TrainSession({
   // Exercise settings state
   const [showExerciseSettingsModal, setShowExerciseSettingsModal] = useState(false);
   const [settingsExIdx, setSettingsExIdx] = useState(null);
+  const [replaceExerciseSearch, setReplaceExerciseSearch] = useState('');
+  const [replaceCategoryFilter, setReplaceCategoryFilter] = useState('');
+  const [showReplaceSheet, setShowReplaceSheet] = useState(false);
+
+  // Shared exercise filter states (for add & replace)
+  const [exFilterType, setExFilterType] = useState('');
+  const [exFilterPattern, setExFilterPattern] = useState('');
+  const [exFilterEquipment, setExFilterEquipment] = useState('');
 
   // Add exercise form state
   const [addExerciseSearch, setAddExerciseSearch] = useState('');
@@ -804,9 +821,10 @@ function TrainSession({
                     setSettingsSetIndex(setIdx);
                     setShowSetSettingsModal(true);
                   }}
-                  className="btn btn-ghost btn-xs text-primary font-bold gap-1 rounded hover:bg-primary/10 cursor-pointer text-[11px]"
+                  className="btn btn-ghost btn-circle btn-xs h-7 w-7 min-h-0 text-base-content/50 hover:bg-base-200 hover:text-base-content rounded-full flex items-center justify-center cursor-pointer"
+                  aria-label="组管理"
                 >
-                  ⚙️ 组管理
+                  <Settings size={14} />
                 </button>
                 <button 
                   type="button" 
@@ -1155,7 +1173,7 @@ function TrainSession({
               className="absolute top-4 right-4 btn btn-ghost btn-circle btn-xs h-7 w-7 min-h-0 text-base-content/50 hover:bg-base-200 hover:text-base-content rounded-full flex items-center justify-center cursor-pointer"
               title="最小化"
             >
-              <span className="text-base">↘️</span>
+              <Minimize2 size={15} />
             </button>
 
             <span className="text-sm font-semibold text-base-content/60">组间休息</span>
@@ -1238,6 +1256,9 @@ function TrainSession({
                       onClick={(e) => {
                         e.stopPropagation();
                         setSettingsExIdx(exIdx);
+                        const curCat = exercisesMap?.[ex.exercise]?.category || '';
+                        setReplaceCategoryFilter(curCat);
+                        setReplaceExerciseSearch('');
                         setShowExerciseSettingsModal(true);
                       }}
                       className="btn btn-ghost btn-circle btn-xs h-6 w-6 min-h-0 text-base-content/50 hover:bg-base-200 hover:text-base-content rounded-full flex items-center justify-center cursor-pointer"
@@ -1293,7 +1314,6 @@ function TrainSession({
                     const detail = setDetails[setKey] || {};
                     const isLastSet = setIdx === sets.length - 1;
                     const isSkipped = !!set.skipped;
-                    const isExhausted = !!detail.is_exhausted;
                     
                     let btnClassName = `flex items-center justify-between p-4 rounded-2xl border-2 transition-all duration-200 text-left w-full `;
                     if (isSkipped) {
@@ -1319,7 +1339,6 @@ function TrainSession({
                           <div className="flex flex-col">
                             <span className={`text-sm font-bold ${isSkipped ? 'text-base-content/40' : set.completed ? 'text-base-content/30 line-through' : 'text-base-content'}`}>
                               第 {set.set_number} 组
-                              {isExhausted && <span className="text-[10px] text-warning ml-1">★ 力竭</span>}
                             </span>
                             <span className="text-xs font-semibold text-base-content/40">目标: {set.planned_reps}{set.is_amrap ? '+' : ''}次</span>
                           </div>
@@ -1962,14 +1981,9 @@ function TrainSession({
     
     const setKey = getSetKey(exIdx, setIdx);
     const detail = setDetails[setKey] || {};
-    const isExhausted = !!detail.is_exhausted;
-    const isSkipped = !!set.skipped;
     const isAmrap = !!set.is_amrap;
 
-    const toggleExhaustion = () => {
-      updateSetDetail(setKey, 'is_exhausted', !isExhausted);
-      setShowSetSettingsModal(false);
-    };
+
 
     const toggleAmrapSet = () => {
       const nextAmrap = !isAmrap;
@@ -1992,29 +2006,7 @@ function TrainSession({
       setShowSetSettingsModal(false);
     };
 
-    const toggleSkipSet = () => {
-      setSessionState(prev => {
-        const nextSets = (prev.setsData[exIdx] || []).map((s, sIdx) => {
-          if (sIdx === setIdx) {
-            const nextSkipped = !s.skipped;
-            return { 
-              ...s, 
-              skipped: nextSkipped,
-              completed: nextSkipped ? false : s.completed
-            };
-          }
-          return s;
-        });
-        return {
-          ...prev,
-          setsData: { ...prev.setsData, [exIdx]: nextSets }
-        };
-      });
-      setShowSetSettingsModal(false);
-      if (focusedSet && focusedSet.exerciseIdx === exIdx && focusedSet.setIdx === setIdx) {
-        closeSetCard();
-      }
-    };
+
 
     const handleSyncToSubsequent = () => {
       const currentWeight = set.weight_kg ?? ex.weight;
@@ -2048,31 +2040,13 @@ function TrainSession({
               type="button"
               onClick={toggleAmrapSet}
               className={`btn btn-outline w-full h-11 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                isAmrap ? 'btn-accent border-accent bg-accent/5 text-accent-content' : 'border-base-300'
+                isAmrap ? 'border-accent bg-accent/10 text-accent hover:bg-accent/20' : 'border-base-300'
               }`}
             >
               ⚡ {isAmrap ? '回退为普通组' : '改为 AMRAP 组'}
             </button>
 
-            <button
-              type="button"
-              onClick={toggleExhaustion}
-              className={`btn btn-outline w-full h-11 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                isExhausted ? 'btn-warning border-warning bg-warning/5 text-warning-content' : 'border-base-300'
-              }`}
-            >
-              ⭐ {isExhausted ? '取消标记力竭/失败' : '标记为力竭组 (Fail Set)'}
-            </button>
 
-            <button
-              type="button"
-              onClick={toggleSkipSet}
-              className={`btn btn-outline w-full h-11 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                isSkipped ? 'btn-primary border-primary bg-primary/5 text-primary-content' : 'btn-error border-error bg-error/5 text-error-content'
-              }`}
-            >
-              ⏭️ {isSkipped ? '恢复此组训练' : '跳过本组 (Skip Set)'}
-            </button>
 
             <button
               type="button"
@@ -2095,22 +2069,66 @@ function TrainSession({
     const ex = todayWorkout.exercises[exIdx];
     if (!ex) return null;
 
-    const currentCategory = exercisesMap?.[ex.exercise]?.category;
     const allExs = Object.values(exercisesMap || {});
-    const alternatives = allExs.filter(e => e.category === currentCategory && e.name !== ex.exercise);
+    // 动态提取动作库中所有不重复的分类
+    const categories = Array.from(new Set(allExs.map(e => e.category).filter(Boolean)));
+    const CATEGORY_CN = {
+      squat: '深蹲',
+      bench: '卧推',
+      deadlift: '硬拉',
+      press: '推举',
+      warmup: '热身',
+      stretching: '拉伸'
+    };
+
+    // 过滤列表
+    const filteredReplace = allExs.filter(alt => {
+      if (alt.name === ex.exercise) return false;
+      const matchQuery = alt.name?.toLowerCase().includes(replaceExerciseSearch.toLowerCase()) ||
+                         getExerciseCNName(alt.name)?.includes(replaceExerciseSearch);
+      const matchCategory = replaceCategoryFilter === '' || alt.category === replaceCategoryFilter;
+      return matchQuery && matchCategory;
+    });
 
     const handleReplaceExercise = (alternativeName) => {
+      const selectedEx = exercisesMap?.[alternativeName];
+      const newMethod = selectedEx?.recording_method || 'standard';
+
       setTodayWorkout(prev => {
         const nextExs = (prev.exercises || []).map((e, idx) => {
           if (idx === exIdx) {
             return {
               ...e,
-              exercise: alternativeName
+              exercise: alternativeName,
+              recording_method: newMethod
             };
           }
           return e;
         });
         return { ...prev, exercises: nextExs };
+      });
+
+      // 智能修正 setsData 中的额外属性
+      setSessionState(prev => {
+        const sets = prev.setsData[exIdx] || [];
+        const nextSets = sets.map(s => {
+          const nextSet = { ...s };
+          // 如果新动作不需要 weight 属性
+          if (newMethod === 'duration_only') {
+            nextSet.duration_seconds = nextSet.duration_seconds ?? 30;
+            delete nextSet.weight_kg;
+          } else if (['distance_only', 'loaded_carry'].includes(newMethod)) {
+            nextSet.distance_meters = nextSet.distance_meters ?? 0;
+            delete nextSet.weight_kg;
+          } else {
+            nextSet.weight_kg = nextSet.weight_kg ?? ex.weight ?? 0;
+          }
+          return nextSet;
+        });
+        return {
+          ...prev,
+          setsData: { ...prev.setsData, [exIdx]: nextSets }
+        };
       });
 
       setShowExerciseSettingsModal(false);
@@ -2135,7 +2153,7 @@ function TrainSession({
 
     return (
       <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 backdrop-blur-sm p-4" onClick={() => { setShowExerciseSettingsModal(false); setSettingsExIdx(null); }}>
-        <div className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
           <div className="p-4 border-b border-base-300 flex items-center justify-between">
             <span className="font-bold text-base text-base-content">动作管理: {getExerciseCNName(ex.exercise)}</span>
             <button type="button" onClick={() => { setShowExerciseSettingsModal(false); setSettingsExIdx(null); }} className="btn btn-ghost btn-circle btn-xs h-6 w-6"><X size={16} /></button>
@@ -2154,21 +2172,60 @@ function TrainSession({
             </div>
 
             <div className="flex flex-col gap-2.5">
-              <span className="text-[10px] font-bold text-base-content/50 uppercase pl-1">平替动作更换（同类别: {currentCategory}）</span>
+              <span className="text-[10px] font-bold text-base-content/50 uppercase pl-1">更换此动作 (从动作库检索)</span>
+              
+              {/* 搜索框 */}
+              <input
+                type="text"
+                placeholder="搜索要更换的动作..."
+                value={replaceExerciseSearch}
+                onChange={(e) => setReplaceExerciseSearch(e.target.value)}
+                className="input input-bordered w-full h-11 text-sm rounded-xl"
+              />
+
+              {/* 分类筛选器 Tab 按钮组 */}
+              <div className="flex gap-1.5 overflow-x-auto pb-1.5 max-w-full no-scrollbar select-none">
+                <button
+                  type="button"
+                  onClick={() => setReplaceCategoryFilter('')}
+                  className={`btn btn-xs rounded-lg font-bold px-2.5 h-7 ${
+                    replaceCategoryFilter === '' ? 'btn-primary text-primary-content border-0' : 'btn-ghost bg-base-200/50 hover:bg-base-200 border-0'
+                  }`}
+                >
+                  全部
+                </button>
+                {categories.map(cat => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setReplaceCategoryFilter(cat)}
+                    className={`btn btn-xs rounded-lg font-bold px-2.5 h-7 whitespace-nowrap ${
+                      replaceCategoryFilter === cat ? 'btn-primary text-primary-content border-0' : 'btn-ghost bg-base-200/50 hover:bg-base-200 border-0'
+                    }`}
+                  >
+                    {CATEGORY_CN[cat] || cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* 动作列表 */}
               <div className="flex flex-col gap-1 border border-base-300 rounded-xl p-1 bg-base-200/20 max-h-[220px] overflow-y-auto">
-                {alternatives.map((alt, idx) => (
+                {filteredReplace.slice(0, 30).map((alt, idx) => (
                   <button
                     key={idx}
                     type="button"
                     onClick={() => handleReplaceExercise(alt.name)}
                     className="flex items-center justify-between p-2.5 hover:bg-base-200 rounded-lg text-left text-sm text-base-content cursor-pointer transition-all border-0 bg-transparent w-full"
                   >
-                    <span>{getExerciseCNName(alt.name)}</span>
-                    <span className="text-xs text-primary font-bold">更换</span>
+                    <div className="flex flex-col">
+                      <span className="font-bold text-sm">{getExerciseCNName(alt.name)}</span>
+                      <span className="text-[10px] text-base-content/40 font-mono capitalize">{alt.category}</span>
+                    </div>
+                    <span className="text-xs text-primary font-black">更换</span>
                   </button>
                 ))}
-                {alternatives.length === 0 && (
-                  <div className="p-4 text-center text-xs text-base-content/40">同类别下暂无备选动作</div>
+                {filteredReplace.length === 0 && (
+                  <div className="p-4 text-center text-xs text-base-content/40">无匹配动作</div>
                 )}
               </div>
             </div>
@@ -2301,7 +2358,7 @@ function TrainSession({
           onClick={onMinimize}
           className="flex flex-col items-center justify-center gap-1 text-base-content/70 hover:text-base-content active:scale-95 transition-all cursor-pointer"
         >
-          <span className="text-lg">↘️</span>
+          <Minimize2 size={20} />
           <span className="text-[10px] font-bold">最小化</span>
         </button>
         <button
@@ -2309,7 +2366,7 @@ function TrainSession({
           onClick={() => setShowAddExerciseModal(true)}
           className="flex flex-col items-center justify-center gap-1 text-base-content/70 hover:text-base-content active:scale-95 transition-all cursor-pointer"
         >
-          <span className="text-lg">➕</span>
+          <Plus size={20} />
           <span className="text-[10px] font-bold">加动作</span>
         </button>
         <button
@@ -2317,7 +2374,7 @@ function TrainSession({
           onClick={() => setShowSessionNotesModal(true)}
           className="flex flex-col items-center justify-center gap-1 text-base-content/70 hover:text-base-content active:scale-95 transition-all cursor-pointer"
         >
-          <span className="text-lg">📝</span>
+          <PenLine size={20} />
           <span className="text-[10px] font-bold">写心得</span>
         </button>
         <button
@@ -2325,7 +2382,7 @@ function TrainSession({
           onClick={() => setShowSessionSettingsModal(true)}
           className="flex flex-col items-center justify-center gap-1 text-base-content/70 hover:text-base-content active:scale-95 transition-all cursor-pointer"
         >
-          <span className="text-lg">⚙️</span>
+          <Settings size={20} />
           <span className="text-[10px] font-bold">设置</span>
         </button>
       </div>
