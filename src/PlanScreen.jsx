@@ -3,6 +3,7 @@ import { saveUserProgram, fetchExercises, fetchWorkoutTemplates, saveWorkoutTemp
 import { Search, ChevronRight, X, Users, Calendar, Zap, Target, BookOpen, Pause, Play, StopCircle, Settings, AlertTriangle, Plus, Trash2, Edit, Save, FolderOpen, Heart, Activity, Sparkles, FolderUp, Loader2 } from 'lucide-react';
 import ProgramConfigScreen from './ProgramConfigScreen';
 import ExerciseLibrary from './ExerciseLibrary';
+import ExercisePickerModal from './components/ExercisePickerModal';
 import { getCNName, FEATURE_LABELS } from './exerciseNames';
 
 const DIFFICULTY_MAP = {
@@ -1151,104 +1152,66 @@ function PlanScreen({
         </div>
       )}
 
-      {/* Editor Inner Exercise Selector Modal */}
-      {showExerciseSelector && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card dark:border-border-card-dark w-full max-w-sm rounded-2xl shadow-xl flex flex-col max-h-[75vh] overflow-hidden">
-            {/* Header */}
-            <div className="p-3 border-b border-border-card dark:border-border-card-dark flex items-center justify-between select-none">
-              <h3 className="text-sm font-bold text-text-main dark:text-text-main-dark">选择模板动作</h3>
-              <button type="button" onClick={() => setShowExerciseSelector(false)}
-                className="w-6 h-6 rounded-lg hover:bg-bg-hover dark:hover:bg-bg-hover-dark text-text-secondary hover:text-text-main flex items-center justify-center text-sm font-bold cursor-pointer">
-                ×
-              </button>
-            </div>
-
-            {/* Search Bar */}
-            <div className="p-3 border-b border-border-card dark:border-border-card-dark space-y-2">
-              <div className="relative">
-                <input type="text" placeholder="搜索动作名称、流派..."
-                  className="input input-bordered input-sm w-full pl-8 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary text-xs h-8"
-                  value={exerciseSelectorSearch} onChange={(e) => setExerciseSelectorSearch(e.target.value)} autoFocus />
-                <Search size={12} className="absolute left-2.5 top-2.5 text-text-secondary/50" />
+      {/* Editor Inner Exercise Selector Modal (共享组件) */}
+      <ExercisePickerModal
+        isOpen={showExerciseSelector}
+        onClose={() => setShowExerciseSelector(false)}
+        title="选择模板动作"
+        search={exerciseSelectorSearch}
+        onSearchChange={setExerciseSelectorSearch}
+        searchPlaceholder="搜索动作名称、流派..."
+        exercises={allExercises.filter(ex => {
+          if (exerciseSelectorType && ex.exercise_type !== exerciseSelectorType) return false;
+          if (exerciseSelectorSearch.trim()) {
+            const q = exerciseSelectorSearch.trim().toLowerCase();
+            const name = (ex.name || '').toLowerCase();
+            const nameCn = (ex.name_cn || '').toLowerCase();
+            if (!name.includes(q) && !nameCn.includes(q)) return false;
+          }
+          return true;
+        })}
+        renderItem={(ex) => {
+          const isAdded = editorExercises.some(item => item.exercise === ex.name);
+          const typeLabel = EXERCISE_TYPE_MAP[ex.exercise_type] || ex.exercise_type;
+          return (
+            <button key={ex.id} type="button"
+              disabled={isAdded}
+              onClick={() => handleAddExerciseToEditor(ex)}
+              className="w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all border border-transparent hover:bg-bg-hover dark:hover:bg-bg-hover-dark cursor-pointer disabled:opacity-50 disabled:pointer-events-none">
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs font-bold text-text-main dark:text-text-main-dark truncate">{ex.name_cn || ex.name}</span>
+                  <span className="badge badge-outline border-border-card text-[8px] scale-90 -translate-x-0.5 font-bold whitespace-nowrap bg-bg-main/30">{typeLabel}</span>
+                </div>
+                <span className="text-[9px] text-text-secondary/70 font-mono mt-0.5">记录: {RECORDING_METHOD_MAP[ex.recording_method] || ex.recording_method}</span>
               </div>
-
-              {/* Genre Filter */}
-              <div className="flex gap-1 overflow-x-auto pb-1 select-none">
-                {[
-                  { label: '全部', value: '' },
-                  { label: '拉伸', value: 'stretching' },
-                  { label: '动物流', value: 'animal_flow' },
-                  { label: '关节活动', value: 'mobility' },
-                  { label: '筋膜放松', value: 'myofascial_release' },
-                  { label: '力量', value: 'strength' }
-                ].map(genre => (
-                  <button key={genre.value} type="button"
-                    onClick={() => setExerciseSelectorType(genre.value)}
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all shrink-0 whitespace-nowrap cursor-pointer ${
-                      exerciseSelectorType === genre.value
-                        ? 'bg-primary text-white border-primary'
-                        : 'bg-bg-main/20 dark:bg-bg-main-dark/20 text-text-secondary border-border-card dark:border-border-card-dark'
-                    }`}>
-                    {genre.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Scrollable list */}
-            <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-bg-main/5 dark:bg-bg-main-dark/5">
-              {(() => {
-                const filtered = allExercises.filter(ex => {
-                  if (exerciseSelectorType && ex.exercise_type !== exerciseSelectorType) return false;
-                  if (exerciseSelectorSearch.trim()) {
-                    const q = exerciseSelectorSearch.trim().toLowerCase();
-                    const name = (ex.name || '').toLowerCase();
-                    const nameCn = (ex.name_cn || '').toLowerCase();
-                    if (!name.includes(q) && !nameCn.includes(q)) return false;
-                  }
-                  return true;
-                });
-
-                if (filtered.length === 0) {
-                  return (
-                    <p className="text-center py-6 text-xs text-text-secondary/50 select-none">无匹配动作</p>
-                  );
-                }
-
-                return filtered.map(ex => {
-                  const isAdded = editorExercises.some(item => item.exercise === ex.name);
-                  const typeLabel = EXERCISE_TYPE_MAP[ex.exercise_type] || ex.exercise_type;
-                  
-                  return (
-                    <button key={ex.id} type="button"
-                      disabled={isAdded}
-                      onClick={() => handleAddExerciseToEditor(ex)}
-                      className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all border border-transparent hover:bg-bg-hover dark:hover:bg-bg-hover-dark cursor-pointer disabled:opacity-50 disabled:pointer-events-none`}>
-                      <div className="flex flex-col min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs font-bold text-text-main dark:text-text-main-dark truncate">
-                            {ex.name_cn || ex.name}
-                          </span>
-                          <span className="badge badge-outline border-border-card text-[8px] scale-90 -translate-x-0.5 font-bold whitespace-nowrap bg-bg-main/30">
-                            {typeLabel}
-                          </span>
-                        </div>
-                        <span className="text-[9px] text-text-secondary/70 font-mono mt-0.5">
-                          记录: {RECORDING_METHOD_MAP[ex.recording_method] || ex.recording_method}
-                        </span>
-                      </div>
-                      {isAdded && (
-                        <span className="text-[9px] text-text-secondary/50 font-bold bg-bg-main/20 px-1.5 py-0.5 rounded select-none">已添加</span>
-                      )}
-                    </button>
-                  );
-                });
-              })()}
-            </div>
-          </div>
+              {isAdded && <span className="text-[9px] text-text-secondary/50 font-bold bg-bg-main/20 px-1.5 py-0.5 rounded select-none">已添加</span>}
+            </button>
+          );
+        }}
+      >
+        {/* Genre Filter */}
+        <div className="flex gap-1 overflow-x-auto pb-1 select-none">
+          {[
+            { label: '全部', value: '' },
+            { label: '拉伸', value: 'stretching' },
+            { label: '动物流', value: 'animal_flow' },
+            { label: '关节活动', value: 'mobility' },
+            { label: '筋膜放松', value: 'myofascial_release' },
+            { label: '力量', value: 'strength' }
+          ].map(genre => (
+            <button key={genre.value} type="button"
+              onClick={() => setExerciseSelectorType(genre.value)}
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all shrink-0 whitespace-nowrap cursor-pointer ${
+                exerciseSelectorType === genre.value
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-bg-main/20 dark:bg-bg-main-dark/20 text-text-secondary border-border-card dark:border-border-card-dark'
+              }`}>
+              {genre.label}
+            </button>
+          ))}
         </div>
-      )}
+      </ExercisePickerModal>
     </div>
   );
 }

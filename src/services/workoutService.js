@@ -1,4 +1,4 @@
-import { supabase } from '../supabaseClient';
+﻿import { supabase, getCurrentUserId, withUserId, withUserIdPayload } from '../supabaseClient';
 
 /**
  * 获取特定计划自起止日期后的所有历史记录
@@ -6,9 +6,11 @@ import { supabase } from '../supabaseClient';
  * @param {string} sinceDate - ISO Date String
  */
 export const fetchProgramWorkoutsHistory = async (programId, sinceDate) => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('workouts')
     .select('*')
+    
     .eq('program_id', programId)
     .gte('created_at', sinceDate)
     .order('created_at', { ascending: true });
@@ -22,9 +24,11 @@ export const fetchProgramWorkoutsHistory = async (programId, sinceDate) => {
  * @param {string} todayStartISO - ISO Date String
  */
 export const fetchTodayWorkouts = async (todayStartISO) => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('workouts')
     .select('*')
+    
     .gte('created_at', todayStartISO)
     .order('created_at');
 
@@ -37,7 +41,9 @@ export const fetchTodayWorkouts = async (todayStartISO) => {
  * @param {Array<Object>|Object} workoutRecords
  */
 export const saveWorkout = async (workoutRecords) => {
-  const payload = Array.isArray(workoutRecords) ? workoutRecords : [workoutRecords];
+  const userId = await getCurrentUserId();
+  const payload = (Array.isArray(workoutRecords) ? workoutRecords : [workoutRecords])
+    .map(r => ({ ...r, user_id: userId }));
   const { data, error } = await supabase
     .from('workouts')
     .insert(payload)
@@ -52,9 +58,11 @@ export const saveWorkout = async (workoutRecords) => {
  * @param {Array<Object>} setsToInsert
  */
 export const saveWorkoutSets = async (setsToInsert) => {
+  const userId = await getCurrentUserId();
+  const payload = setsToInsert.map(s => ({ ...s, user_id: userId }));
   const { error } = await supabase
     .from('workout_sets')
-    .insert(setsToInsert);
+    .insert(payload);
 
   if (error) throw error;
 };
@@ -64,9 +72,11 @@ export const saveWorkoutSets = async (setsToInsert) => {
  * @param {Array<string>} exercises
  */
 export const fetchLatestOneRmForExercises = async (exercises) => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('one_rm_records')
     .select('exercise, e1rm_kg, date, source')
+    
     .in('exercise', exercises)
     .order('date', { ascending: false });
 
@@ -79,9 +89,11 @@ export const fetchLatestOneRmForExercises = async (exercises) => {
  * @param {Array<Object>} rows
  */
 export const saveOneRmRecords = async (rows) => {
+  const userId = await getCurrentUserId();
+  const payload = rows.map(r => ({ ...r, user_id: userId }));
   const { error } = await supabase
     .from('one_rm_records')
-    .insert(rows);
+    .insert(payload);
 
   if (error) throw error;
 };
@@ -92,9 +104,11 @@ export const saveOneRmRecords = async (rows) => {
  * @param {string} endDate - ISO Date String
  */
 export const fetchWorkoutsForMonth = async (startDate, endDate) => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('workouts')
     .select('created_at')
+    
     .gte('created_at', startDate)
     .lt('created_at', endDate);
 
@@ -108,9 +122,11 @@ export const fetchWorkoutsForMonth = async (startDate, endDate) => {
  * @param {string} dayEnd - ISO Date String
  */
 export const fetchWorkoutsForDay = async (dayStart, dayEnd) => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('workouts')
     .select('*')
+    
     .gte('created_at', dayStart)
     .lt('created_at', dayEnd)
     .order('created_at', { ascending: true });
@@ -123,9 +139,11 @@ export const fetchWorkoutsForDay = async (dayStart, dayEnd) => {
  * 拉取 1RM 的完整历史纪录列表
  */
 export const fetchOneRmHistory = async () => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('one_rm_records')
     .select('*')
+    
     .order('date', { ascending: false })
     .order('created_at', { ascending: false });
 
@@ -138,23 +156,26 @@ export const fetchOneRmHistory = async () => {
  * @param {Object} record
  */
 export const saveOneRmRecord = async (record) => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('one_rm_records')
-    .insert([record]);
+    .insert([withUserIdPayload(record, userId)]);
 
   if (error) throw error;
   return data;
 };
 
 /**
- * 物理删除一条指定的 1RM 纪录
+ * 物理删除一条指定的 1RM 纪录（仅允许删除本人的）
  * @param {number} id
  */
 export const deleteOneRmRecord = async (id) => {
+  const userId = await getCurrentUserId();
   const { error } = await supabase
     .from('one_rm_records')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    ;
 
   if (error) throw error;
 };

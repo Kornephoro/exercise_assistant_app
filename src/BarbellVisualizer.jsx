@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 
 // 标准 IPF/IWF 杠铃片颜色与尺寸配置 (KG 模式)
 const PLATE_CONFIGS_KG = {
@@ -127,14 +127,16 @@ export function BarbellVisualizer({ plates = [], barWeight = 20, unit = 'kg', en
   // 根据当前空杆重，动态计算出所需的单侧挂重
   const targetPlateWeight = Math.max(0, (totalWeight - activeBarWeight) / 2);
 
-  // 记录前一次的单侧挂重，在挂重变化时自动将备选索引重置为 0
-  const [prevWeight, setPrevWeight] = useState(targetPlateWeight);
   const [selectedIdx, setSelectedIdx] = useState(0);
 
-  if (targetPlateWeight !== prevWeight) {
-    setSelectedIdx(0);
-    setPrevWeight(targetPlateWeight);
-  }
+  // 当目标单侧挂重变化时，自动重置备选配片方案的选中索引
+  const prevWeightRef = useRef(targetPlateWeight);
+  useEffect(() => {
+    if (targetPlateWeight !== prevWeightRef.current) {
+      prevWeightRef.current = targetPlateWeight;
+      setSelectedIdx(0);
+    }
+  }, [targetPlateWeight]);
 
   // 循环切换空杆重
   const toggleBarWeight = () => {
@@ -198,55 +200,47 @@ export function BarbellVisualizer({ plates = [], barWeight = 20, unit = 'kg', en
   const sleeveH = 8;
   const sleeveY = centerY - sleeveH / 2;
 
-  let currentX = sleeveX + 1; // 贴着卡环往右堆叠
+  let currentX = sleeveX + 1;
   const plateElements = [];
 
   sortedPlates.forEach((w, index) => {
     const key = w.toString();
     const configs = unit === 'lbs' ? PLATE_CONFIGS_LBS : PLATE_CONFIGS_KG;
     let config = configs[key];
-    
+
     if (!config) {
       const baseMax = unit === 'lbs' ? 45 : 25;
-      const height = w >= (unit === 'lbs' ? 25 : 10)
+      const h = w >= (unit === 'lbs' ? 25 : 10)
         ? 72
         : Math.max(24, Math.min(72, 24 + (w / (unit === 'lbs' ? 25 : 10)) * 48));
-      const width = Math.max(4, Math.min(14, 4 + (w / baseMax) * 10));
+      const wWidth = Math.max(4, Math.min(14, 4 + (w / baseMax) * 10));
       config = {
         color: '#9333EA',
         gradient: ['#D8B4FE', '#9333EA', '#581C87'],
-        height,
-        width
+        height: h,
+        width: wWidth
       };
     }
 
-    const { gradient, height: h, width: wWidth, border } = config;
+    const gradId = `plate-grad-${key.replace('.', '_')}`;
+    const { height: h, width: wWidth, border } = config;
     const y = centerY - h / 2;
-    const gradId = `plate-grad-${index}-${w}`;
 
     plateElements.push(
-      <g key={`${index}-${w}`}>
-        <defs>
-          <linearGradient id={gradId} x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor={gradient[0]} />
-            <stop offset="40%" stopColor={gradient[1]} />
-            <stop offset="100%" stopColor={gradient[2]} />
-          </linearGradient>
-        </defs>
-        <rect
-          x={currentX}
-          y={y}
-          width={wWidth}
-          height={h}
-          rx={1}
-          fill={`url(#${gradId})`}
-          stroke={border || 'rgba(0, 0, 0, 0.25)'}
-          strokeWidth={0.5}
-        />
-      </g>
+      <rect
+        key={`plate-${index}-${w}`}
+        x={currentX}
+        y={y}
+        width={wWidth}
+        height={h}
+        rx={1}
+        fill={`url(#${gradId})`}
+        stroke={border || 'rgba(0, 0, 0, 0.25)'}
+        strokeWidth={0.5}
+      />
     );
 
-    currentX += wWidth + 1; // 1px 间距
+    currentX += wWidth + 1;
   });
 
   // 格式化备选方案文字描述 (例如 "20 × 1 + 5 × 1")
@@ -290,6 +284,14 @@ export function BarbellVisualizer({ plates = [], barWeight = 20, unit = 'kg', en
                 <stop offset="70%" stopColor="#9CA3AF" />
                 <stop offset="100%" stopColor="#4B5563" />
               </linearGradient>
+              {/* 配片颜色渐变（每种重量仅生成一次，避免循环内重复 <defs>） */}
+              {gradientDefs.map(({ gradId, config }) => (
+                <linearGradient key={gradId} id={gradId} x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor={config.gradient[0]} />
+                  <stop offset="40%" stopColor={config.gradient[1]} />
+                  <stop offset="100%" stopColor={config.gradient[2]} />
+                </linearGradient>
+              ))}
             </defs>
 
             {/* 左侧细手柄 */}

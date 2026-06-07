@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+﻿import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   fetchActiveUserProgram,
   fetchLastEndedUserProgram,
@@ -11,6 +11,10 @@ import { Loader2, ArrowLeft, Save, ShieldAlert, CheckCircle, Scale, Zap, Dumbbel
 import { convertWeight, toStorageWeight, roundToClosestLoadable } from './unitUtils';
 import { deriveStartFromOneRm } from './oneRmUtils';
 import { getCNName } from './exerciseNames';
+import ExercisePickerModal from './components/ExercisePickerModal';
+import InfiniteScrollPicker from './components/InfiniteScrollPicker';
+import WarmupSetsEditor from './components/WarmupSetsEditor';
+import ProgressionChainEditor from './components/ProgressionChainEditor';
 
 // ==================== 1RM 同步钩子 ====================
 // 拉取每个主项最新 1RM，供「一键应用」使用
@@ -38,14 +42,13 @@ function useLatestOneRms() {
   return latest;
 }
 
-// ==================== 默认 chain ====================
-
+// 默认 chain 已移至 ProgressionChainEditor 组件内部；
+// 此处仍保留常量引用，供 GzclpConfig state 初始化使用
 const DEFAULT_T1_CHAIN = [
   { sets: 5, reps: 3, amrap: true },
   { sets: 6, reps: 2, amrap: true },
   { sets: 10, reps: 1, amrap: true },
 ];
-
 const DEFAULT_T2_CHAIN = [
   { sets: 3, reps: 10, amrap: false },
   { sets: 3, reps: 8, amrap: false },
@@ -73,433 +76,6 @@ const RPE_PERCENTAGE_CHART = {
   11: { 10: 0.707, 9.5: 0.694, 9: 0.680, 8.5: 0.667, 8: 0.653, 7.5: 0.640, 7: 0.626, 6.5: 0.613, 6: 0.599 },
   12: { 10: 0.680, 9.5: 0.667, 9: 0.653, 8.5: 0.640, 8: 0.626, 7.5: 0.613, 7: 0.599, 6.5: 0.586, 6: 0.573 }
 };
-
-// ==================== InfiniteScrollPicker ====================
-// 水平循环滚动对齐选择器
-function InfiniteScrollPicker({ options, value, onChange, label }) {
-  const containerRef = useRef(null);
-  const isTeleportingRef = useRef(false);
-  const lastSelectedValueRef = useRef(value);
-
-  // We repeat the options array 9 times to create an infinite scroll illusion.
-  const repeatCount = 9;
-  const repeatedOptions = useMemo(() => {
-    let arr = [];
-    for (let i = 0; i < repeatCount; i++) {
-      arr = arr.concat(options);
-    }
-    return arr;
-  }, [options]);
-
-  const scrollToValue = (val, smooth = false) => {
-    const container = containerRef.current;
-    if (!container) return;
-    const L = options.length;
-    const itemIndex = options.indexOf(val);
-    if (itemIndex === -1) return;
-    // We aim for the middle copy (index 4 out of 0-8)
-    const targetIndex = 4 * L + itemIndex;
-    const children = container.children;
-    const targetChild = children[targetIndex];
-    if (targetChild) {
-      const itemOffsetLeft = targetChild.offsetLeft;
-      const itemWidth = targetChild.offsetWidth;
-      const newScrollLeft = itemOffsetLeft - container.clientWidth / 2 + itemWidth / 2;
-      container.scrollTo({
-        left: newScrollLeft,
-        behavior: smooth ? 'smooth' : 'auto'
-      });
-    }
-  };
-
-  // Align to the initial value on mount and when layout becomes ready
-  useEffect(() => {
-    let timer;
-    const align = () => {
-      scrollToValue(value, false);
-      lastSelectedValueRef.current = value;
-    };
-    align();
-    timer = setTimeout(align, 100);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Listen to external value changes
-  useEffect(() => {
-    if (value !== lastSelectedValueRef.current) {
-      scrollToValue(value, false);
-      lastSelectedValueRef.current = value;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
-
-  const handleScroll = () => {
-    if (isTeleportingRef.current) return;
-    const container = containerRef.current;
-    if (!container) return;
-
-    const containerRect = container.getBoundingClientRect();
-    const containerCenter = containerRect.left + containerRect.width / 2;
-    let minDistance = Infinity;
-    let closestIndex = -1;
-
-    const children = container.children;
-    for (let i = 0; i < children.length; i++) {
-      const childRect = children[i].getBoundingClientRect();
-      const childCenter = childRect.left + childRect.width / 2;
-      const distance = Math.abs(childCenter - containerCenter);
-      if (distance < minDistance) {
-        minDistance = distance;
-        closestIndex = i;
-      }
-    }
-
-    if (closestIndex !== -1) {
-      const val = options[closestIndex % options.length];
-      if (val !== undefined && val !== value) {
-        lastSelectedValueRef.current = val;
-        onChange(val);
-      }
-
-      // Silent teleportation check
-      const L = options.length;
-      const activeCopy = Math.floor(closestIndex / L);
-      if (activeCopy < 3 || activeCopy > 5) {
-        const targetIndex = 4 * L + (closestIndex % L);
-        const targetChild = children[targetIndex];
-        if (targetChild) {
-          const itemOffsetLeft = targetChild.offsetLeft;
-          const itemWidth = targetChild.offsetWidth;
-          const newScrollLeft = itemOffsetLeft - container.clientWidth / 2 + itemWidth / 2;
-
-          isTeleportingRef.current = true;
-          container.scrollLeft = newScrollLeft;
-          // Clear flag on next frame
-          requestAnimationFrame(() => {
-            setTimeout(() => {
-              isTeleportingRef.current = false;
-            }, 50);
-          });
-        }
-      }
-    }
-  };
-
-  const handleItemClick = (index, val) => {
-    const container = containerRef.current;
-    if (!container) return;
-    const children = container.children;
-    const targetChild = children[index];
-    if (targetChild) {
-      const itemOffsetLeft = targetChild.offsetLeft;
-      const itemWidth = targetChild.offsetWidth;
-      const newScrollLeft = itemOffsetLeft - container.clientWidth / 2 + itemWidth / 2;
-      container.scrollTo({
-        left: newScrollLeft,
-        behavior: 'smooth'
-      });
-      lastSelectedValueRef.current = val;
-      onChange(val);
-    }
-  };
-
-  const scrollbarHideStyle = `
-    .scrollbar-none::-webkit-scrollbar {
-      display: none;
-    }
-    .scrollbar-none {
-      -ms-overflow-style: none;
-      scrollbar-width: none;
-    }
-  `;
-
-  return (
-    <div className="flex flex-col gap-1 w-full">
-      <style>{scrollbarHideStyle}</style>
-      <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark font-bold pl-1">
-        {label}
-      </span>
-      
-      {/* Scroll picker outer container with center selection indicator styling */}
-      <div className="relative w-full flex items-center bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card dark:border-border-card-dark rounded-xl h-12 overflow-hidden">
-        {/* Selection highlight overlay in the center */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full border-2 border-primary/30 pointer-events-none z-10" />
-        
-        {/* Left/Right fading mask overlays */}
-        <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-bg-card/40 to-transparent dark:from-bg-card-dark/40 pointer-events-none z-10" />
-        <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-bg-card/40 to-transparent dark:from-bg-card-dark/40 pointer-events-none z-10" />
-        
-        <div
-          ref={containerRef}
-          onScroll={handleScroll}
-          className="scrollbar-none w-full h-full flex items-center gap-2 overflow-x-auto snap-x snap-mandatory"
-          style={{ paddingLeft: 'calc(50% - 20px)', paddingRight: 'calc(50% - 20px)' }}
-        >
-          {repeatedOptions.map((opt, i) => {
-            const isActive = opt === value;
-            return (
-              <button
-                key={i}
-                type="button"
-                onClick={() => handleItemClick(i, opt)}
-                className={`snap-center shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold font-mono text-sm transition-all cursor-pointer border-0 ${
-                  isActive
-                    ? 'bg-primary text-white scale-110 shadow-md ring-2 ring-primary/20'
-                    : 'text-text-secondary hover:text-text-main dark:text-text-secondary-dark dark:hover:text-text-main-dark hover:bg-bg-hover dark:hover:bg-bg-hover-dark bg-transparent'
-                }`}
-              >
-                {opt}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ==================== WarmupSetsEditor ====================
-function WarmupSetsEditor({ enabled, onEnabledChange, sets, onSetsChange }) {
-  const [open, setOpen] = useState(false);
-
-  const update = (i, patch) => {
-    const next = sets.map((s, idx) => idx === i ? { ...s, ...patch } : s);
-    onSetsChange(next);
-  };
-  const remove = (i) => {
-    onSetsChange(sets.filter((_, idx) => idx !== i));
-  };
-  const add = () => {
-    onSetsChange([
-      ...sets,
-      { pct: 50, reps: 5 }
-    ]);
-  };
-  const applyDefault = () => {
-    onSetsChange([
-      { pct: 50, reps: 5 },
-      { pct: 75, reps: 3 }
-    ]);
-  };
-
-  const label = sets && sets.length > 0 
-    ? sets.map(s => `${s.pct}%×${s.reps}下`).join(' → ')
-    : '使用默认两组热身比例 (50%×5, 75%×3)';
-
-  return (
-    <div className="text-xs border border-border-card/50 dark:border-border-card-dark/50 rounded-md p-2 bg-bg-main/30 dark:bg-bg-main-dark/30 shadow-xs mt-1.5">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <label className="flex items-center gap-1.5 font-bold text-text-main dark:text-text-main-dark cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={!!enabled}
-            onChange={(e) => onEnabledChange(e.target.checked)}
-            className="checkbox checkbox-xs checkbox-primary"
-          />
-          <span>配置热身组</span>
-        </label>
-        {enabled && (
-          <div className="flex items-center gap-2 ml-auto">
-            <button
-              type="button"
-              onClick={() => setOpen(!open)}
-              className="text-[10px] text-text-secondary dark:text-text-secondary-dark hover:text-text-main transition-colors font-bold cursor-pointer"
-            >
-              配置详情 ({sets ? sets.length : 0}组) {open ? '▲' : '▼'}
-            </button>
-            <button
-              type="button"
-              onClick={applyDefault}
-              className="text-[10px] text-primary hover:underline font-bold flex items-center gap-0.5 cursor-pointer"
-              title="一键应用默认热身组"
-            >
-              ⚡ 默认热身组
-            </button>
-          </div>
-        )}
-      </div>
-
-      {enabled && (
-        <div className="mt-1 text-[10px] text-text-secondary font-mono leading-tight">
-          当前：{label}
-        </div>
-      )}
-
-      {enabled && open && (
-        <div className="mt-2 pt-2 border-t border-border-card/40 dark:border-border-card-dark/40 space-y-1.5">
-          {(sets || []).map((s, i) => (
-            <div key={i} className="flex items-center gap-1.5 bg-bg-main/40 dark:bg-bg-main-dark/40 p-1.5 rounded-md border border-border-card/30 dark:border-border-card-dark/30">
-              <span className="text-[10px] text-text-secondary font-semibold shrink-0">第 {i+1} 组</span>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  value={s.pct || ''}
-                  min={1}
-                  max={200}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    update(i, { pct: val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0) });
-                  }}
-                  onBlur={() => { if (!s.pct || s.pct < 1) update(i, { pct: 50 }); }}
-                  className="h-7 w-12 rounded border border-input bg-bg-card dark:bg-bg-card-dark text-center text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary px-0 text-text-main dark:text-text-main-dark"
-                />
-                <span className="text-[10px] text-text-secondary shrink-0">% 重量</span>
-              </div>
-              <span className="text-[10px] text-text-secondary/50 shrink-0">×</span>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  value={s.reps || ''}
-                  min={1}
-                  max={100}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    update(i, { reps: val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0) });
-                  }}
-                  onBlur={() => { if (!s.reps || s.reps < 1) update(i, { reps: 5 }); }}
-                  className="h-7 w-10 rounded border border-input bg-bg-card dark:bg-bg-card-dark text-center text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary px-0 text-text-main dark:text-text-main-dark"
-                />
-                <span className="text-[10px] text-text-secondary shrink-0">次</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => remove(i)}
-                className="text-[10px] text-error hover:underline ml-auto font-bold cursor-pointer"
-              >
-                删除
-              </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={add}
-            className="w-full py-1 border border-dashed border-border-card/60 dark:border-border-card-dark/60 rounded-md text-center text-xs text-text-secondary hover:text-text-main hover:bg-bg-main/30 font-bold cursor-pointer"
-          >
-            + 新增热身组
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ==================== ProgressionChainEditor ====================
-// 移植自插件 GzclpConfigPanel.tsx:193-277
-function ProgressionChainEditor({ chain, onChange, tierLabel }) {
-  const [open, setOpen] = useState(false);
-  const tierColor = tierLabel === 'T1' ? 'text-tier-t1' : 'text-tier-t2';
-
-  const update = (i, patch) => {
-    const next = chain.map((s, idx) => idx === i ? { ...s, ...patch } : s);
-    onChange(next);
-  };
-  const remove = (i) => {
-    if (chain.length <= 1) return;
-    onChange(chain.filter((_, idx) => idx !== i));
-  };
-  const add = () => {
-    const last = chain[chain.length - 1];
-    onChange([
-      ...chain,
-      { sets: last?.sets ?? 3, reps: Math.max(1, (last?.reps ?? 10) - 2), amrap: last?.amrap ?? false }
-    ]);
-  };
-  const reset = () => {
-    const defaults = tierLabel === 'T1' ? DEFAULT_T1_CHAIN : DEFAULT_T2_CHAIN;
-    onChange(defaults.map(s => ({ ...s })));
-  };
-
-  const label = chain.map(s => `${s.sets}×${s.reps}${s.amrap ? '+' : ''}`).join(' → ');
-
-  return (
-    <div className="text-xs border border-border-card/50 dark:border-border-card-dark/50 rounded-md p-2 bg-bg-main/30 dark:bg-bg-main-dark/30 shadow-xs">
-      <div className="flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={() => setOpen(!open)}
-          className="flex items-center gap-1.5 min-w-0 text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark transition-colors flex-1 text-left"
-        >
-          <span className={`${tierColor} font-bold shrink-0`}>{tierLabel} 进阶链</span>
-          <span className="text-[10px] font-mono text-text-secondary/80 truncate">({label})</span>
-          <span className="text-[10px] ml-auto shrink-0">{open ? '▲' : '▼'}</span>
-        </button>
-        <button
-          type="button"
-          onClick={reset}
-          className="text-[10px] text-text-secondary dark:text-text-secondary-dark hover:text-primary transition-colors shrink-0 px-1"
-          title="恢复为默认 chain"
-        >
-          ↺ 默认
-        </button>
-      </div>
-      {open && (
-        <div className="mt-2 pt-2 border-t border-border-card/40 dark:border-border-card-dark/40 space-y-1.5">
-          {chain.map((s, i) => (
-            <div key={i} className="flex items-center gap-1.5 bg-bg-main/40 dark:bg-bg-main-dark/40 p-1.5 rounded-md border border-border-card/30 dark:border-border-card-dark/30">
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  value={s.sets || ''}
-                  min={1}
-                  max={20}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    update(i, { sets: val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0) });
-                  }}
-                  onBlur={() => { if (!s.sets || s.sets < 1) update(i, { sets: 1 }); }}
-                  className="h-7 w-10 rounded border border-input bg-bg-card dark:bg-bg-card-dark text-center text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary px-0"
-                />
-                <span className="text-[10px] text-text-secondary shrink-0">组</span>
-              </div>
-              <span className="text-[10px] text-text-secondary/50 shrink-0">×</span>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  value={s.reps || ''}
-                  min={1}
-                  max={30}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    update(i, { reps: val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0) });
-                  }}
-                  onBlur={() => { if (!s.reps || s.reps < 1) update(i, { reps: 1 }); }}
-                  className="h-7 w-10 rounded border border-input bg-bg-card dark:bg-bg-card-dark text-center text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary px-0"
-                />
-                <span className="text-[10px] text-text-secondary shrink-0">次</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => update(i, { amrap: !s.amrap })}
-                className={`h-7 px-2 rounded border text-[10px] font-semibold transition-colors shrink-0 ${
-                  s.amrap ? 'bg-primary/15 text-primary border-primary/30' : 'border-input bg-bg-card dark:bg-bg-card-dark text-text-secondary hover:bg-bg-hover'
-                }`}
-                title="最后一组做 AMRAP (尽可能多做次数)"
-              >
-                AMRAP
-              </button>
-              <button
-                type="button"
-                onClick={() => remove(i)}
-                className="h-7 w-7 rounded text-text-secondary hover:text-alert hover:bg-alert/10 transition-colors flex items-center justify-center text-sm ml-auto shrink-0"
-                title="删除此阶段"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={add}
-            className="w-full text-center text-[10px] text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark border border-dashed border-border-card dark:border-border-card-dark rounded py-1 transition-colors bg-bg-card/30 dark:bg-bg-card-dark/30 hover:bg-bg-card/60"
-          >
-            + 添加阶段
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ==================== GZCLP 完整配置 ====================
 
@@ -2181,194 +1757,109 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
         </div>
       )}
 
-      {/* 动作选择器模态框 */}
-      {selectorOpen && selectingTarget && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card dark:border-border-card-dark w-full max-w-sm rounded-2xl shadow-xl flex flex-col max-h-[80vh] overflow-hidden">
-            {/* Header */}
-            <div className="p-3.5 border-b border-border-card dark:border-border-card-dark flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-text-main dark:text-text-main-dark">
-                  {selectingTarget.type === 'warmup'
-                    ? '选择练前热身动作'
-                    : selectingTarget.type === 'stretching'
-                      ? '选择练后拉伸动作'
-                      : '选择 T3 辅助动作'}
-                </h3>
-                <p className="text-xs text-text-secondary dark:text-text-secondary-dark mt-0.5">
-                  为 {selectingTarget.dayLabel} 选择动作
-                </p>
-              </div>
-              <button type="button" onClick={() => setSelectorOpen(false)}
-                className="w-6 h-6 rounded-lg hover:bg-bg-hover dark:hover:bg-bg-hover-dark text-text-secondary hover:text-text-main flex items-center justify-center transition-all text-sm font-bold cursor-pointer">
-                ×
-              </button>
-            </div>
+      {/* 动作选择器模态框（共享组件） */}
+      <ExercisePickerModal
+        isOpen={selectorOpen && !!selectingTarget}
+        onClose={() => setSelectorOpen(false)}
+        className="z-[100]"
+        title={
+          selectingTarget?.type === 'warmup'
+            ? '选择练前热身动作'
+            : selectingTarget?.type === 'stretching'
+              ? '选择练后拉伸动作'
+              : '选择 T3 辅助动作'
+        }
+        subtitle={selectingTarget ? `为 ${selectingTarget.dayLabel} 选择动作` : undefined}
+        search={selectorSearch}
+        onSearchChange={setSelectorSearch}
+        searchPlaceholder="搜索动作名称、器械..."
+        headerExtra={
+          <button type="button"
+            onClick={() => {
+              if (!selectingTarget) return;
+              const { type, dayLabel, idx } = selectingTarget;
+              const newTemplate = dayTemplate.map(d => {
+                if (d.label !== dayLabel) return d;
+                if (type === 'warmup') return { ...d, warmup: d.warmup.map((item, i) => i === idx ? { ...item, exercise: '' } : item) };
+                if (type === 'stretching') return { ...d, stretching: d.stretching.map((item, i) => i === idx ? { ...item, exercise: '' } : item) };
+                return { ...d, t3: d.t3.map((ex, i) => i === idx ? '' : ex) };
+              });
+              setDayTemplate(newTemplate);
+              setSelectorOpen(false);
+            }}
+            className="px-2 py-1 text-[10px] font-bold rounded-lg border border-dashed border-border-card/60 hover:border-error/40 hover:bg-bg-alert/10 text-text-secondary hover:text-error transition-all cursor-pointer">
+            🚫 清除选择
+          </button>
+        }
+        exercises={filteredExercises}
+        emptyMessage="未找到匹配的动作"
+        renderItem={(ex) => {
+          const isSelected = selectingTarget?.type === 'warmup'
+            ? dayTemplate.find(d => d.label === selectingTarget.dayLabel)?.warmup[selectingTarget.idx]?.exercise === ex.name
+            : selectingTarget?.type === 'stretching'
+              ? dayTemplate.find(d => d.label === selectingTarget.dayLabel)?.stretching[selectingTarget.idx]?.exercise === ex.name
+              : dayTemplate.find(d => d.label === selectingTarget.dayLabel)?.t3[selectingTarget.idx] === ex.name;
 
-            {/* Search & Filter */}
-            <div className="p-3 border-b border-border-card dark:border-border-card-dark space-y-2">
-              <div className="relative">
-                <input type="text" placeholder="搜索动作名称、器械..."
-                  className="input input-bordered input-sm w-full pl-8 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus:border-primary"
-                  value={selectorSearch} onChange={(e) => setSelectorSearch(e.target.value)} autoFocus />
-                <Search size={14} className="absolute left-2.5 top-2.5 text-text-secondary/50" />
-                {selectorSearch && (
-                  <button type="button" onClick={() => setSelectorSearch('')}
-                    className="absolute right-2.5 top-2.5 text-text-secondary hover:text-text-main text-xs cursor-pointer">
-                    ×
-                  </button>
-                )}
-              </div>
-              <div className="flex gap-1 overflow-x-auto pb-1">
-                {muscleCategories.map(cat => (
-                  <button key={cat.label} type="button"
-                    className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all shrink-0 whitespace-nowrap cursor-pointer ${
-                      selectorMuscleFilter === cat.value
-                        ? 'bg-primary text-white border-primary shadow-md'
-                        : 'bg-bg-main/20 dark:bg-bg-main-dark/20 text-text-secondary dark:text-text-secondary-dark border-border-card dark:border-border-card-dark hover:bg-bg-hover'
-                    }`}
-                    onClick={() => setSelectorMuscleFilter(cat.value)}>
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center justify-between pt-1 select-none">
-                <label className="flex items-center gap-1.5 text-xs text-text-secondary dark:text-text-secondary-dark cursor-pointer font-semibold">
-                  <input
-                    type="checkbox"
-                    checked={selectorShowAll}
-                    onChange={(e) => setSelectorShowAll(e.target.checked)}
-                    className="checkbox checkbox-xs checkbox-primary"
-                  />
-                  <span>显示动作库全部动作</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Exercise List */}
-            <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5 min-h-[150px] max-h-[40vh]">
-              <button type="button" onClick={() => {
-                if (selectingTarget.type === 'warmup') {
-                  const newTemplate = dayTemplate.map(d =>
-                    d.label === selectingTarget.dayLabel
-                      ? { ...d, warmup: d.warmup.map((item, i) => i === selectingTarget.idx ? { ...item, exercise: '' } : item) }
-                      : d
-                  );
-                  setDayTemplate(newTemplate);
-                } else if (selectingTarget.type === 'stretching') {
-                  const newTemplate = dayTemplate.map(d =>
-                    d.label === selectingTarget.dayLabel
-                      ? { ...d, stretching: d.stretching.map((item, i) => i === selectingTarget.idx ? { ...item, exercise: '' } : item) }
-                      : d
-                  );
-                  setDayTemplate(newTemplate);
-                } else {
-                  const newTemplate = dayTemplate.map(d =>
-                    d.label === selectingTarget.dayLabel
-                      ? { ...d, t3: d.t3.map((ex, i) => i === selectingTarget.idx ? '' : ex) }
-                      : d
-                  );
-                  setDayTemplate(newTemplate);
-                }
+          return (
+            <button key={ex.name} type="button"
+              className={`w-full text-left p-2 rounded-lg border transition-all flex items-center justify-between gap-3 cursor-pointer ${
+                isSelected
+                  ? 'bg-primary/10 border-primary/30 text-primary'
+                  : 'bg-bg-main/20 dark:bg-bg-main-dark/20 hover:bg-bg-hover dark:hover:bg-bg-hover-dark border-border-card/30 dark:border-border-card-dark/30 text-text-main dark:text-text-main-dark'
+              }`}
+              onClick={() => {
+                if (!selectingTarget) return;
+                const { type, dayLabel, idx } = selectingTarget;
+                const newTemplate = dayTemplate.map(d => {
+                  if (d.label !== dayLabel) return d;
+                  if (type === 'warmup') return { ...d, warmup: d.warmup.map((item, i) => i === idx ? { exercise: ex.name, sets: item.sets || 2, reps: item.reps || (ex.recording_method === 'duration_only' ? 30 : 10), recording_method: ex.recording_method || 'reps_only' } : item) };
+                  if (type === 'stretching') return { ...d, stretching: d.stretching.map((item, i) => i === idx ? { exercise: ex.name, sets: item.sets || 2, reps: item.reps || (ex.recording_method === 'duration_only' ? 30 : 10), recording_method: ex.recording_method || 'reps_only' } : item) };
+                  return { ...d, t3: d.t3.map((name, i) => i === idx ? ex.name : name) };
+                });
+                setDayTemplate(newTemplate);
                 setSelectorOpen(false);
-              }}
-                className="w-full text-left p-2 rounded-lg border border-dashed border-border-card/60 dark:border-border-card-dark/60 hover:border-error/40 hover:bg-bg-alert/10 text-text-secondary hover:text-error flex items-center justify-between transition-all">
-                <span className="text-xs font-semibold">🚫 清除选择</span>
-              </button>
-
-              {filteredExercises.map(ex => {
-                const isSelected = selectingTarget.type === 'warmup'
-                  ? dayTemplate.find(d => d.label === selectingTarget.dayLabel)?.warmup[selectingTarget.idx]?.exercise === ex.name
-                  : selectingTarget.type === 'stretching'
-                    ? dayTemplate.find(d => d.label === selectingTarget.dayLabel)?.stretching[selectingTarget.idx]?.exercise === ex.name
-                    : dayTemplate.find(d => d.label === selectingTarget.dayLabel)?.t3[selectingTarget.idx] === ex.name;
-
-                return (
-                  <button key={ex.name} type="button"
-                    className={`w-full text-left p-2 rounded-lg border transition-all flex items-center justify-between gap-3 cursor-pointer ${
-                      isSelected
-                        ? 'bg-primary/10 border-primary/30 text-primary'
-                        : 'bg-bg-main/20 dark:bg-bg-main-dark/20 hover:bg-bg-hover dark:hover:bg-bg-hover-dark border-border-card/30 dark:border-border-card-dark/30 text-text-main dark:text-text-main-dark'
-                    }`}
-                    onClick={() => {
-                      if (selectingTarget.type === 'warmup') {
-                        const newTemplate = dayTemplate.map(d =>
-                          d.label === selectingTarget.dayLabel
-                            ? {
-                                ...d,
-                                warmup: d.warmup.map((item, i) =>
-                                  i === selectingTarget.idx
-                                    ? {
-                                        exercise: ex.name,
-                                        sets: item.sets || 2,
-                                        reps: item.reps || (ex.recording_method === 'duration_only' ? 30 : 10),
-                                        recording_method: ex.recording_method || 'reps_only'
-                                      }
-                                    : item
-                                )
-                              }
-                            : d
-                        );
-                        setDayTemplate(newTemplate);
-                      } else if (selectingTarget.type === 'stretching') {
-                        const newTemplate = dayTemplate.map(d =>
-                          d.label === selectingTarget.dayLabel
-                            ? {
-                                ...d,
-                                stretching: d.stretching.map((item, i) =>
-                                  i === selectingTarget.idx
-                                    ? {
-                                        exercise: ex.name,
-                                        sets: item.sets || 2,
-                                        reps: item.reps || (ex.recording_method === 'duration_only' ? 30 : 10),
-                                        recording_method: ex.recording_method || 'reps_only'
-                                      }
-                                    : item
-                                )
-                              }
-                            : d
-                        );
-                        setDayTemplate(newTemplate);
-                      } else {
-                        const newTemplate = dayTemplate.map(d =>
-                          d.label === selectingTarget.dayLabel
-                            ? { ...d, t3: d.t3.map((name, i) => i === selectingTarget.idx ? ex.name : name) }
-                            : d
-                        );
-                        setDayTemplate(newTemplate);
-                      }
-                      setSelectorOpen(false);
-                    }}>
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-bold truncate">{ex.name_cn || ex.name}</span>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark">{(ex.primary_muscles || []).slice(0, 2).join(', ')}</span>
-                        <span className="text-[10px] text-text-secondary/50">•</span>
-                        <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark">{(ex.equipment || []).slice(0, 1).join(', ')}</span>
-                        {ex.exercise_type && ex.exercise_type !== 'strength' && (
-                          <>
-                            <span className="text-[10px] text-text-secondary/50">•</span>
-                            <span className="text-[10px] text-primary font-bold">{ex.exercise_type === 'stretching' ? '拉伸' : ex.exercise_type === 'animal_flow' ? '动物流' : ex.exercise_type === 'mobility' ? '活动度' : '其它'}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    {isSelected && (
-                      <span className="text-[10px] bg-primary text-white px-1.5 py-0.5 rounded font-bold">当前</span>
-                    )}
-                  </button>
-                );
-              })}
-
-              {filteredExercises.length === 0 && (
-                <div className="text-center py-8 text-text-secondary dark:text-text-secondary-dark italic text-xs">
-                  未找到匹配的动作
+              }}>
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs font-bold truncate">{ex.name_cn || ex.name}</span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark">{(ex.primary_muscles || []).slice(0, 2).join(', ')}</span>
+                  <span className="text-[10px] text-text-secondary/50">•</span>
+                  <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark">{(ex.equipment || []).slice(0, 1).join(', ')}</span>
+                  {ex.exercise_type && ex.exercise_type !== 'strength' && (
+                    <>
+                      <span className="text-[10px] text-text-secondary/50">•</span>
+                      <span className="text-[10px] text-primary font-bold">{ex.exercise_type === 'stretching' ? '拉伸' : ex.exercise_type === 'animal_flow' ? '动物流' : ex.exercise_type === 'mobility' ? '活动度' : '其它'}</span>
+                    </>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
+              {isSelected && <span className="text-[10px] bg-primary text-white px-1.5 py-0.5 rounded font-bold">当前</span>}
+            </button>
+          );
+        }}
+      >
+        {/* 肌群筛选标签 */}
+        <div className="flex gap-1 overflow-x-auto pb-1">
+          {muscleCategories.map(cat => (
+            <button key={cat.label} type="button"
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all shrink-0 whitespace-nowrap cursor-pointer ${
+                selectorMuscleFilter === cat.value
+                  ? 'bg-primary text-white border-primary shadow-md'
+                  : 'bg-bg-main/20 dark:bg-bg-main-dark/20 text-text-secondary dark:text-text-secondary-dark border-border-card dark:border-border-card-dark hover:bg-bg-hover'
+              }`}
+              onClick={() => setSelectorMuscleFilter(cat.value)}>
+              {cat.label}
+            </button>
+          ))}
         </div>
-      )}
+        {/* 显示动作库全部动作开关 */}
+        <div className="flex items-center justify-between pt-1 select-none">
+          <label className="flex items-center gap-1.5 text-xs text-text-secondary dark:text-text-secondary-dark cursor-pointer font-semibold">
+            <input type="checkbox" checked={selectorShowAll} onChange={(e) => setSelectorShowAll(e.target.checked)} className="checkbox checkbox-xs checkbox-primary" />
+            <span>显示动作库全部动作</span>
+          </label>
+        </div>
+      </ExercisePickerModal>
 
       <button type="button"
         className="btn-main w-full mt-2 mb-8"
@@ -2665,3 +2156,4 @@ function ProgramConfigScreen({ program, exercisesMap, onBack, onProgramStarted, 
 }
 
 export default ProgramConfigScreen;
+

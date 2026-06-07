@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   fetchUserHeight,
   saveBodyMetrics,
@@ -278,29 +278,42 @@ function BodyMetrics() {
     return `${splinePath} L ${points[points.length - 1].x} ${yMax} L ${points[0].x} ${yMax} Z`;
   }, [points, splinePath, yMax]);
 
-  // SVG 悬停交互状态管理
+  // SVG 悬停交互状态管理（requestAnimationFrame 节流，避免每次 mousemove 触发重渲染）
   const [hoveredIdx, setHoveredIdx] = useState(null);
   const svgRef = useRef(null);
+  const rafRef = useRef(null);
+  const latestCoordRef = useRef({ svgX: 0, hasEvent: false });
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = useCallback((e) => {
     if (!svgRef.current || points.length === 0) return;
     const rect = svgRef.current.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
     const scaleX = chartWidth / rect.width;
-    const svgX = mouseX * scaleX;
+    latestCoordRef.current = { svgX: (e.clientX - rect.left) * scaleX, hasEvent: true };
 
-    // 寻觅 X 轴上最近的点
-    let closestIdx = 0;
-    let minDiff = Math.abs(points[0].x - svgX);
-    for (let i = 1; i < points.length; i++) {
-      const diff = Math.abs(points[i].x - svgX);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closestIdx = i;
+    // 如果已有待处理的 RAF，跳过（合并到同一帧）
+    if (rafRef.current !== null) return;
+
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      if (!latestCoordRef.current.hasEvent) return;
+      const { svgX } = latestCoordRef.current;
+      latestCoordRef.current.hasEvent = false;
+
+      // 寻觅 X 轴上最近的点
+      let closestIdx = 0;
+      let minDiff = Math.abs(points[0].x - svgX);
+      for (let i = 1; i < points.length; i++) {
+        const diff = Math.abs(points[i].x - svgX);
+        if (diff < minDiff) { minDiff = diff; closestIdx = i; }
       }
-    }
-    setHoveredIdx(closestIdx);
-  };
+      setHoveredIdx(closestIdx);
+    });
+  }, [points, chartWidth]);
+
+  // 清理未完成的 RAF
+  useEffect(() => {
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, []);
 
   const handleMouseLeave = () => {
     setHoveredIdx(null);

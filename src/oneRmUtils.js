@@ -14,18 +14,20 @@
  *   - reps >= 36 或 weight<=0 或 reps<=0: 无效
  */
 export function calcE1RM(weightKg, reps) {
-  if (!weightKg || weightKg <= 0 || !reps || reps <= 0) {
+  const w = Number(weightKg);
+  const r = Number(reps);
+  if (!Number.isFinite(w) || w <= 0 || !Number.isFinite(r) || r <= 0) {
     return { e1rm: 0, formula: null, valid: false };
   }
-  if (reps === 1) {
-    return { e1rm: weightKg, formula: 'actual', valid: true };
+  if (r === 1) {
+    return { e1rm: w, formula: 'actual', valid: true };
   }
-  if (reps <= 10) {
-    const e1rm = Math.round(weightKg * (1 + reps / 30) * 10) / 10;
+  if (r <= 10) {
+    const e1rm = Math.round(w * (1 + r / 30) * 10) / 10;
     return { e1rm, formula: 'epley', valid: true };
   }
-  if (reps < 36) {
-    const e1rm = Math.round((weightKg * (36 / (37 - reps))) * 10) / 10;
+  if (r < 36) {
+    const e1rm = Math.round((w * (36 / (37 - r))) * 10) / 10;
     return { e1rm, formula: 'brzycki', valid: true };
   }
   return { e1rm: 0, formula: null, valid: false };

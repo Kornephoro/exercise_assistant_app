@@ -1,12 +1,14 @@
-import { supabase } from '../supabaseClient';
+﻿import { supabase, getCurrentUserId, withUserId, withUserIdPayload } from '../supabaseClient';
 
 /**
  * 获取用户的身高画像
  */
 export const fetchUserHeight = async () => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('user_profiles')
     .select('height_cm')
+    
     .limit(1);
 
   if (error) throw error;
@@ -18,9 +20,11 @@ export const fetchUserHeight = async () => {
  * @param {string} date - YYYY-MM-DD
  */
 export const fetchBodyMetrics = async (date) => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('body_metrics')
     .select('*')
+    
     .eq('date', date)
     .maybeSingle();
 
@@ -30,25 +34,29 @@ export const fetchBodyMetrics = async (date) => {
 
 /**
  * 保存或更新特定日期的身体数据记录
+ * - onConflict: ['date', 'user_id'] 确保同用户同日期唯一，不会覆盖其他用户
  * @param {Object} entry - 身体状态记录 payload
  */
 export const saveBodyMetrics = async (entry) => {
+  const userId = await getCurrentUserId();
   const { error } = await supabase
     .from('body_metrics')
-    .upsert(entry, { onConflict: 'date' });
+    .upsert({ ...entry, user_id: userId }, { onConflict: 'date, user_id' });
 
   if (error) throw error;
 };
 
 /**
- * 物理删除特定的身体数据记录
+ * 物理删除特定的身体数据记录（仅允许删除本人的）
  * @param {number} id - 记录的自增主键 ID
  */
 export const deleteBodyMetrics = async (id) => {
+  const userId = await getCurrentUserId();
   const { error } = await supabase
     .from('body_metrics')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    ;
 
   if (error) throw error;
 };
@@ -57,9 +65,11 @@ export const deleteBodyMetrics = async (id) => {
  * 获取全量身体状态历史记录 (按日期降序)
  */
 export const fetchHistoryBodyMetrics = async () => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('body_metrics')
     .select('*')
+    
     .order('date', { ascending: false })
     .limit(365);
 
@@ -72,9 +82,11 @@ export const fetchHistoryBodyMetrics = async () => {
  * @param {Array} array
  */
 export const bulkInsertBodyMetrics = async (array) => {
+  const userId = await getCurrentUserId();
+  const payload = array.map(r => ({ ...r, user_id: userId }));
   const { error } = await supabase
     .from('body_metrics')
-    .insert(array);
+    .insert(payload);
 
   if (error) throw error;
 };

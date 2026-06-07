@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+﻿import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Minimize2, X, Check, Sparkles, SkipForward, Plus, FastForward, Dumbbell, Calculator, Play, Pause, Settings, PenLine, Filter, Search, ChevronDown } from 'lucide-react';
 import { convertWeight, getBarbellPlateBreakdown, toStorageWeight } from './unitUtils';
 import BarbellVisualizer from './BarbellVisualizer';
 import { fetchLatestOneRmForExercises } from './services/workoutService';
+import InfiniteScrollPicker from './components/InfiniteScrollPicker';
 
 const DEFAULT_REST_SECONDS = 90;
 
@@ -40,178 +41,8 @@ const RPE_PERCENTAGE_CHART = {
   12: { 10: 0.680, 9.5: 0.667, 9: 0.653, 8.5: 0.640, 8: 0.626, 7.5: 0.613, 7: 0.599, 6.5: 0.586, 6: 0.573 }
 };
 
-// 水平循环滚动对齐选择器
-function InfiniteScrollPicker({ options, value, onChange, label }) {
-  const containerRef = useRef(null);
-  const isTeleportingRef = useRef(false);
-  const lastSelectedValueRef = useRef(value);
+// 水平循环滚动对齐选择器 — 已移至共享组件 ./components/InfiniteScrollPicker
 
-  // We repeat the options array 9 times to create an infinite scroll illusion.
-  const repeatCount = 9;
-  const repeatedOptions = useMemo(() => {
-    let arr = [];
-    for (let i = 0; i < repeatCount; i++) {
-      arr = arr.concat(options);
-    }
-    return arr;
-  }, [options]);
-
-  const scrollToValue = (val, smooth = false) => {
-    const container = containerRef.current;
-    if (!container) return;
-    const L = options.length;
-    const itemIndex = options.indexOf(val);
-    if (itemIndex === -1) return;
-    const targetIndex = 4 * L + itemIndex;
-    const children = container.children;
-    const targetChild = children[targetIndex];
-    if (targetChild) {
-      const itemOffsetLeft = targetChild.offsetLeft;
-      const itemWidth = targetChild.offsetWidth;
-      const newScrollLeft = itemOffsetLeft - container.clientWidth / 2 + itemWidth / 2;
-      container.scrollTo({
-        left: newScrollLeft,
-        behavior: smooth ? 'smooth' : 'auto'
-      });
-    }
-  };
-
-  useEffect(() => {
-    let timer;
-    const align = () => {
-      scrollToValue(value, false);
-      lastSelectedValueRef.current = value;
-    };
-    align();
-    timer = setTimeout(align, 100);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
-
-  useEffect(() => {
-    if (value !== lastSelectedValueRef.current) {
-      scrollToValue(value, false);
-      lastSelectedValueRef.current = value;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
-
-  const handleScroll = () => {
-    if (isTeleportingRef.current) return;
-    const container = containerRef.current;
-    if (!container) return;
-
-    const containerRect = container.getBoundingClientRect();
-    const containerCenter = containerRect.left + containerRect.width / 2;
-    let minDistance = Infinity;
-    let closestIndex = -1;
-
-    const children = container.children;
-    for (let i = 0; i < children.length; i++) {
-      const childRect = children[i].getBoundingClientRect();
-      const childCenter = childRect.left + childRect.width / 2;
-      const distance = Math.abs(childCenter - containerCenter);
-      if (distance < minDistance) {
-        minDistance = distance;
-        closestIndex = i;
-      }
-    }
-
-    if (closestIndex !== -1) {
-      const val = options[closestIndex % options.length];
-      if (val !== undefined && val !== value) {
-        lastSelectedValueRef.current = val;
-        onChange(val);
-      }
-
-      const L = options.length;
-      const activeCopy = Math.floor(closestIndex / L);
-      if (activeCopy < 3 || activeCopy > 5) {
-        const targetIndex = 4 * L + (closestIndex % L);
-        const targetChild = children[targetIndex];
-        if (targetChild) {
-          const itemOffsetLeft = targetChild.offsetLeft;
-          const itemWidth = targetChild.offsetWidth;
-          const newScrollLeft = itemOffsetLeft - container.clientWidth / 2 + itemWidth / 2;
-
-          isTeleportingRef.current = true;
-          container.scrollLeft = newScrollLeft;
-          requestAnimationFrame(() => {
-            setTimeout(() => {
-              isTeleportingRef.current = false;
-            }, 50);
-          });
-        }
-      }
-    }
-  };
-
-  const handleItemClick = (index, val) => {
-    const container = containerRef.current;
-    if (!container) return;
-    const children = container.children;
-    const targetChild = children[index];
-    if (targetChild) {
-      const itemOffsetLeft = targetChild.offsetLeft;
-      const itemWidth = targetChild.offsetWidth;
-      const newScrollLeft = itemOffsetLeft - container.clientWidth / 2 + itemWidth / 2;
-      container.scrollTo({
-        left: newScrollLeft,
-        behavior: 'smooth'
-      });
-      lastSelectedValueRef.current = val;
-      onChange(val);
-    }
-  };
-
-  const scrollbarHideStyle = `
-    .scrollbar-none::-webkit-scrollbar {
-      display: none;
-    }
-    .scrollbar-none {
-      -ms-overflow-style: none;
-      scrollbar-width: none;
-    }
-  `;
-
-  return (
-    <div className="flex flex-col gap-1 w-full">
-      <style>{scrollbarHideStyle}</style>
-      <span className="text-[10px] text-base-content/60 font-bold pl-1">
-        {label}
-      </span>
-      <div className="relative w-full flex items-center bg-base-200/50 border border-base-300 rounded-xl h-12 overflow-hidden">
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full border-2 border-primary/30 pointer-events-none z-10" />
-        <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-base-100/40 to-transparent pointer-events-none z-10" />
-        <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-base-100/40 to-transparent pointer-events-none z-10" />
-        <div
-          ref={containerRef}
-          onScroll={handleScroll}
-          className="scrollbar-none w-full h-full flex items-center gap-2 overflow-x-auto snap-x snap-mandatory"
-          style={{ paddingLeft: 'calc(50% - 20px)', paddingRight: 'calc(50% - 20px)' }}
-        >
-          {repeatedOptions.map((opt, i) => {
-            const isActive = opt === value;
-            return (
-              <button
-                key={i}
-                type="button"
-                onClick={() => handleItemClick(i, opt)}
-                className={`snap-center shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold font-mono text-sm transition-all cursor-pointer border-0 ${
-                  isActive
-                    ? 'bg-primary text-primary-content scale-110 shadow-md ring-2 ring-primary/20'
-                    : 'text-base-content/60 hover:text-base-content hover:bg-base-200 bg-transparent'
-                }`}
-              >
-                {opt}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ============ FIELD INPUT GROUP (hoisted outside) ============
 const FieldInput = ({ kind, value, onChange, placeholder = '' }) => {
@@ -455,20 +286,20 @@ function TrainSession({
     (todayWorkout?.exercises || []).forEach((ex, exIdx) => {
       const method = getRecordingMethod(ex.exercise);
       const sets = sessionState.setsData[exIdx] || [];
-      
+
       const isWeightBased = ['standard', 'bodyweight_added', 'bodyweight_assisted', 'loaded_carry'].includes(method);
       if (!isWeightBased) return;
 
       sets.forEach(s => {
         if (s.skipped) return;
-        
+
         const weightVal = s.weight_kg !== undefined && s.weight_kg !== '' ? Number(s.weight_kg) : (ex.weight || 0);
-        
+
         let plannedReps = s.planned_reps || 0;
         if (method === 'loaded_carry') {
           plannedReps = s.planned_reps || 0;
         }
-        
+
         const plannedVol = weightVal * plannedReps;
         totalPlannedVolume += plannedVol;
 
@@ -487,6 +318,15 @@ function TrainSession({
       displayCompletedVolume: Math.round(unit === 'lbs' ? convertWeight(completedVolume, 'lbs') : completedVolume)
     };
   }, [todayWorkout?.exercises, sessionState.setsData, unit]);
+
+  // Derived filter options for exercise picker (add & replace sheets)
+  const exFilterOptions = useMemo(() => {
+    const allExs = Object.values(exercisesMap || {});
+    const types = [...new Set(allExs.map(e => e.exercise_type).filter(Boolean))].sort();
+    const patterns = [...new Set(allExs.map(e => e.movement_pattern).filter(Boolean))].sort();
+    const equipments = [...new Set(allExs.flatMap(e => e.equipment || []).filter(Boolean))].sort();
+    return { types, patterns, equipments };
+  }, [exercisesMap]);
 
 
   useEffect(() => {
@@ -764,6 +604,57 @@ function TrainSession({
     if (confirmDiscard) {
       onCancel();
     }
+  };
+
+  // Replaces the exercise at settingsExIdx with the selected alternative
+  const handleReplaceExercise = (alternativeName) => {
+    const exIdx = settingsExIdx;
+    if (exIdx === null || exIdx === undefined) return;
+    const ex = todayWorkout?.exercises?.[exIdx];
+    if (!ex) return;
+
+    const selectedEx = exercisesMap?.[alternativeName];
+    const newMethod = selectedEx?.recording_method || 'standard';
+
+    setTodayWorkout(prev => {
+      const nextExs = (prev.exercises || []).map((e, idx) => {
+        if (idx === exIdx) {
+          return {
+            ...e,
+            exercise: alternativeName,
+            recording_method: newMethod
+          };
+        }
+        return e;
+      });
+      return { ...prev, exercises: nextExs };
+    });
+
+    // 智能修正 setsData 中的额外属性
+    setSessionState(prev => {
+      const sets = prev.setsData[exIdx] || [];
+      const nextSets = sets.map(s => {
+        const nextSet = { ...s };
+        if (newMethod === 'duration_only') {
+          nextSet.duration_seconds = nextSet.duration_seconds ?? 30;
+          delete nextSet.weight_kg;
+        } else if (['distance_only', 'loaded_carry'].includes(newMethod)) {
+          nextSet.distance_meters = nextSet.distance_meters ?? 0;
+          delete nextSet.weight_kg;
+        } else {
+          nextSet.weight_kg = nextSet.weight_kg ?? ex.weight ?? 0;
+        }
+        return nextSet;
+      });
+      return {
+        ...prev,
+        setsData: { ...prev.setsData, [exIdx]: nextSets }
+      };
+    });
+
+    setShowReplaceSheet(false);
+    setShowExerciseSettingsModal(false);
+    setSettingsExIdx(null);
   };
 
   // ============ FIELD INPUT GROUP (hoisted outside) ============
@@ -1761,13 +1652,24 @@ function TrainSession({
   // ============ ADD EXERCISE MODAL ============
   const renderAddExerciseModal = () => {
     if (!showAddExerciseModal) return null;
-    
+
     // Get all exercises from exercisesMap values
     const allExs = Object.values(exercisesMap || {});
-    const filtered = allExs.filter(ex => 
-      ex.name?.toLowerCase().includes(addExerciseSearch.toLowerCase()) ||
-      getExerciseCNName(ex.name)?.includes(addExerciseSearch)
-    );
+    const hasActiveFilters = exFilterType || exFilterPattern || exFilterEquipment;
+
+    const filtered = allExs.filter(ex => {
+      // Search match
+      const q = addExerciseSearch.trim().toLowerCase();
+      const matchSearch = !q ||
+        (ex.name || '').toLowerCase().includes(q) ||
+        (ex.name_cn || '').toLowerCase().includes(q) ||
+        getExerciseCNName(ex.name)?.toLowerCase().includes(q);
+      // Category filters
+      const matchType = !exFilterType || ex.exercise_type === exFilterType;
+      const matchPattern = !exFilterPattern || ex.movement_pattern === exFilterPattern;
+      const matchEquipment = !exFilterEquipment || (ex.equipment || []).includes(exFilterEquipment);
+      return matchSearch && matchType && matchPattern && matchEquipment;
+    });
 
     const handleConfirmAdd = () => {
       if (!selectedExToAdd) return;
@@ -1819,7 +1721,7 @@ function TrainSession({
         <div className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[85vh]">
           <div className="p-4 border-b border-base-300 flex items-center justify-between">
             <span className="font-bold text-base text-base-content">添加自定义动作</span>
-            <button type="button" onClick={() => { setShowAddExerciseModal(false); setSelectedExToAdd(null); }} className="btn btn-ghost btn-circle btn-xs h-6 w-6"><X size={16} /></button>
+            <button type="button" onClick={() => { setShowAddExerciseModal(false); setSelectedExToAdd(null); setExFilterType(''); setExFilterPattern(''); setExFilterEquipment(''); }} className="btn btn-ghost btn-circle btn-xs h-6 w-6"><X size={16} /></button>
           </div>
 
           <div className="p-4 overflow-y-auto flex flex-col gap-4 flex-1">
@@ -1830,6 +1732,61 @@ function TrainSession({
               onChange={(e) => setAddExerciseSearch(e.target.value)}
               className="input input-bordered w-full h-11 text-sm rounded-xl"
             />
+
+            {/* 三维分类筛选 */}
+            <div className="grid grid-cols-3 gap-2">
+              <select
+                className="select-standard !h-9 !text-[11px] !rounded-lg w-full px-1.5"
+                value={exFilterType}
+                onChange={(e) => setExFilterType(e.target.value)}
+              >
+                <option value="">全部流派</option>
+                {Object.entries(EXERCISE_TYPE_MAP).map(([key, val]) => (
+                  <option key={key} value={key}>{val}</option>
+                ))}
+              </select>
+              <select
+                className="select-standard !h-9 !text-[11px] !rounded-lg w-full px-1.5"
+                value={exFilterPattern}
+                onChange={(e) => setExFilterPattern(e.target.value)}
+              >
+                <option value="">全部模式</option>
+                {exFilterOptions.patterns.map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+              <select
+                className="select-standard !h-9 !text-[11px] !rounded-lg w-full px-1.5"
+                value={exFilterEquipment}
+                onChange={(e) => setExFilterEquipment(e.target.value)}
+              >
+                <option value="">全部器械</option>
+                {exFilterOptions.equipments.map(eq => (
+                  <option key={eq} value={eq}>{eq}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* 筛选状态提示 */}
+            {hasActiveFilters && (
+              <div className="flex items-center gap-2 text-xs">
+                <Filter size={12} className="text-base-content/40" />
+                <span className="text-base-content/50">
+                  共 {filtered.length} 个匹配
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-xs text-primary font-bold h-6 min-h-0 px-1.5 cursor-pointer"
+                  onClick={() => {
+                    setExFilterType('');
+                    setExFilterPattern('');
+                    setExFilterEquipment('');
+                  }}
+                >
+                  清除筛选
+                </button>
+              </div>
+            )}
 
             {!selectedExToAdd ? (
               <div className="flex flex-col gap-1 max-h-[240px] overflow-y-auto border border-base-300 rounded-xl p-1 bg-base-200/20">
@@ -1889,7 +1846,7 @@ function TrainSession({
           </div>
 
           <div className="p-4 border-t border-base-300 flex justify-end gap-2.5">
-            <button type="button" onClick={() => { setShowAddExerciseModal(false); setSelectedExToAdd(null); }} className="btn btn-ghost btn-sm h-9 px-4 rounded-xl text-xs font-semibold">取消</button>
+            <button type="button" onClick={() => { setShowAddExerciseModal(false); setSelectedExToAdd(null); setExFilterType(''); setExFilterPattern(''); setExFilterEquipment(''); }} className="btn btn-ghost btn-sm h-9 px-4 rounded-xl text-xs font-semibold">取消</button>
             <button
               type="button"
               disabled={!selectedExToAdd}
@@ -2069,72 +2026,6 @@ function TrainSession({
     const ex = todayWorkout.exercises[exIdx];
     if (!ex) return null;
 
-    const allExs = Object.values(exercisesMap || {});
-    // 动态提取动作库中所有不重复的分类
-    const categories = Array.from(new Set(allExs.map(e => e.category).filter(Boolean)));
-    const CATEGORY_CN = {
-      squat: '深蹲',
-      bench: '卧推',
-      deadlift: '硬拉',
-      press: '推举',
-      warmup: '热身',
-      stretching: '拉伸'
-    };
-
-    // 过滤列表
-    const filteredReplace = allExs.filter(alt => {
-      if (alt.name === ex.exercise) return false;
-      const matchQuery = alt.name?.toLowerCase().includes(replaceExerciseSearch.toLowerCase()) ||
-                         getExerciseCNName(alt.name)?.includes(replaceExerciseSearch);
-      const matchCategory = replaceCategoryFilter === '' || alt.category === replaceCategoryFilter;
-      return matchQuery && matchCategory;
-    });
-
-    const handleReplaceExercise = (alternativeName) => {
-      const selectedEx = exercisesMap?.[alternativeName];
-      const newMethod = selectedEx?.recording_method || 'standard';
-
-      setTodayWorkout(prev => {
-        const nextExs = (prev.exercises || []).map((e, idx) => {
-          if (idx === exIdx) {
-            return {
-              ...e,
-              exercise: alternativeName,
-              recording_method: newMethod
-            };
-          }
-          return e;
-        });
-        return { ...prev, exercises: nextExs };
-      });
-
-      // 智能修正 setsData 中的额外属性
-      setSessionState(prev => {
-        const sets = prev.setsData[exIdx] || [];
-        const nextSets = sets.map(s => {
-          const nextSet = { ...s };
-          // 如果新动作不需要 weight 属性
-          if (newMethod === 'duration_only') {
-            nextSet.duration_seconds = nextSet.duration_seconds ?? 30;
-            delete nextSet.weight_kg;
-          } else if (['distance_only', 'loaded_carry'].includes(newMethod)) {
-            nextSet.distance_meters = nextSet.distance_meters ?? 0;
-            delete nextSet.weight_kg;
-          } else {
-            nextSet.weight_kg = nextSet.weight_kg ?? ex.weight ?? 0;
-          }
-          return nextSet;
-        });
-        return {
-          ...prev,
-          setsData: { ...prev.setsData, [exIdx]: nextSets }
-        };
-      });
-
-      setShowExerciseSettingsModal(false);
-      setSettingsExIdx(null);
-    };
-
     const handleSkipExercise = () => {
       const confirmSkip = window.confirm(`确定要跳过整组动作“${getExerciseCNName(ex.exercise)}”吗？`);
       if (confirmSkip) {
@@ -2171,64 +2062,202 @@ function TrainSession({
               </button>
             </div>
 
-            <div className="flex flex-col gap-2.5">
-              <span className="text-[10px] font-bold text-base-content/50 uppercase pl-1">更换此动作 (从动作库检索)</span>
-              
-              {/* 搜索框 */}
-              <input
-                type="text"
-                placeholder="搜索要更换的动作..."
-                value={replaceExerciseSearch}
-                onChange={(e) => setReplaceExerciseSearch(e.target.value)}
-                className="input input-bordered w-full h-11 text-sm rounded-xl"
-              />
-
-              {/* 分类筛选器 Tab 按钮组 */}
-              <div className="flex gap-1.5 overflow-x-auto pb-1.5 max-w-full no-scrollbar select-none">
-                <button
-                  type="button"
-                  onClick={() => setReplaceCategoryFilter('')}
-                  className={`btn btn-xs rounded-lg font-bold px-2.5 h-7 ${
-                    replaceCategoryFilter === '' ? 'btn-primary text-primary-content border-0' : 'btn-ghost bg-base-200/50 hover:bg-base-200 border-0'
-                  }`}
-                >
-                  全部
-                </button>
-                {categories.map(cat => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setReplaceCategoryFilter(cat)}
-                    className={`btn btn-xs rounded-lg font-bold px-2.5 h-7 whitespace-nowrap ${
-                      replaceCategoryFilter === cat ? 'btn-primary text-primary-content border-0' : 'btn-ghost bg-base-200/50 hover:bg-base-200 border-0'
-                    }`}
-                  >
-                    {CATEGORY_CN[cat] || cat}
-                  </button>
-                ))}
-              </div>
-
-              {/* 动作列表 */}
-              <div className="flex flex-col gap-1 border border-base-300 rounded-xl p-1 bg-base-200/20 max-h-[220px] overflow-y-auto">
-                {filteredReplace.slice(0, 30).map((alt, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleReplaceExercise(alt.name)}
-                    className="flex items-center justify-between p-2.5 hover:bg-base-200 rounded-lg text-left text-sm text-base-content cursor-pointer transition-all border-0 bg-transparent w-full"
-                  >
-                    <div className="flex flex-col">
-                      <span className="font-bold text-sm">{getExerciseCNName(alt.name)}</span>
-                      <span className="text-[10px] text-base-content/40 font-mono capitalize">{alt.category}</span>
-                    </div>
-                    <span className="text-xs text-primary font-black">更换</span>
-                  </button>
-                ))}
-                {filteredReplace.length === 0 && (
-                  <div className="p-4 text-center text-xs text-base-content/40">无匹配动作</div>
-                )}
-              </div>
+            <div className="flex flex-col gap-2">
+              <span className="text-[10px] font-bold text-base-content/50 uppercase pl-1">更换此动作</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExerciseSettingsModal(false);
+                  setReplaceExerciseSearch('');
+                  setExFilterType('');
+                  setExFilterPattern('');
+                  setExFilterEquipment('');
+                  setShowReplaceSheet(true);
+                }}
+                className="btn btn-outline border-primary bg-primary/5 hover:bg-primary hover:text-primary-content text-primary w-full h-11 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+              >
+                <Search size={14} />
+                从动作库选择替换动作
+              </button>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ============ REPLACE EXERCISE BOTTOM SHEET ============
+  const renderReplaceExerciseSheet = () => {
+    if (!showReplaceSheet || settingsExIdx === null) return null;
+
+    const allExs = Object.values(exercisesMap || {});
+    const currentExName = todayWorkout?.exercises?.[settingsExIdx]?.exercise;
+    const hasActiveFilters = exFilterType || exFilterPattern || exFilterEquipment;
+
+    const filtered = allExs.filter(ex => {
+      // Exclude current exercise
+      if (ex.name === currentExName) return false;
+      // Search match
+      const q = replaceExerciseSearch.trim().toLowerCase();
+      const matchSearch = !q ||
+        (ex.name || '').toLowerCase().includes(q) ||
+        (ex.name_cn || '').toLowerCase().includes(q) ||
+        getExerciseCNName(ex.name)?.toLowerCase().includes(q);
+      // Category filters
+      const matchType = !exFilterType || ex.exercise_type === exFilterType;
+      const matchPattern = !exFilterPattern || ex.movement_pattern === exFilterPattern;
+      const matchEquipment = !exFilterEquipment || (ex.equipment || []).includes(exFilterEquipment);
+      return matchSearch && matchType && matchPattern && matchEquipment;
+    });
+
+    return (
+      <div className="fixed inset-0 z-[75] flex items-end justify-center">
+        {/* Backdrop overlay */}
+        <div
+          className="bottom-sheet-backdrop animate-sheet-fade-in"
+          onClick={() => {
+            setShowReplaceSheet(false);
+            setSettingsExIdx(null);
+            setReplaceExerciseSearch('');
+            setExFilterType('');
+            setExFilterPattern('');
+            setExFilterEquipment('');
+          }}
+        />
+
+        {/* Bottom sheet content */}
+        <div className="bottom-sheet-container animate-sheet-slide-up w-full flex flex-col gap-3.5 pb-6">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-2 border-b border-base-300">
+            <div className="flex flex-col">
+              <span className="text-sm font-bold text-base-content">替换动作</span>
+              <span className="text-[10px] text-base-content/50">
+                当前: {getExerciseCNName(currentExName) || currentExName}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="btn btn-ghost btn-circle btn-xs h-7 w-7 min-h-0 text-base-content/50 hover:bg-base-300 rounded-full flex items-center justify-center cursor-pointer"
+              onClick={() => {
+                setShowReplaceSheet(false);
+                setSettingsExIdx(null);
+                setReplaceExerciseSearch('');
+                setExFilterType('');
+                setExFilterPattern('');
+                setExFilterEquipment('');
+              }}
+              aria-label="关闭替换面板"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Search */}
+          <div className="input input-bordered flex items-center gap-2 bg-base-200/50 border-base-300 focus-within:border-primary px-3 h-10 transition-colors rounded-xl">
+            <Search size={16} className="text-base-content/40 shrink-0" />
+            <input
+              type="text"
+              placeholder="搜索动作名称..."
+              value={replaceExerciseSearch}
+              onChange={(e) => setReplaceExerciseSearch(e.target.value)}
+              className="w-full bg-transparent text-sm font-semibold text-base-content focus:outline-none"
+            />
+            {replaceExerciseSearch && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs btn-circle p-0 cursor-pointer"
+                onClick={() => setReplaceExerciseSearch('')}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* 三维分类筛选 */}
+          <div className="grid grid-cols-3 gap-2">
+            <select
+              className="select-standard !h-9 !text-[11px] !rounded-lg w-full px-1.5"
+              value={exFilterType}
+              onChange={(e) => setExFilterType(e.target.value)}
+            >
+              <option value="">全部流派</option>
+              {Object.entries(EXERCISE_TYPE_MAP).map(([key, val]) => (
+                <option key={key} value={key}>{val}</option>
+              ))}
+            </select>
+            <select
+              className="select-standard !h-9 !text-[11px] !rounded-lg w-full px-1.5"
+              value={exFilterPattern}
+              onChange={(e) => setExFilterPattern(e.target.value)}
+            >
+              <option value="">全部模式</option>
+              {exFilterOptions.patterns.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+            <select
+              className="select-standard !h-9 !text-[11px] !rounded-lg w-full px-1.5"
+              value={exFilterEquipment}
+              onChange={(e) => setExFilterEquipment(e.target.value)}
+            >
+              <option value="">全部器械</option>
+              {exFilterOptions.equipments.map(eq => (
+                <option key={eq} value={eq}>{eq}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 筛选状态提示 */}
+          {hasActiveFilters && (
+            <div className="flex items-center gap-2 text-xs">
+              <Filter size={12} className="text-base-content/40" />
+              <span className="text-base-content/50">
+                共 {filtered.length} 个匹配
+              </span>
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs text-primary font-bold h-6 min-h-0 px-1.5 cursor-pointer"
+                onClick={() => {
+                  setExFilterType('');
+                  setExFilterPattern('');
+                  setExFilterEquipment('');
+                }}
+              >
+                清除筛选
+              </button>
+            </div>
+          )}
+
+          {/* Exercise list */}
+          <div className="flex flex-col gap-1 border border-base-300 rounded-xl p-1 bg-base-200/20 max-h-[320px] overflow-y-auto">
+            {filtered.slice(0, 50).map((ex, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleReplaceExercise(ex.name)}
+                className="flex items-center justify-between p-2.5 hover:bg-base-200 rounded-lg text-left text-sm text-base-content cursor-pointer transition-all border-0 bg-transparent w-full"
+              >
+                <div className="flex flex-col min-w-0">
+                  <span className="font-bold text-sm">{getExerciseCNName(ex.name)}</span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {ex.exercise_type && (
+                      <span className="text-[10px] text-base-content/40 font-mono">
+                        {EXERCISE_TYPE_MAP[ex.exercise_type] || ex.exercise_type}
+                      </span>
+                    )}
+                    {ex.movement_pattern && (
+                      <span className="text-[10px] text-base-content/30 font-mono">
+                        {ex.movement_pattern}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <span className="text-xs text-primary font-black shrink-0 ml-2">替换</span>
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <div className="p-4 text-center text-xs text-base-content/40">无匹配动作</div>
+            )}
           </div>
         </div>
       </div>
@@ -2396,6 +2425,7 @@ function TrainSession({
       {renderSessionSettingsModal()}
       {renderSetSettingsModal()}
       {renderExerciseSettingsModal()}
+      {renderReplaceExerciseSheet()}
     </div>
   );
 }

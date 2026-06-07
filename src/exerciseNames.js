@@ -40,7 +40,8 @@ export const FEATURE_LABELS = {
   auto_regulation: '自适应',
 };
 
-// 已告警过的 key，避免控制台刷屏
+// 已告警过的 key，避免控制台刷屏（限制最大容量防止长期运行内存泄漏）
+const MAX_WARNED_KEYS = 200;
 const warnedKeys = new Set();
 
 /**
@@ -60,12 +61,21 @@ export function getCNName(exerciseKey, exercisesMap = {}) {
   const fromFallback = FALLBACK_CN_NAMES[exerciseKey];
   if (fromFallback) return fromFallback;
 
-  // 3. 开发模式提示：未配置该动作
+  // 3. 开发模式提示：未配置该动作（仅 dev 环境输出，避免生产环境 console 污染）
   if (!warnedKeys.has(exerciseKey)) {
+    // LRU-style: 超过上限时清除一半旧条目
+    if (warnedKeys.size >= MAX_WARNED_KEYS) {
+      const entries = Array.from(warnedKeys);
+      for (let i = 0; i < Math.floor(entries.length / 2); i++) {
+        warnedKeys.delete(entries[i]);
+      }
+    }
     warnedKeys.add(exerciseKey);
-    console.warn(
-      `[exerciseNames] 未找到动作 "${exerciseKey}" 的中文映射。请在 exercises 表的 name_cn 字段或 FALLBACK_CN_NAMES 中补全。`
-    );
+    if (import.meta.env?.DEV) {
+      console.warn(
+        `[exerciseNames] 未找到动作 "${exerciseKey}" 的中文映射。请在 exercises 表的 name_cn 字段或 FALLBACK_CN_NAMES 中补全。`
+      );
+    }
   }
   return `🚧 ${exerciseKey}`;
 }

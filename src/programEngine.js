@@ -289,6 +289,9 @@ function gzclpGetTierProgression(exercise, history, schemes, initialWeight, incr
  * 转换为 engine 用的 schemes 数组
  * 自动按 reps 推导 success_threshold（reps * 2.5 圆整到 5）
  */
+// 兜底：防止 config.t3_scheme 未定义时引擎崩溃
+const DEFAULT_T3_SCHEME = { sets: 3, reps: 15, amrap_last: true, success_threshold: 25 };
+
 function userChainToSchemes(chain) {
   if (!Array.isArray(chain) || chain.length === 0) return null;
   return chain.map((stage, i) => {
@@ -327,6 +330,39 @@ function getWarmupSets(exKey, workingWeight, userExConfig, gymEquipmentConfig, e
   }));
 }
 
+/**
+ * 共享的 T1/T2 动作处理逻辑 — 消除 gzclpGetNextWorkout 中 ~20 行的重复代码
+ * @param {'T1'|'T2'} tier
+ * @returns {Object} exercises.push-ready 训练动作对象
+ */
+function processTierExercise(tier, ex, historyByExerciseTier, exConfig, config,
+  gymEquipmentConfig, exercisesMap, unit, _getWarmupSets, _gzclpGetTierProgression) {
+  const hist = (historyByExerciseTier[ex] && historyByExerciseTier[ex][tier]) || [];
+  const userEx = exConfig[ex] || {};
+  const initWeight = userEx.initial_weight ?? config.default_weights?.[ex];
+  const incrKey = tier === 'T1' ? 'increment_t1' : 'increment_t2';
+  const incrDefault = config.default_increment?.[tier] ?? 2.5;
+  const incr = (userEx[incrKey]) ?? incrDefault;
+  // 优先使用用户自定义 chain，fallback 到程序默认
+  const chainKey = tier === 'T1' ? 't1_chain' : 't2_chain';
+  const schemeKey = tier === 'T1' ? 't1_schemes' : 't2_schemes';
+  const userSchemes = userChainToSchemes(userEx[chainKey]);
+  const schemes = userSchemes || config[schemeKey];
+  // T2 不传 threshold，让 gzclpGetTierProgression 从当前方案的 success_threshold 自动推导
+  const result = _gzclpGetTierProgression(ex, hist, schemes, initWeight, incr, null, gymEquipmentConfig, exercisesMap[ex], unit);
+
+  return {
+    exercise: ex,
+    tier,
+    sets: schemes[result.scheme_index].sets,
+    reps: result.planned_reps,
+    weight: result.weight_kg,
+    scheme_text: result.scheme_text,
+    amrap_last: schemes[result.scheme_index].amrap_last,
+    warmup_sets: _getWarmupSets(ex, result.weight_kg, userEx, gymEquipmentConfig, exercisesMap[ex], unit)
+  };
+}
+
 function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier, gymEquipmentConfig = null, exercisesMap = {}) {
   const state = userProgram.program_state || {};
   const exConfig = userProgram.exercise_config || {};
@@ -358,59 +394,21 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier, gymEqui
 
   // T1
   if (dayConfig.T1) {
-    const ex = dayConfig.T1;
-    const hist = (historyByExerciseTier[ex] && historyByExerciseTier[ex]['T1']) || [];
-    const userEx = exConfig[ex] || {};
-    const initWeight = userEx.initial_weight ?? config.default_weights?.[ex];
-    const incr = userEx.increment_t1 ?? config.default_increment?.['T1'] ?? 2.5;
-    // 优先使用用户自定义 chain，fallback 到程序默认
-    const userSchemes = userChainToSchemes(userEx.t1_chain);
-    const schemes = userSchemes || config.t1_schemes;
-    const result = gzclpGetTierProgression(ex, hist, schemes, initWeight, incr, null, gymEquipmentConfig, exercisesMap[ex], unit);
-
-    exercises.push({
-      exercise: ex,
-      tier: 'T1',
-      sets: schemes[result.scheme_index].sets,
-      reps: result.planned_reps,
-      weight: result.weight_kg,
-      scheme_text: result.scheme_text,
-      amrap_last: schemes[result.scheme_index].amrap_last,
-      warmup_sets: getWarmupSets(ex, result.weight_kg, userEx, gymEquipmentConfig, exercisesMap[ex], unit)
-    });
+    exercises.push(processTierExercise('T1', dayConfig.T1, historyByExerciseTier, exConfig, config,
+      gymEquipmentConfig, exercisesMap, unit, getWarmupSets, gzclpGetTierProgression));
   }
 
   // T2
   if (dayConfig.T2) {
-    const ex = dayConfig.T2;
-    const hist = (historyByExerciseTier[ex] && historyByExerciseTier[ex]['T2']) || [];
-    const userEx = exConfig[ex] || {};
-    const initWeight = userEx.initial_weight ?? config.default_weights?.[ex];
-    const incr = userEx.increment_t2 ?? config.default_increment?.['T2'] ?? 2.5;
-    // 优先使用用户自定义 chain，fallback 到程序默认
-    const userSchemes = userChainToSchemes(userEx.t2_chain);
-    const schemes = userSchemes || config.t2_schemes;
-    // 不传 threshold，让 gzclpGetTierProgression 从当前方案的 success_threshold 自动推导
-    const result = gzclpGetTierProgression(ex, hist, schemes, initWeight, incr, null, gymEquipmentConfig, exercisesMap[ex], unit);
-
-    exercises.push({
-      exercise: ex,
-      tier: 'T2',
-      sets: schemes[result.scheme_index].sets,
-      reps: result.planned_reps,
-      weight: result.weight_kg,
-      scheme_text: result.scheme_text,
-      amrap_last: schemes[result.scheme_index].amrap_last,
-      warmup_sets: getWarmupSets(ex, result.weight_kg, userEx, gymEquipmentConfig, exercisesMap[ex], unit)
-    });
+    exercises.push(processTierExercise('T2', dayConfig.T2, historyByExerciseTier, exConfig, config,
+      gymEquipmentConfig, exercisesMap, unit, getWarmupSets, gzclpGetTierProgression));
   }
 
   // T3
   if (dayConfig.T3) {
     const t3Exercises = Array.isArray(dayConfig.T3) ? dayConfig.T3 : [dayConfig.T3];
     // 兜底：防止 config.t3_scheme 未定义时引擎崩溃
-    const defaultT3Scheme = { sets: 3, reps: 15, amrap_last: true, success_threshold: 25 };
-    const scheme = config.t3_scheme || defaultT3Scheme;
+    const scheme = config.t3_scheme || DEFAULT_T3_SCHEME;
     for (const ex of t3Exercises) {
       const hist = (historyByExerciseTier[ex] && historyByExerciseTier[ex]['T3']) || [];
       const userEx = exConfig[ex] || {};

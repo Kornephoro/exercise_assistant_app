@@ -15,6 +15,8 @@ import { getNextWorkout, getNextDay, isTodayTrainingDay, getNextTrainingDate, ge
 import { calcE1RM } from './oneRmUtils';
 import { DEFAULT_GYM_EQUIPMENT_CONFIG } from './unitUtils';
 import { getCNName } from './exerciseNames';
+import { useRestTimer } from './hooks/useRestTimer';
+import { useNavigation } from './hooks/useNavigation';
 import TodayScreen from './TodayScreen';
 import PlanScreen from './PlanScreen';
 import DataScreen from './DataScreen';
@@ -24,6 +26,7 @@ import TrainSession from './TrainSession';
 import FloatingBall from './FloatingBall';
 import OnboardingScreen from './OnboardingScreen';
 import WorkoutPreviewModal from './WorkoutPreviewModal';
+import ErrorBoundary from './components/ErrorBoundary';
 import {
   CheckCircle,
   AlertTriangle,
@@ -69,17 +72,6 @@ function App() {
   const [isRestDayValue, setIsRestDayValue] = useState(false);
   const [nextTrainingDateValue, setNextTrainingDateValue] = useState('');
   const [daysUntilStartValue, setDaysUntilStartValue] = useState(0);
-
-  // 组间休息计时状态共享
-  const [restTimer, setRestTimer] = useState({
-    active: false,
-    total: 90,
-    remaining: 90,
-    endTime: null,
-    isMinimized: false
-  });
-
-
 
   // 训练会话状态
   const [sessionState, setSessionState] = useState(() => {
@@ -143,418 +135,31 @@ function App() {
   const [showSetCard, setShowSetCard] = useState(false);
   const [focusedSet, setFocusedSet] = useState(null);
 
-  const restTimerRef = useRef(null);
-  const timerStateRef = useRef({ focusedSet: null, exercises: [], setsData: {} });
-
-  useEffect(() => {
-    timerStateRef.current = { 
-      focusedSet, 
-      exercises: todayWorkout?.exercises || [], 
-      setsData: sessionState.setsData || {} 
-    };
-  }, [focusedSet, todayWorkout, sessionState.setsData]);
-
-  const getNextSet = (currentExIdx, currentSetIdx, exercises, setsData) => {
-    const currentSets = setsData[currentExIdx] || [];
-    const nextInEx = currentSets.findIndex((s, idx) => idx > currentSetIdx && !s.completed && !s.skipped);
-    if (nextInEx !== -1) return { exerciseIdx: currentExIdx, setIdx: nextInEx };
-
-    for (let exIdx = currentExIdx + 1; exIdx < exercises.length; exIdx++) {
-      const sets = setsData[exIdx] || [];
-      const firstUncompleted = sets.findIndex(s => !s.completed && !s.skipped);
-      if (firstUncompleted !== -1) return { exerciseIdx: exIdx, setIdx: firstUncompleted };
-    }
-    return null;
-  };
-
-  const playRestEndSound = () => {
-    try {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-      
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
-      gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
-      
-      oscillator.start();
-      oscillator.stop(audioCtx.currentTime + 0.6);
-    } catch (e) {
-      console.warn("Failed to play rest audio:", e);
-    }
-  };
-
-  useEffect(() => {
-    if (restTimer.active && restTimer.endTime) {
-      restTimerRef.current = setInterval(() => {
-        const now = Date.now();
-        const diff = Math.max(0, Math.round((restTimer.endTime - now) / 1000));
-        
-        setRestTimer(prev => {
-          if (diff <= 0) {
-            clearInterval(restTimerRef.current);
-            playRestEndSound();
-            
-            // 自动打开下一组
-            const currentFocused = timerStateRef.current.focusedSet;
-            const currentExercises = timerStateRef.current.exercises;
-            const currentSetsData = timerStateRef.current.setsData;
-            if (currentFocused && currentExercises && currentSetsData) {
-              const { exerciseIdx, setIdx } = currentFocused;
-              const next = getNextSet(exerciseIdx, setIdx, currentExercises, currentSetsData);
-              if (next) {
-                openSetCard(next.exerciseIdx, next.setIdx);
-              }
-            }
-            return { ...prev, active: false, remaining: 0, isMinimized: false };
-          }
-          return { ...prev, remaining: diff };
-        });
-      }, 200);
-    }
-    return () => {
-      if (restTimerRef.current) {
-        clearInterval(restTimerRef.current);
-      }
-    };
-  }, [restTimer.active, restTimer.endTime]);
-
-  // 初始化标记
-  const hasInitializedRef = useRef(false);
-
   // 操作锁定：训练中或预览弹窗打开时，禁止在 PlanScreen 结束/暂停计划
   const isOperationLocked = sessionState.isActive || previewOpen;
 
-  // URL Hash 解析器，根据 URL 状态初始化页面
-  const parseHashAndSetState = (hash, allPrograms) => {
-    const cleanHash = hash.replace('#', '');
-    const currentPrograms = allPrograms || programs;
-    
-    if (!cleanHash) {
-      setActiveTab('today');
-      window.history.replaceState({
-        tab: 'today',
-        configProgramId: null,
-        selectedActiveProgramId: null,
-        selectedProgramId: null,
-        sessionActive: false,
-        isMinimized: false,
-        previewOpen: false
-      }, '', '#today');
-      return;
-    }
+  // Hash 路由导航 (从 useNavigation hook)
+  const navigation = useNavigation({
+    loading,
+    programs,
+    sessionActive: sessionState.isActive,
+    sessionMinimized: sessionState.isMinimized,
+    activeTab, configProgram, selectedActiveProgramId, selectedProgram,
+    previewOpen, showSetCard, focusedSet,
+    setActiveTab, setConfigProgram, setSelectedActiveProgramId, setSelectedProgram,
+    setPreviewOpen, setShowSetCard, setFocusedSet, setSessionState
+  });
+  const { updateNavigationState, parseHashAndSetState, openSetCard, closeSetCard } = navigation;
 
-    const parts = cleanHash.split('/');
-    const mainTab = parts[0];
-    const validTabs = ['today', 'plan', 'diet', 'data', 'me'];
+  // 组间休息计时 (依赖 openSetCard，必须在 useNavigation 之后调用)
+  const { restTimer, setRestTimer } = useRestTimer({
+    getFocusedSet: () => focusedSet,
+    getExercises: () => todayWorkout?.exercises || [],
+    getSetsData: () => sessionState.setsData || {},
+    openSetCard
+  });
 
-    if (validTabs.includes(mainTab)) {
-      setActiveTab(mainTab);
-      
-      let configProg = null;
-      let selActiveId = null;
-      let selProg = null;
-
-      if (mainTab === 'plan' && parts[1]) {
-        const subView = parts[1];
-        const id = parts[2];
-        if (subView === 'config' && id) {
-          configProg = currentPrograms.find(p => p.id === id) || null;
-          setConfigProgram(configProg);
-        } else if (subView === 'active' && id) {
-          selActiveId = id;
-          setSelectedActiveProgramId(id);
-        } else if (subView === 'detail' && id) {
-          selProg = currentPrograms.find(p => p.id === id) || null;
-          setSelectedProgram(selProg);
-        }
-      }
-
-      window.history.replaceState({
-        tab: mainTab,
-        configProgramId: configProg ? configProg.id : null,
-        selectedActiveProgramId: selActiveId,
-        selectedProgramId: selProg ? selProg.id : null,
-        sessionActive: sessionState.isActive,
-        isMinimized: sessionState.isMinimized,
-        previewOpen: false
-      }, '', hash);
-    } else if (cleanHash === 'session') {
-      const savedSession = localStorage.getItem('active_session_state');
-      let isSessionActive = false;
-      let isSessionMinimized = false;
-      if (savedSession) {
-        try {
-          const parsed = JSON.parse(savedSession);
-          isSessionActive = !!parsed.isActive;
-          isSessionMinimized = !!parsed.isMinimized;
-        } catch {}
-      }
-
-      if (isSessionActive && !isSessionMinimized) {
-        setActiveTab('today');
-        window.history.replaceState({
-          tab: 'today',
-          configProgramId: null,
-          selectedActiveProgramId: null,
-          selectedProgramId: null,
-          sessionActive: true,
-          isMinimized: false,
-          previewOpen: false
-        }, '', '#session');
-      } else {
-        setActiveTab('today');
-        window.history.replaceState({
-          tab: 'today',
-          configProgramId: null,
-          selectedActiveProgramId: null,
-          selectedProgramId: null,
-          sessionActive: false,
-          isMinimized: false,
-          previewOpen: false
-        }, '', '#today');
-      }
-    } else if (cleanHash === 'preview') {
-      setActiveTab('today');
-      setPreviewOpen(true);
-      window.history.replaceState({
-        tab: 'today',
-        configProgramId: null,
-        selectedActiveProgramId: null,
-        selectedProgramId: null,
-        sessionActive: false,
-        isMinimized: false,
-        previewOpen: true
-      }, '', '#preview');
-    } else {
-      setActiveTab('today');
-      window.history.replaceState({
-        tab: 'today',
-        configProgramId: null,
-        selectedActiveProgramId: null,
-        selectedProgramId: null,
-        sessionActive: false,
-        isMinimized: false,
-        previewOpen: false
-      }, '', '#today');
-    }
-  };
-
-  // 全局路由与历史记录同步更新器
-  const updateNavigationState = (updates, replace = false) => {
-    const nextTab = updates.hasOwnProperty('tab') ? updates.tab : activeTab;
-    
-    let nextConfigProgram = configProgram;
-    if (updates.hasOwnProperty('configProgram')) {
-      nextConfigProgram = updates.configProgram;
-    }
-    
-    let nextSelectedActiveProgramId = selectedActiveProgramId;
-    if (updates.hasOwnProperty('selectedActiveProgramId')) {
-      nextSelectedActiveProgramId = updates.selectedActiveProgramId;
-    }
-    
-    let nextSelectedProgram = selectedProgram;
-    if (updates.hasOwnProperty('selectedProgram')) {
-      nextSelectedProgram = updates.selectedProgram;
-    }
-    
-    let nextPreviewOpen = previewOpen;
-    if (updates.hasOwnProperty('previewOpen')) {
-      nextPreviewOpen = updates.previewOpen;
-    }
-    
-    let nextSessionActive = sessionState.isActive;
-    let nextSessionMinimized = sessionState.isMinimized;
-    if (updates.hasOwnProperty('sessionActive')) {
-      nextSessionActive = updates.sessionActive;
-    }
-    if (updates.hasOwnProperty('isMinimized')) {
-      nextSessionMinimized = updates.isMinimized;
-    }
-
-    let nextShowSetCard = showSetCard;
-    if (updates.hasOwnProperty('showSetCard')) {
-      nextShowSetCard = updates.showSetCard;
-    }
-    let nextFocusedSet = focusedSet;
-    if (updates.hasOwnProperty('focusedSet')) {
-      nextFocusedSet = updates.focusedSet;
-    }
-
-    // 更新 React 状态
-    if (updates.hasOwnProperty('tab')) {
-      setActiveTab(updates.tab);
-      if (updates.tab !== 'plan') {
-        setConfigProgram(null);
-        setSelectedActiveProgramId(null);
-        setSelectedProgram(null);
-        nextConfigProgram = null;
-        nextSelectedActiveProgramId = null;
-        nextSelectedProgram = null;
-      }
-    }
-    if (updates.hasOwnProperty('configProgram')) {
-      setConfigProgram(updates.configProgram);
-    }
-    if (updates.hasOwnProperty('selectedActiveProgramId')) {
-      setSelectedActiveProgramId(updates.selectedActiveProgramId);
-    }
-    if (updates.hasOwnProperty('selectedProgram')) {
-      setSelectedProgram(updates.selectedProgram);
-    }
-    if (updates.hasOwnProperty('previewOpen')) {
-      setPreviewOpen(updates.previewOpen);
-    }
-    if (updates.hasOwnProperty('sessionActive') || updates.hasOwnProperty('isMinimized')) {
-      setSessionState(prev => ({
-        ...prev,
-        isActive: nextSessionActive,
-        isMinimized: nextSessionMinimized
-      }));
-    }
-    if (updates.hasOwnProperty('showSetCard')) {
-      setShowSetCard(updates.showSetCard);
-    }
-    if (updates.hasOwnProperty('focusedSet')) {
-      setFocusedSet(updates.focusedSet);
-    }
-
-    // 清理逻辑：如果训练结束或最小化，关闭组卡片
-    if ((updates.hasOwnProperty('sessionActive') && !nextSessionActive) || (updates.hasOwnProperty('isMinimized') && nextSessionMinimized)) {
-      setShowSetCard(false);
-      setFocusedSet(null);
-      nextShowSetCard = false;
-      nextFocusedSet = null;
-    }
-
-    // 计算 URL Hash
-    let hash = `#${nextTab}`;
-    if (nextSessionActive && !nextSessionMinimized) {
-      hash = '#session';
-    } else if (nextPreviewOpen) {
-      hash = '#preview';
-    } else if (nextTab === 'plan') {
-      if (nextConfigProgram) {
-        hash = `#plan/config/${nextConfigProgram.id}`;
-      } else if (nextSelectedActiveProgramId) {
-        hash = `#plan/active/${nextSelectedActiveProgramId}`;
-      } else if (nextSelectedProgram) {
-        hash = `#plan/detail/${nextSelectedProgram.id}`;
-      }
-    }
-
-    // 构建历史状态对象
-    const historyState = {
-      tab: nextTab,
-      configProgramId: nextConfigProgram ? nextConfigProgram.id : null,
-      selectedActiveProgramId: nextSelectedActiveProgramId,
-      selectedProgramId: nextSelectedProgram ? nextSelectedProgram.id : null,
-      sessionActive: nextSessionActive,
-      isMinimized: nextSessionMinimized,
-      previewOpen: nextPreviewOpen,
-      showSetCard: nextShowSetCard,
-      focusedSet: nextFocusedSet
-    };
-
-    const isStateDifferent = 
-      window.location.hash !== hash ||
-      historyState.showSetCard !== (window.history.state?.showSetCard ?? false) ||
-      historyState.previewOpen !== (window.history.state?.previewOpen ?? false);
-
-    if (replace) {
-      window.history.replaceState(historyState, '', hash);
-    } else if (isStateDifferent) {
-      window.history.pushState(historyState, '', hash);
-    }
-  };
-
-  const openSetCard = (exerciseIdx, setIdx, replace = false) => {
-    updateNavigationState({
-      showSetCard: true,
-      focusedSet: { exerciseIdx, setIdx }
-    }, replace);
-  };
-
-  const closeSetCard = () => {
-    if (window.history.state && window.history.state.showSetCard) {
-      window.history.back();
-    } else {
-      updateNavigationState({
-        showSetCard: false,
-        focusedSet: null
-      });
-    }
-  };
-
-  // 监听浏览器前进、后退操作 (Popstate)
-  useEffect(() => {
-    if (loading) return;
-
-    const handlePopState = (event) => {
-      const state = event.state;
-      if (!state) {
-        parseHashAndSetState(window.location.hash);
-        return;
-      }
-
-      // 如果处于最大化的训练界面，且后退试图退出训练界面 -> 则进行【最小化】处理而不丢弃数据
-      // 只有当后退到的状态为 sessionActive === false 时才需要最小化训练会话；
-      // 如果后退到的状态为 sessionActive === true，则说明只是从组编辑卡片返回了训练主界面，不应该最小化
-      if (sessionState.isActive && !sessionState.isMinimized && !state.sessionActive) {
-        setSessionState(prev => ({
-          ...prev,
-          isMinimized: true
-        }));
-        
-        window.history.replaceState({
-          ...state,
-          sessionActive: true,
-          isMinimized: true,
-          showSetCard: false,
-          focusedSet: null
-        }, '', window.location.hash);
-        
-        setActiveTab(state.tab || 'today');
-        
-        const resolvedConfigProg = state.configProgramId ? programs.find(p => p.id === state.configProgramId) : null;
-        const resolvedSelProg = state.selectedProgramId ? programs.find(p => p.id === state.selectedProgramId) : null;
-        setConfigProgram(resolvedConfigProg);
-        setSelectedActiveProgramId(state.selectedActiveProgramId);
-        setSelectedProgram(resolvedSelProg);
-        setPreviewOpen(!!state.previewOpen);
-        setShowSetCard(false);
-        setFocusedSet(null);
-        return;
-      }
-
-      // 正常恢复其他状态
-      setActiveTab(state.tab || 'today');
-      
-      const resolvedConfigProg = state.configProgramId ? programs.find(p => p.id === state.configProgramId) : null;
-      const resolvedSelProg = state.selectedProgramId ? programs.find(p => p.id === state.selectedProgramId) : null;
-      
-      setConfigProgram(resolvedConfigProg);
-      setSelectedActiveProgramId(state.selectedActiveProgramId);
-      setSelectedProgram(resolvedSelProg);
-      setPreviewOpen(!!state.previewOpen);
-      setShowSetCard(!!state.showSetCard);
-      setFocusedSet(state.focusedSet || null);
-
-      setSessionState(prev => ({
-        ...prev,
-        isActive: !!state.sessionActive,
-        isMinimized: !!state.isMinimized
-      }));
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [loading, programs, sessionState.isActive, sessionState.isMinimized, activeTab, configProgram, selectedActiveProgramId, selectedProgram, previewOpen, showSetCard, focusedSet]);
+  const hasInitializedRef = useRef(false);
 
   useEffect(() => {
     const applyTheme = () => {
@@ -1274,11 +879,12 @@ function App() {
         </div>
       )}
 
-      <main className="flex-1 pt-8 pb-24 px-5 w-full flex flex-col gap-6">
+      <ErrorBoundary>
+        <main className="flex-1 pt-8 pb-24 px-5 w-full flex flex-col gap-6">
 
-        {/* TAB 1: 今日训练 */}
-        <div style={{ display: activeTab === 'today' ? 'block' : 'none' }}>
-          {loading ? (
+        {/* TAB 1: 今日训练 — 仅当前 tab 挂载，避免隐藏组件持续运行副作用 */}
+        {activeTab === 'today' && (
+          loading ? (
             <div className="flex flex-col items-center justify-center min-h-[300px] text-text-secondary dark:text-text-secondary-dark gap-4">
               <span className="loading loading-spinner text-primary loading-lg"></span>
               <p className="text-sm font-semibold">正在加载训练数据...</p>
@@ -1320,11 +926,11 @@ function App() {
               onRefreshDiet={loadWorkoutData}
               isRestDayValue={isRestDayValue}
             />
-          )}
-        </div>
+          )
+        )}
 
         {/* TAB 2: 计划库 */}
-        <div style={{ display: activeTab === 'plan' ? 'block' : 'none' }}>
+        {activeTab === 'plan' && (
           <PlanScreen
             programs={programs}
             userPrograms={userPrograms}
@@ -1364,10 +970,10 @@ function App() {
               setToast({ type: 'error', message });
             }}
           />
-        </div>
+        )}
 
         {/* TAB 3: 饮食 */}
-        <div style={{ display: activeTab === 'diet' ? 'block' : 'none' }}>
+        {activeTab === 'diet' && (
           <DietScreen
             userProfile={userProfile}
             userNutritionConfig={userNutritionConfig}
@@ -1375,15 +981,15 @@ function App() {
             isRestDay={isRestDayValue}
             onRefreshDiet={loadWorkoutData}
           />
-        </div>
+        )}
 
         {/* TAB 4: 数据 */}
-        <div style={{ display: activeTab === 'data' ? 'block' : 'none' }}>
+        {activeTab === 'data' && (
           <DataScreen getExerciseCNName={getExerciseCNName} />
-        </div>
+        )}
 
         {/* TAB 5: 我的 */}
-        <div style={{ display: activeTab === 'me' ? 'block' : 'none' }}>
+        {activeTab === 'me' && (
           <MyPage
             themeMode={themeMode}
             onThemeModeChange={setThemeMode}
@@ -1395,8 +1001,9 @@ function App() {
             setGymEquipmentConfig={setGymEquipmentConfig}
             onRefreshProfile={loadWorkoutData}
           />
-        </div>
-      </main>
+        )}
+        </main>
+      </ErrorBoundary>
 
       {/* 底部导航 */}
       <div className="dock fixed bottom-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[480px] bg-bg-card/90 dark:bg-bg-card-dark/90 border-t border-border-card dark:border-border-card-dark backdrop-blur h-16">

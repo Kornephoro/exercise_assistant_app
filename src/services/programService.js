@@ -1,13 +1,15 @@
-import { supabase } from '../supabaseClient';
+﻿import { supabase, getCurrentUserId, withUserId, withUserIdPayload } from '../supabaseClient';
 
 /**
  * 获取某个计划当前活跃的订阅记录
  * @param {number} programId
  */
 export const fetchActiveUserProgram = async (programId) => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('user_programs')
     .select('id, exercise_config, schedule, day_map')
+    
     .eq('program_id', programId)
     .eq('is_active', true)
     .limit(1);
@@ -22,9 +24,11 @@ export const fetchActiveUserProgram = async (programId) => {
  * @param {number} programId
  */
 export const fetchLastEndedUserProgram = async (programId) => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('user_programs')
     .select('exercise_config, schedule, day_map')
+    
     .eq('program_id', programId)
     .eq('is_active', false)
     .not('ended_at', 'is', null)
@@ -36,7 +40,7 @@ export const fetchLastEndedUserProgram = async (programId) => {
 };
 
 /**
- * 获取全量系统动作库
+ * 获取全量系统动作库（系统级表，无需 user_id）
  */
 export const fetchExercises = async () => {
   const { data, error } = await supabase
@@ -52,9 +56,11 @@ export const fetchExercises = async () => {
  * 获取所有的 1RM 纪录 (按日期降序)
  */
 export const fetchOneRmRecords = async () => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('one_rm_records')
     .select('exercise, e1rm_kg, date, weight_kg, reps, formula, source')
+    
     .order('date', { ascending: false });
 
   if (error) throw error;
@@ -68,24 +74,26 @@ export const fetchOneRmRecords = async () => {
  * @param {Object} upData - 配置 payload
  */
 export const saveUserProgram = async (userProgramId, programId, upData) => {
+  const userId = await getCurrentUserId();
   if (userProgramId) {
     const { data, error } = await supabase
       .from('user_programs')
       .update(upData)
-      .eq('id', userProgramId);
+      .eq('id', userProgramId)
+      ;
     if (error) throw error;
     return data;
   } else {
     const { data, error } = await supabase
       .from('user_programs')
-      .insert([{ program_id: programId, ...upData }]);
+      .insert([{ program_id: programId, ...withUserIdPayload(upData, userId) }]);
     if (error) throw error;
     return data;
   }
 };
 
 /**
- * 获取所有被激活的可选计划
+ * 获取所有被激活的可选计划（系统级模板表，无需 user_id）
  */
 export const fetchActivePrograms = async () => {
   const { data, error } = await supabase
@@ -102,16 +110,18 @@ export const fetchActivePrograms = async () => {
  * 获取用户的所有训练计划记录 (包含历史和当前的)
  */
 export const fetchAllUserPrograms = async () => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('user_programs')
-    .select('*');
+    .select('*')
+    ;
 
   if (error) throw error;
   return data || [];
 };
 
 /**
- * 获取全量系统动作，按动作模式和英文名称升序排列（用于动作库展示）
+ * 获取全量系统动作，按动作模式和英文名称升序排列（系统级表，无需 user_id）
  */
 export const fetchExercisesForLibrary = async () => {
   const { data, error } = await supabase
@@ -128,9 +138,11 @@ export const fetchExercisesForLibrary = async () => {
  * 获取全量训练模板
  */
 export const fetchWorkoutTemplates = async () => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('workout_templates')
     .select('*')
+    
     .order('name');
 
   if (error) throw error;
@@ -142,31 +154,35 @@ export const fetchWorkoutTemplates = async () => {
  * @param {Object} template - 模板载荷
  */
 export const saveWorkoutTemplate = async (template) => {
+  const userId = await getCurrentUserId();
   if (template.id) {
     const { data, error } = await supabase
       .from('workout_templates')
-      .update(template)
-      .eq('id', template.id);
+      .update({ ...withUserIdPayload(template, userId) })
+      .eq('id', template.id)
+      ;
     if (error) throw error;
     return data;
   } else {
     const { data, error } = await supabase
       .from('workout_templates')
-      .insert([template]);
+      .insert([{ ...withUserIdPayload(template, userId) }]);
     if (error) throw error;
     return data;
   }
 };
 
 /**
- * 删除训练模板
+ * 删除训练模板（仅允许删除本人的）
  * @param {number} templateId - 模板 ID
  */
 export const deleteWorkoutTemplate = async (templateId) => {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('workout_templates')
     .delete()
-    .eq('id', templateId);
+    .eq('id', templateId)
+    ;
 
   if (error) throw error;
   return data;

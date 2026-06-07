@@ -35,21 +35,20 @@ function ExerciseLibrary() {
   const [expandedId, setExpandedId] = useState(null);
 
   const fetchData = async () => {
-    await Promise.resolve();
     setLoading(true);
     setError(null);
     try {
       const data = await fetchExercisesForLibrary();
       setExercises(data || []);
     } catch (err) {
-      setError('加载动作库失败：' + err.message);
+      const msg = err instanceof Error ? err.message : String(err);
+      setError('加载动作库失败：' + msg);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, []);
 
