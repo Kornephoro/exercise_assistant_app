@@ -10,7 +10,7 @@ import { X } from 'lucide-react';
  * @param {Function} props.onRestore 点击球体恢复全屏打卡界面的回调
  * @param {Function} props.onCancel 点击小叉号终止训练界面的回调
  */
-function FloatingBall({ progress, onRestore, onCancel }) {
+function FloatingBall({ progress, restTimer, onRestore, onCancel }) {
   // 悬浮球的宽高度
   const BALL_SIZE = 64;
   
@@ -139,15 +139,22 @@ function FloatingBall({ progress, onRestore, onCancel }) {
     }
   };
 
-  // 解析进度字符串 "1/5" → 计算百分比
+  // 是否正在休息计时
+  const isResting = restTimer && restTimer.active;
+
+  // 解析进度或休息剩余时间 → 计算百分比
   let percentage = 0;
-  const setProgress = progress || '0/0';
-  if (setProgress && setProgress.includes('/')) {
-    const parts = setProgress.split('/');
-    const currentSet = parseInt(parts[0], 10);
-    const totalSet = parseInt(parts[1], 10);
-    if (!isNaN(currentSet) && !isNaN(totalSet) && totalSet > 0) {
-      percentage = Math.min(100, Math.max(0, (currentSet / totalSet) * 100));
+  if (isResting) {
+    percentage = restTimer.total > 0 ? (restTimer.remaining / restTimer.total) * 100 : 0;
+  } else {
+    const setProgress = progress || '0/0';
+    if (setProgress && setProgress.includes('/')) {
+      const parts = setProgress.split('/');
+      const currentSet = parseInt(parts[0], 10);
+      const totalSet = parseInt(parts[1], 10);
+      if (!isNaN(currentSet) && !isNaN(totalSet) && totalSet > 0) {
+        percentage = Math.min(100, Math.max(0, (currentSet / totalSet) * 100));
+      }
     }
   }
 
@@ -189,7 +196,9 @@ function FloatingBall({ progress, onRestore, onCancel }) {
 
       {/* 核心内容区 - DaisyUI radial-progress 环形发光进度环 */}
       <div
-        className="radial-progress text-primary transition-all duration-300 select-none relative flex items-center justify-center"
+        className={`radial-progress transition-all duration-300 select-none relative flex items-center justify-center ${
+          isResting ? 'text-orange-500' : 'text-primary'
+        }`}
         style={{
           "--value": percentage,
           "--size": `${BALL_SIZE}px`,
@@ -199,8 +208,12 @@ function FloatingBall({ progress, onRestore, onCancel }) {
       >
         {/* 内部小圆盘 */}
         <div className="absolute inset-[3.5px] rounded-full bg-bg-card dark:bg-bg-card-dark flex flex-col items-center justify-center gap-0.5 select-none">
-          <span className="text-[10px] font-bold text-primary tracking-wider select-none">组</span>
-          <span className="text-[11px] font-mono font-semibold text-text-main dark:text-text-main-dark select-none">{progress || '0/0'}</span>
+          <span className={`text-[10px] font-bold tracking-wider select-none ${isResting ? 'text-orange-500' : 'text-primary'}`}>
+            {isResting ? '休' : '组'}
+          </span>
+          <span className="text-[11px] font-mono font-semibold text-text-main dark:text-text-main-dark select-none">
+            {isResting ? `${restTimer.remaining}s` : (progress || '0/0')}
+          </span>
         </div>
       </div>
     </div>

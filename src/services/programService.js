@@ -41,7 +41,7 @@ export const fetchLastEndedUserProgram = async (programId) => {
 export const fetchExercises = async () => {
   const { data, error } = await supabase
     .from('exercises')
-    .select('id, name, name_cn, primary_muscles, secondary_muscles, equipment')
+    .select('id, name, name_cn, primary_muscles, secondary_muscles, equipment, exercise_type, recording_method')
     .order('name');
 
   if (error) throw error;
@@ -122,4 +122,52 @@ export const fetchExercisesForLibrary = async () => {
 
   if (error) throw error;
   return data || [];
+};
+
+/**
+ * 获取全量训练模板
+ */
+export const fetchWorkoutTemplates = async () => {
+  const { data, error } = await supabase
+    .from('workout_templates')
+    .select('*')
+    .order('name');
+
+  if (error) throw error;
+  return data || [];
+};
+
+/**
+ * 保存或更新训练模板
+ * @param {Object} template - 模板载荷
+ */
+export const saveWorkoutTemplate = async (template) => {
+  if (template.id) {
+    const { data, error } = await supabase
+      .from('workout_templates')
+      .update(template)
+      .eq('id', template.id);
+    if (error) throw error;
+    return data;
+  } else {
+    const { data, error } = await supabase
+      .from('workout_templates')
+      .insert([template]);
+    if (error) throw error;
+    return data;
+  }
+};
+
+/**
+ * 删除训练模板
+ * @param {number} templateId - 模板 ID
+ */
+export const deleteWorkoutTemplate = async (templateId) => {
+  const { data, error } = await supabase
+    .from('workout_templates')
+    .delete()
+    .eq('id', templateId);
+
+  if (error) throw error;
+  return data;
 };

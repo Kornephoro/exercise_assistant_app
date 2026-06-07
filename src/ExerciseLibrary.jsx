@@ -15,11 +15,21 @@ const RECORDING_METHOD_MAP = {
   bodyweight_assisted: '自重辅助',
 };
 
+const EXERCISE_TYPE_MAP = {
+  strength: '力量训练',
+  stretching: '拉伸训练',
+  animal_flow: '动物流',
+  mobility: '关节活动',
+  myofascial_release: '筋膜放松',
+  functional: '功能性训练',
+};
+
 function ExerciseLibrary() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [exercises, setExercises] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('');
   const [filterPattern, setFilterPattern] = useState('');
   const [filterEquipment, setFilterEquipment] = useState('');
   const [expandedId, setExpandedId] = useState(null);
@@ -61,6 +71,7 @@ function ExerciseLibrary() {
 
   const filteredExercises = useMemo(() => {
     return exercises.filter(ex => {
+      if (filterType && ex.exercise_type !== filterType) return false;
       if (filterPattern && ex.movement_pattern !== filterPattern) return false;
       if (filterEquipment && !(ex.equipment || []).includes(filterEquipment)) return false;
       if (searchQuery.trim()) {
@@ -70,20 +81,24 @@ function ExerciseLibrary() {
         const pattern = ex.movement_pattern || '';
         const primary = (ex.primary_muscles || []).join(' ');
         const equip = (ex.equipment || []).join(' ');
-        if (!name.includes(q) && !nameCn.includes(q) && !pattern.includes(q) && !primary.includes(q) && !equip.includes(q)) {
+        const typeCn = EXERCISE_TYPE_MAP[ex.exercise_type] || '';
+        if (!name.includes(q) && !nameCn.includes(q) && !pattern.includes(q) && !primary.includes(q) && !equip.includes(q) && !typeCn.includes(q)) {
           return false;
         }
       }
       return true;
     });
-  }, [exercises, searchQuery, filterPattern, filterEquipment]);
+  }, [exercises, searchQuery, filterType, filterPattern, filterEquipment]);
 
   const groupedExercises = useMemo(() => {
     const groups = {};
     filteredExercises.forEach(ex => {
-      const pattern = ex.movement_pattern || '未分类';
-      if (!groups[pattern]) groups[pattern] = [];
-      groups[pattern].push(ex);
+      let groupKey = ex.movement_pattern;
+      if (!groupKey) {
+        groupKey = EXERCISE_TYPE_MAP[ex.exercise_type] || '其他';
+      }
+      if (!groups[groupKey]) groups[groupKey] = [];
+      groups[groupKey].push(ex);
     });
     return groups;
   }, [filteredExercises]);
@@ -118,7 +133,7 @@ function ExerciseLibrary() {
           <input
             type="text"
             className="w-full bg-transparent text-sm font-semibold text-text-main dark:text-text-main-dark focus:outline-none"
-            placeholder="搜索动作..."
+            placeholder="搜索动作、流派或部位..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -134,9 +149,20 @@ function ExerciseLibrary() {
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <select
-          className="select-standard !h-9 !text-xs !rounded-lg flex-1"
+          className="select-standard !h-9 !text-[11px] !rounded-lg w-full px-1.5"
+          value={filterType}
+          onChange={(e) => setFilterType(e.target.value)}
+        >
+          <option value="">全部动作流派</option>
+          {Object.entries(EXERCISE_TYPE_MAP).map(([key, val]) => (
+            <option key={key} value={key}>{val}</option>
+          ))}
+        </select>
+
+        <select
+          className="select-standard !h-9 !text-[11px] !rounded-lg w-full px-1.5"
           value={filterPattern}
           onChange={(e) => setFilterPattern(e.target.value)}
         >
@@ -147,7 +173,7 @@ function ExerciseLibrary() {
         </select>
 
         <select
-          className="select-standard !h-9 !text-xs !rounded-lg flex-1"
+          className="select-standard !h-9 !text-[11px] !rounded-lg w-full px-1.5"
           value={filterEquipment}
           onChange={(e) => setFilterEquipment(e.target.value)}
         >
@@ -158,7 +184,7 @@ function ExerciseLibrary() {
         </select>
       </div>
 
-      {(filterPattern || filterEquipment) && (
+      {(filterType || filterPattern || filterEquipment) && (
         <div className="flex items-center gap-2 text-xs">
           <Filter size={12} className="text-text-secondary" />
           <span className="text-text-secondary dark:text-text-secondary-dark">
@@ -167,7 +193,7 @@ function ExerciseLibrary() {
           <button
             type="button"
             className="btn btn-ghost btn-xs text-primary cursor-pointer"
-            onClick={() => { setFilterPattern(''); setFilterEquipment(''); }}
+            onClick={() => { setFilterType(''); setFilterPattern(''); setFilterEquipment(''); }}
           >
             清除筛选
           </button>
@@ -178,7 +204,7 @@ function ExerciseLibrary() {
         <div className="card flex flex-col items-center justify-center text-center gap-3 min-h-[200px] opacity-70">
           <Search size={36} className="text-text-secondary/40 dark:text-text-secondary-dark/40" />
           <p className="text-sm font-bold text-text-main dark:text-text-main-dark">
-            {searchQuery || filterPattern || filterEquipment ? '未找到匹配的动作' : '动作库为空'}
+            {searchQuery || filterType || filterPattern || filterEquipment ? '未找到匹配的动作' : '动作库为空'}
           </p>
         </div>
       ) : (
@@ -194,15 +220,20 @@ function ExerciseLibrary() {
                   return (
                     <div
                       key={ex.id}
-                      className="card !p-4 hover:border-primary/30 transition-all duration-200 cursor-pointer"
+                      className="card !p-4 hover:border-primary/30 transition-all duration-200 cursor-pointer animate-fadeIn"
                       onClick={() => toggleExpand(ex.id)}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex flex-col gap-1 flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-base font-bold text-text-main dark:text-text-main-dark truncate">
                               {getCnName(ex)}
                             </span>
+                            {ex.exercise_type && (
+                              <span className="badge badge-accent badge-outline badge-xs text-[9px] scale-90 px-1.5 py-0.5 font-bold whitespace-nowrap bg-accent/5">
+                                {EXERCISE_TYPE_MAP[ex.exercise_type] || ex.exercise_type}
+                              </span>
+                            )}
                             {(ex.equipment || []).length > 0 && (
                               <span className="text-[10px] font-semibold text-text-secondary dark:text-text-secondary-dark whitespace-nowrap">
                                 [{(ex.equipment || []).join(', ')}]
@@ -247,8 +278,10 @@ function ExerciseLibrary() {
                               </p>
                             </div>
                             <div>
-                              <span className="font-bold text-text-secondary dark:text-text-secondary-dark">动作模式</span>
-                              <p className="font-semibold text-text-main dark:text-text-main-dark mt-0.5">{ex.movement_pattern || '-'}</p>
+                              <span className="font-bold text-text-secondary dark:text-text-secondary-dark">动作流派</span>
+                              <p className="font-semibold text-text-main dark:text-text-main-dark mt-0.5">
+                                {EXERCISE_TYPE_MAP[ex.exercise_type] || ex.exercise_type || '-'}
+                              </p>
                             </div>
                             <div>
                               <span className="font-bold text-text-secondary dark:text-text-secondary-dark">器械</span>

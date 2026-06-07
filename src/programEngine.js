@@ -306,6 +306,27 @@ function userChainToSchemes(chain) {
   });
 }
 
+function getWarmupSets(exKey, workingWeight, userExConfig, gymEquipmentConfig, exerciseInfo, unit) {
+  if (!userExConfig?.warmup_enabled) return null;
+  
+  const getRoundedWeight = (w) => {
+    if (gymEquipmentConfig && exerciseInfo) {
+      return roundExerciseWeight(w, exerciseInfo, gymEquipmentConfig, unit);
+    }
+    return roundWeight(w);
+  };
+
+  const sets = userExConfig.warmup_sets && userExConfig.warmup_sets.length > 0
+    ? userExConfig.warmup_sets
+    : [{ pct: 50, reps: 5 }, { pct: 75, reps: 3 }]; // 默认 50% 5次，75% 3次
+
+  return sets.map(s => ({
+    weight: getRoundedWeight(workingWeight * (Number(s.pct || 50) / 100)),
+    reps: Number(s.reps || 5),
+    is_warmup: true
+  }));
+}
+
 function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier, gymEquipmentConfig = null, exercisesMap = {}) {
   const state = userProgram.program_state || {};
   const exConfig = userProgram.exercise_config || {};
@@ -319,6 +340,21 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier, gymEqui
   if (!dayConfig) return { exercises: [], dayLabel: currentDay, error: `未知训练日: ${currentDay}` };
 
   const exercises = [];
+
+  // 1. 练前热身动作 (Prepend)
+  const todayWarmups = dayConfig.warmup || [];
+  todayWarmups.forEach(w => {
+    exercises.push({
+      exercise: w.exercise,
+      tier: 'warmup',
+      sets: w.sets || 2,
+      reps: w.reps || 10,
+      weight: 0,
+      recording_method: w.recording_method || exercisesMap[w.exercise]?.recording_method || 'reps_only',
+      scheme_text: w.recording_method === 'duration_only' ? `${w.sets}组 × ${w.reps}秒` : `${w.sets}组 × ${w.reps}次`,
+      amrap_last: false
+    });
+  });
 
   // T1
   if (dayConfig.T1) {
@@ -339,7 +375,8 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier, gymEqui
       reps: result.planned_reps,
       weight: result.weight_kg,
       scheme_text: result.scheme_text,
-      amrap_last: schemes[result.scheme_index].amrap_last
+      amrap_last: schemes[result.scheme_index].amrap_last,
+      warmup_sets: getWarmupSets(ex, result.weight_kg, userEx, gymEquipmentConfig, exercisesMap[ex], unit)
     });
   }
 
@@ -363,7 +400,8 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier, gymEqui
       reps: result.planned_reps,
       weight: result.weight_kg,
       scheme_text: result.scheme_text,
-      amrap_last: schemes[result.scheme_index].amrap_last
+      amrap_last: schemes[result.scheme_index].amrap_last,
+      warmup_sets: getWarmupSets(ex, result.weight_kg, userEx, gymEquipmentConfig, exercisesMap[ex], unit)
     });
   }
 
@@ -392,6 +430,21 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier, gymEqui
       });
     }
   }
+
+  // 3. 练后拉伸动作 (Append)
+  const todayStretching = dayConfig.stretching || [];
+  todayStretching.forEach(s => {
+    exercises.push({
+      exercise: s.exercise,
+      tier: 'stretching',
+      sets: s.sets || 2,
+      reps: s.reps || 30,
+      weight: 0,
+      recording_method: s.recording_method || exercisesMap[s.exercise]?.recording_method || 'duration_only',
+      scheme_text: s.recording_method === 'duration_only' ? `${s.sets}组 × ${s.reps}秒` : `${s.sets}组 × ${s.reps}次`,
+      amrap_last: false
+    });
+  });
 
   return {
     exercises,

@@ -70,6 +70,14 @@ function App() {
   const [nextTrainingDateValue, setNextTrainingDateValue] = useState('');
   const [daysUntilStartValue, setDaysUntilStartValue] = useState(0);
 
+  // 组间休息计时状态共享
+  const [restTimer, setRestTimer] = useState({
+    active: false,
+    total: 90,
+    remaining: 90,
+    endTime: null
+  });
+
   // 训练会话状态
   const [sessionState, setSessionState] = useState(() => {
     const saved = localStorage.getItem('active_session_state');
@@ -669,17 +677,31 @@ function App() {
 
     const setsData = {};
     todayWorkout.exercises.forEach((ex, idx) => {
-      const method = exercisesMap[ex.exercise]?.recording_method || 'standard';
+      const method = exercisesMap[ex.exercise]?.recording_method || ex.recording_method || 'standard';
       const extra = getSetExtraFields(method);
-      const sets = Array.from({ length: ex.sets }, (_, setIdx) => ({
-        set_number: setIdx + 1,
-        planned_reps: ex.reps,
-        actual_reps: ex.amrap_last ? '' : ex.reps,
+      const isWarmupEx = ex.tier === 'warmup' || ex.tier === 'stretching';
+
+      const warmupSets = (ex.warmup_sets || []).map((w, wIdx) => ({
+        set_number: wIdx + 1,
+        planned_reps: w.reps,
+        actual_reps: w.reps,
         completed: false,
-        weight_kg: ex.weight,
+        weight_kg: w.weight,
+        is_warmup: true,
         ...extra
       }));
-      setsData[idx] = sets; // key = exercise index, supports multiple T3 per day
+
+      const workSets = Array.from({ length: ex.sets }, (_, setIdx) => ({
+        set_number: warmupSets.length + setIdx + 1,
+        planned_reps: ex.reps,
+        actual_reps: (ex.amrap_last && setIdx === ex.sets - 1) ? '' : ex.reps,
+        completed: false,
+        weight_kg: ex.weight,
+        is_warmup: isWarmupEx ? true : false,
+        ...extra
+      }));
+
+      setsData[idx] = [...warmupSets, ...workSets]; // key = exercise index, supports multiple T3 per day
     });
 
     const d = new Date();
@@ -709,6 +731,12 @@ function App() {
       sessionDate: null
     });
     setSetDetails({});
+    setRestTimer({
+      active: false,
+      total: 90,
+      remaining: 90,
+      endTime: null
+    });
     localStorage.removeItem('active_session_state');
     localStorage.removeItem('active_session_details');
     if (window.location.hash === '#session') {
@@ -827,12 +855,13 @@ function App() {
       };
       if (['standard', 'reps_only', 'bodyweight_added', 'bodyweight_assisted'].includes(method)) {
         record.planned_reps = tierEx.reps;
+        const workSets = sets.filter(s => !s.is_warmup);
         if (tier === 'T2') {
           // T2: 存储所有组的实际总次数，需 ≥ threshold
-          record.actual_last_set_reps = sets.reduce((sum, s) => sum + getFinalReps(s), 0);
+          record.actual_last_set_reps = workSets.reduce((sum, s) => sum + getFinalReps(s), 0);
         } else {
           // T1 & T3: 存储所有组的最小次数，每组都必须 ≥ planned_reps (T1) 或 threshold (T3)
-          record.actual_last_set_reps = Math.min(...sets.map(s => getFinalReps(s)));
+          record.actual_last_set_reps = workSets.length > 0 ? Math.min(...workSets.map(s => getFinalReps(s))) : 0;
         }
       } else if (method === 'duration_only') {
         record.actual_last_set_reps = lastSet.duration_seconds || 0;
@@ -850,6 +879,7 @@ function App() {
           tier,
           set_number: s.set_number,
           completed: s.completed,
+          is_warmup: !!s.is_warmup,
           notes: detail.notes || null,
           rpe: detail.record_rpe !== false ? (detail.rpe ?? null) : null,
           tempo_eccentric: detail.record_tempo !== false ? (detail.tempo_eccentric ?? null) : null,
@@ -913,7 +943,8 @@ function App() {
         if (!MAIN_LIFTS.includes(liftKey)) return;
         const tier = tierEx.tier || 'T1';
         const sets = setsData[exIdx] || [];
-        const lastSet = sets[sets.length - 1];
+        const workSets = sets.filter(s => !s.is_warmup);
+        const lastSet = workSets[workSets.length - 1];
         if (!lastSet) return;
         const w = Number(lastSet.weight_kg) || 0;
         const r = Number(lastSet.actual_reps) || 0;
@@ -1014,6 +1045,12 @@ function App() {
         sessionDate: null
       });
       setSetDetails({});
+      setRestTimer({
+        active: false,
+        total: 90,
+        remaining: 90,
+        endTime: null
+      });
       localStorage.removeItem('active_session_state');
       localStorage.removeItem('active_session_details');
 
@@ -1268,6 +1305,8 @@ function App() {
             onCancel={handleCancelSession}
             gymEquipmentConfig={gymEquipmentConfig}
             unit={getActiveUserProgram()?.exercise_config?._unit || 'kg'}
+            restTimer={restTimer}
+            setRestTimer={setRestTimer}
           />
         </div>
       )}
@@ -1276,6 +1315,7 @@ function App() {
       {sessionState.isActive && sessionState.isMinimized && (
         <FloatingBall
           progress={getSessionProgress(sessionState.setsData)}
+          restTimer={restTimer}
           onRestore={() => updateNavigationState({ sessionActive: true, isMinimized: false })}
           onCancel={handleCancelSession}
         />

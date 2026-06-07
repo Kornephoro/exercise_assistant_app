@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
-import { saveUserProgram } from './services/programService';
-import { Search, ChevronRight, X, Users, Calendar, Zap, Target, BookOpen, Pause, Play, StopCircle, Settings, AlertTriangle } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { saveUserProgram, fetchExercises, fetchWorkoutTemplates, saveWorkoutTemplate, deleteWorkoutTemplate } from './services/programService';
+import { Search, ChevronRight, X, Users, Calendar, Zap, Target, BookOpen, Pause, Play, StopCircle, Settings, AlertTriangle, Plus, Trash2, Edit, Save, FolderOpen, Heart, Activity, Sparkles, FolderUp, Loader2 } from 'lucide-react';
 import ProgramConfigScreen from './ProgramConfigScreen';
 import ExerciseLibrary from './ExerciseLibrary';
 import { getCNName, FEATURE_LABELS } from './exerciseNames';
@@ -43,6 +43,25 @@ function ConfirmModal({ isOpen, title, message, onConfirm, onCancel, confirmText
   );
 }
 
+const RECORDING_METHOD_MAP = {
+  standard: '常规力量',
+  reps_only: '仅次数',
+  duration_only: '仅时长',
+  distance_only: '仅距离',
+  loaded_carry: '负重行走',
+  bodyweight_added: '自重附加',
+  bodyweight_assisted: '自重辅助',
+};
+
+const EXERCISE_TYPE_MAP = {
+  strength: '力量训练',
+  stretching: '拉伸训练',
+  animal_flow: '动物流',
+  mobility: '关节活动',
+  myofascial_release: '筋膜放松',
+  functional: '功能性训练',
+};
+
 function PlanScreen({
   programs,
   userPrograms,
@@ -64,6 +83,170 @@ function PlanScreen({
 }) {
   const [activeSubTab, setActiveSubTab] = useState('programs');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // 模板库状态
+  const [templates, setTemplates] = useState([]);
+  const [allExercises, setAllExercises] = useState([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [templateSearchQuery, setTemplateSearchQuery] = useState('');
+  const [templateTypeFilter, setTemplateTypeFilter] = useState('');
+
+  // 编辑模板相关状态
+  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState(null);
+  const [editorName, setEditorName] = useState('');
+  const [editorType, setEditorType] = useState('warmup');
+  const [editorDescription, setEditorDescription] = useState('');
+  const [editorBodyParts, setEditorBodyParts] = useState([]);
+  const [editorExercises, setEditorExercises] = useState([]);
+
+  // 编辑器内部选择动作相关状态
+  const [showExerciseSelector, setShowExerciseSelector] = useState(false);
+  const [exerciseSelectorSearch, setExerciseSelectorSearch] = useState('');
+  const [exerciseSelectorType, setExerciseSelectorType] = useState('');
+
+  // 删除模板二次确认
+  const [showTemplateDeleteConfirm, setShowTemplateDeleteConfirm] = useState(false);
+  const [pendingDeleteTemplateId, setPendingDeleteTemplateId] = useState(null);
+
+  const loadTemplatesAndExercises = async () => {
+    setLoadingTemplates(true);
+    try {
+      const [tplData, exData] = await Promise.all([
+        fetchWorkoutTemplates(),
+        fetchExercises()
+      ]);
+      setTemplates(tplData || []);
+      setAllExercises(exData || []);
+    } catch (err) {
+      console.error('加载模板与动作库失败:', err);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTemplatesAndExercises();
+  }, []);
+
+  const handleOpenNewTemplate = () => {
+    setEditingTemplate(null);
+    setEditorName('');
+    setEditorType('warmup');
+    setEditorDescription('');
+    setEditorBodyParts([]);
+    setEditorExercises([]);
+    setShowTemplateEditor(true);
+  };
+
+  const handleOpenEditTemplate = (tpl) => {
+    setEditingTemplate(tpl);
+    setEditorName(tpl.name || '');
+    setEditorType(tpl.type || 'warmup');
+    setEditorDescription(tpl.description || '');
+    setEditorBodyParts(tpl.target_body_parts || []);
+    setEditorExercises(tpl.exercises || []);
+    setShowTemplateEditor(true);
+  };
+
+  const handleToggleBodyPart = (part) => {
+    setEditorBodyParts(prev => 
+      prev.includes(part) ? prev.filter(p => p !== part) : [...prev, part]
+    );
+  };
+
+  const handleAddExerciseToEditor = (ex) => {
+    const defaultReps = ex.recording_method === 'duration_only' ? null : 10;
+    const defaultDuration = ex.recording_method === 'duration_only' ? 30 : null;
+
+    if (editorExercises.some(item => item.exercise === ex.name)) {
+      alert('该动作已添加');
+      return;
+    }
+
+    setEditorExercises(prev => [
+      ...prev,
+      {
+        exercise: ex.name,
+        sets: 2,
+        reps: defaultReps,
+        duration_seconds: defaultDuration,
+        recording_method: ex.recording_method
+      }
+    ]);
+    setShowExerciseSelector(false);
+  };
+
+  const handleUpdateEditorExercise = (index, updates) => {
+    setEditorExercises(prev => 
+      prev.map((item, idx) => idx === index ? { ...item, ...updates } : item)
+    );
+  };
+
+  const handleRemoveEditorExercise = (index) => {
+    setEditorExercises(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!editorName.trim()) {
+      alert('请输入模板名称');
+      return;
+    }
+    if (editorExercises.length === 0) {
+      alert('请至少添加一个动作');
+      return;
+    }
+
+    const payload = {
+      name: editorName.trim(),
+      type: editorType,
+      target_body_parts: editorBodyParts,
+      description: editorDescription.trim(),
+      exercises: editorExercises
+    };
+
+    if (editingTemplate?.id) {
+      payload.id = editingTemplate.id;
+    }
+
+    try {
+      await saveWorkoutTemplate(payload);
+      setShowTemplateEditor(false);
+      loadTemplatesAndExercises();
+    } catch (err) {
+      console.error('保存模板失败:', err);
+      alert('保存模板失败: ' + err.message);
+    }
+  };
+
+  const handleOpenDeleteTemplate = (id) => {
+    setPendingDeleteTemplateId(id);
+    setShowTemplateDeleteConfirm(true);
+  };
+
+  const handleConfirmDeleteTemplate = async () => {
+    try {
+      await deleteWorkoutTemplate(pendingDeleteTemplateId);
+      setShowTemplateDeleteConfirm(false);
+      loadTemplatesAndExercises();
+    } catch (err) {
+      console.error('删除模板失败:', err);
+      alert('删除模板失败: ' + err.message);
+    }
+  };
+
+  const filteredTemplates = useMemo(() => {
+    return templates.filter(t => {
+      if (templateTypeFilter && t.type !== templateTypeFilter) return false;
+      if (templateSearchQuery.trim()) {
+        const q = templateSearchQuery.trim().toLowerCase();
+        const name = (t.name || '').toLowerCase();
+        const desc = (t.description || '').toLowerCase();
+        if (!name.includes(q) && !desc.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [templates, templateSearchQuery, templateTypeFilter]);
 
   // 筛选器
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -466,7 +649,7 @@ function PlanScreen({
         <p className="page-header-desc">选择或切换适合您的训练计划，并管理当前的训练进程。</p>
       </div>
 
-      <div className="tabs tabs-boxed bg-bg-card/80 dark:bg-bg-card-dark/80 backdrop-blur-md border border-border-card dark:border-border-card-dark p-1.5 mb-1">
+      <div className="tabs tabs-boxed bg-bg-card/80 dark:bg-bg-card-dark/80 backdrop-blur-md border border-border-card dark:border-border-card-dark p-1.5 mb-1 select-none">
         <button type="button"
           className={`tab flex-1 transition-all duration-200 py-2 text-sm flex items-center justify-center gap-1.5 cursor-pointer ${
             activeSubTab === 'programs'
@@ -477,6 +660,17 @@ function PlanScreen({
         >
           <Zap size={14} />
           <span>计划库</span>
+        </button>
+        <button type="button"
+          className={`tab flex-1 transition-all duration-200 py-2 text-sm flex items-center justify-center gap-1.5 cursor-pointer ${
+            activeSubTab === 'templates'
+              ? 'tab-active !bg-primary !text-white font-bold rounded-xl shadow-md'
+              : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark'
+          }`}
+          onClick={() => setActiveSubTab('templates')}
+        >
+          <Settings size={14} />
+          <span>模板库</span>
         </button>
         <button type="button"
           className={`tab flex-1 transition-all duration-200 py-2 text-sm flex items-center justify-center gap-1.5 cursor-pointer ${
@@ -491,7 +685,7 @@ function PlanScreen({
         </button>
       </div>
 
-      {activeSubTab === 'programs' ? (
+      {activeSubTab === 'programs' && (
         <>
           <div className="input input-bordered flex items-center gap-2 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary px-3 h-10 transition-colors">
             <Search size={16} className="text-text-secondary/50 shrink-0" />
@@ -635,7 +829,139 @@ function PlanScreen({
             })}
           </div>
         </>
-      ) : (
+      )}
+
+      {activeSubTab === 'templates' && (
+        <div className="flex flex-col gap-4 animate-fadeIn">
+          {/* 顶栏搜索与新建按钮 */}
+          <div className="flex gap-2.5">
+            <div className="input input-bordered flex items-center gap-2 flex-1 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary px-3 h-10 transition-colors">
+              <Search size={16} className="text-text-secondary/50 shrink-0" />
+              <input type="text"
+                className="w-full bg-transparent text-sm font-semibold text-text-main dark:text-text-main-dark focus:outline-none"
+                placeholder="搜索模板..."
+                value={templateSearchQuery}
+                onChange={(e) => setTemplateSearchQuery(e.target.value)}
+              />
+              {templateSearchQuery && (
+                <button type="button" className="btn btn-ghost btn-xs btn-circle p-0 cursor-pointer" onClick={() => setTemplateSearchQuery('')}>
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <button type="button" onClick={handleOpenNewTemplate}
+              className="btn-main px-4 h-10 flex items-center gap-1 text-xs whitespace-nowrap bg-primary hover:bg-primary-hover shadow-md font-bold cursor-pointer">
+              <Plus size={14} />
+              <span>新建模板</span>
+            </button>
+          </div>
+
+          {/* 筛选按钮 */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 select-none">
+            <span className="text-xs font-semibold text-text-secondary dark:text-text-secondary-dark shrink-0">分类:</span>
+            {[
+              { label: '全部', value: '' },
+              { label: '练前热身', value: 'warmup' },
+              { label: '练后拉伸', value: 'stretching' },
+              { label: '自定义', value: 'custom' }
+            ].map(cat => (
+              <button key={cat.value} type="button"
+                className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all shrink-0 whitespace-nowrap cursor-pointer ${
+                  templateTypeFilter === cat.value
+                    ? 'bg-primary text-white border-primary shadow-md'
+                    : 'bg-bg-main/20 dark:bg-bg-main-dark/20 text-text-secondary dark:text-text-secondary-dark border-border-card dark:border-border-card-dark hover:bg-bg-hover'
+                }`}
+                onClick={() => setTemplateTypeFilter(cat.value)}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
+          {/* 模板列表 */}
+          {loadingTemplates ? (
+            <div className="flex flex-col items-center justify-center min-h-[200px] text-text-secondary gap-3">
+              <Loader2 className="animate-spin text-primary" size={28} />
+              <p className="text-xs font-semibold">读取模板中...</p>
+            </div>
+          ) : filteredTemplates.length === 0 ? (
+            <div className="card flex flex-col items-center justify-center text-center gap-3 min-h-[200px] opacity-70">
+              <FolderOpen size={36} className="text-text-secondary/40 dark:text-text-secondary-dark/40" />
+              <p className="text-sm font-bold text-text-main dark:text-text-main-dark">
+                {templateSearchQuery || templateTypeFilter ? '没有匹配的模板' : '暂无模板，赶快新建一个吧！'}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredTemplates.map(tpl => {
+                const typeColor = tpl.type === 'warmup' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' : tpl.type === 'stretching' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-primary/10 text-primary border-primary/20';
+                const typeLabel = tpl.type === 'warmup' ? '热身' : tpl.type === 'stretching' ? '拉伸' : '自定义';
+                return (
+                  <div key={tpl.id} className="card !p-4 flex flex-col gap-3.5 hover:border-primary/25 transition-all duration-200 animate-fadeIn">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex flex-col gap-1 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-base font-bold text-text-main dark:text-text-main-dark truncate">{tpl.name}</span>
+                          <span className={`badge border ${typeColor} badge-xs font-extrabold text-[9px] px-1.5 py-0.5 rounded-md`}>{typeLabel}</span>
+                        </div>
+                        <p className="text-xs text-text-secondary dark:text-text-secondary-dark line-clamp-2 leading-relaxed">
+                          {tpl.description || '暂无描述信息'}
+                        </p>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <button type="button" onClick={() => handleOpenEditTemplate(tpl)}
+                          className="w-7 h-7 rounded-lg hover:bg-bg-hover dark:hover:bg-bg-hover-dark text-text-secondary hover:text-primary flex items-center justify-center transition-all cursor-pointer"
+                          title="编辑模板">
+                          <Edit size={14} />
+                        </button>
+                        <button type="button" onClick={() => handleOpenDeleteTemplate(tpl.id)}
+                          className="w-7 h-7 rounded-lg hover:bg-bg-hover dark:hover:bg-bg-hover-dark text-text-secondary hover:text-error flex items-center justify-center transition-all cursor-pointer"
+                          title="删除模板">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 针对部位 tags */}
+                    {(tpl.target_body_parts || []).length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {tpl.target_body_parts.map(p => (
+                          <span key={p} className="badge badge-outline badge-xs font-semibold text-[9px] scale-95">{p}</span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 包含的动作简析 */}
+                    <div className="bg-bg-main/20 dark:bg-bg-main-dark/20 rounded-xl p-2.5 border border-border-card/40 dark:border-border-card-dark/40">
+                      <span className="text-[10px] font-bold text-text-secondary dark:text-text-secondary-dark select-none">包含动作 ({(tpl.exercises || []).length}个)</span>
+                      <div className="flex flex-col gap-1 mt-1 text-[11px] font-mono text-text-main dark:text-text-main-dark">
+                        {(tpl.exercises || []).slice(0, 3).map((item, idx) => {
+                          const exInfo = exercisesMap?.[item.exercise] || allExercises.find(e => e.name === item.exercise);
+                          const exName = exInfo?.name_cn || item.exercise;
+                          const detailText = item.recording_method === 'duration_only' 
+                            ? `${item.sets}组 × ${item.duration_seconds || item.reps || 30}秒`
+                            : `${item.sets}组 × ${item.reps || 10}次`;
+                          return (
+                            <div key={idx} className="flex justify-between items-center py-0.5 border-b border-border-card/25 dark:border-border-card-dark/25 last:border-b-0">
+                              <span className="font-semibold truncate max-w-[60%]">{exName}</span>
+                              <span className="text-text-secondary/70">{detailText}</span>
+                            </div>
+                          );
+                        })}
+                        {(tpl.exercises || []).length > 3 && (
+                          <div className="text-[9px] text-text-secondary text-right pt-0.5 select-none">...以及其他 {(tpl.exercises || []).length - 3} 个动作</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeSubTab === 'library' && (
         <ExerciseLibrary />
       )}
 
@@ -656,6 +982,273 @@ function PlanScreen({
         confirmText="确认结束"
         confirmClass="btn-error"
       />
+
+      {/* 模板删除确认 */}
+      <ConfirmModal
+        isOpen={showTemplateDeleteConfirm}
+        title="删除动作模板"
+        message="您确定要删除这个模板吗？删除后在配置计划时将无法再拉取此模板，该操作不可逆。"
+        onConfirm={handleConfirmDeleteTemplate}
+        onCancel={() => setShowTemplateDeleteConfirm(false)}
+        confirmText="确认删除"
+        confirmClass="btn-error"
+      />
+
+      {/* 模板编辑抽屉 */}
+      {showTemplateEditor && (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center">
+          <div className="bottom-sheet-backdrop animate-sheet-fade-in" onClick={() => setShowTemplateEditor(false)} />
+          <div className="bottom-sheet-container animate-sheet-slide-up w-full max-w-lg flex flex-col gap-4 pb-6 max-h-[90vh]">
+            <div className="flex items-center justify-between pb-2 border-b border-border-card/50 dark:border-border-card-dark/50 select-none">
+              <h3 className="text-base font-bold text-text-main dark:text-text-main-dark">
+                {editingTemplate ? '编辑动作模板' : '创建新动作模板'}
+              </h3>
+              <button type="button" onClick={() => setShowTemplateEditor(false)}
+                className="w-7 h-7 rounded-lg hover:bg-bg-hover text-text-secondary flex items-center justify-center text-lg font-bold cursor-pointer">
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-1 space-y-4 max-h-[60vh]">
+              {/* Name input */}
+              <div className="flex flex-col gap-1.5">
+                <label className="section-subtitle select-none mb-0">模板名称</label>
+                <input type="text" placeholder="例如：下肢拉伸放松"
+                  className="input input-bordered w-full bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary text-sm font-semibold h-10 px-3"
+                  value={editorName} onChange={(e) => setEditorName(e.target.value)} />
+              </div>
+
+              {/* Type Select */}
+              <div className="flex flex-col gap-1.5 select-none">
+                <label className="section-subtitle select-none mb-0">模板类型</label>
+                <select className="select-standard w-full !h-10 text-sm"
+                  value={editorType} onChange={(e) => setEditorType(e.target.value)}>
+                  <option value="warmup">练前热身 (Warmup)</option>
+                  <option value="stretching">练后拉伸 (Stretching)</option>
+                  <option value="custom">自定义安排 (Custom)</option>
+                </select>
+              </div>
+
+              {/* Description */}
+              <div className="flex flex-col gap-1.5">
+                <label className="section-subtitle select-none mb-0">模板描述</label>
+                <textarea placeholder="输入描述信息（如：用于深蹲日之后的静态肌肉放松）"
+                  className="textarea textarea-bordered w-full bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary text-xs h-16 resize-none p-2"
+                  value={editorDescription} onChange={(e) => setEditorDescription(e.target.value)} />
+              </div>
+
+              {/* Target Body Parts */}
+              <div className="flex flex-col gap-1.5 select-none">
+                <label className="section-subtitle select-none mb-0">针对部位</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {['全身', '上肢', '下肢', '肩部', '胸部', '背部', '臀部', '核心', '膝部'].map(part => {
+                    const isSelected = editorBodyParts.includes(part);
+                    return (
+                      <button key={part} type="button"
+                        onClick={() => handleToggleBodyPart(part)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-primary text-white border-primary shadow-sm'
+                            : 'bg-bg-main/20 dark:bg-bg-main-dark/20 text-text-secondary border-border-card dark:border-border-card-dark hover:bg-bg-hover'
+                        }`}>
+                        {part}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Exercises編排 */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between border-b border-border-card/30 dark:border-border-card-dark/30 pb-1 select-none">
+                  <label className="section-subtitle select-none mb-0">动作编排</label>
+                  <button type="button" onClick={() => { setShowExerciseSelector(true); setExerciseSelectorSearch(''); }}
+                    className="btn btn-ghost btn-xs text-primary hover:bg-primary/10 px-2 rounded font-bold flex items-center gap-0.5 cursor-pointer">
+                    <Plus size={12} />
+                    <span>添加动作</span>
+                  </button>
+                </div>
+
+                {editorExercises.length === 0 ? (
+                  <p className="text-center py-6 text-xs text-text-secondary/60 bg-bg-main/10 dark:bg-bg-main-dark/10 rounded-xl border border-dashed border-border-card/50 dark:border-border-card-dark/50 select-none">
+                    暂无动作，点击右上角“添加动作”开始编排
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {editorExercises.map((item, idx) => {
+                      const exInfo = exercisesMap?.[item.exercise] || allExercises.find(e => e.name === item.exercise);
+                      const exName = exInfo?.name_cn || item.exercise;
+                      const isDuration = item.recording_method === 'duration_only';
+                      const typeLabel = EXERCISE_TYPE_MAP[exInfo?.exercise_type] || exInfo?.exercise_type || '其他';
+                      return (
+                        <div key={idx} className="flex items-center justify-between gap-3 p-3 bg-bg-main/20 dark:bg-bg-main-dark/20 rounded-xl border border-border-card/50 dark:border-border-card-dark/50 animate-fadeIn">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-text-main dark:text-text-main-dark truncate">{exName}</p>
+                            <span className="badge badge-outline border-border-card text-[8px] scale-90 -translate-x-1 font-bold whitespace-nowrap bg-bg-main/30">
+                              {typeLabel}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2.5 shrink-0 select-none">
+                            {/* Sets */}
+                            <div className="flex items-center gap-1">
+                              <input type="number" min="1" max="10"
+                                className="h-7 w-8 rounded border border-border-card text-center text-xs font-mono font-bold bg-bg-card dark:bg-bg-card-dark focus:outline-none focus:ring-1 focus:ring-primary px-0"
+                                value={item.sets || 1}
+                                onChange={(e) => handleUpdateEditorExercise(idx, { sets: Math.max(1, parseInt(e.target.value) || 1) })}
+                              />
+                              <span className="text-[10px] text-text-secondary select-none">组</span>
+                            </div>
+
+                            {/* Reps or Duration */}
+                            <div className="flex items-center gap-1">
+                              {isDuration ? (
+                                <>
+                                  <input type="number" min="5" max="300" step="5"
+                                    className="h-7 w-12 rounded border border-border-card text-center text-xs font-mono font-bold bg-bg-card dark:bg-bg-card-dark focus:outline-none focus:ring-1 focus:ring-primary px-0"
+                                    value={item.duration_seconds || 30}
+                                    onChange={(e) => handleUpdateEditorExercise(idx, { duration_seconds: Math.max(1, parseInt(e.target.value) || 30) })}
+                                  />
+                                  <span className="text-[10px] text-text-secondary select-none">秒</span>
+                                </>
+                              ) : (
+                                <>
+                                  <input type="number" min="1" max="100"
+                                    className="h-7 w-10 rounded border border-border-card text-center text-xs font-mono font-bold bg-bg-card dark:bg-bg-card-dark focus:outline-none focus:ring-1 focus:ring-primary px-0"
+                                    value={item.reps || 10}
+                                    onChange={(e) => handleUpdateEditorExercise(idx, { reps: Math.max(1, parseInt(e.target.value) || 10) })}
+                                  />
+                                  <span className="text-[10px] text-text-secondary select-none">次</span>
+                                </>
+                              )}
+                            </div>
+
+                            <button type="button" onClick={() => handleRemoveEditorExercise(idx)}
+                              className="w-7 h-7 rounded hover:bg-bg-hover dark:hover:bg-bg-hover-dark text-text-secondary hover:text-error flex items-center justify-center transition-all text-xs font-bold cursor-pointer">
+                              ×
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex gap-2.5 mt-2 select-none">
+              <button type="button" onClick={() => setShowTemplateEditor(false)}
+                className="btn-sec flex-1 py-2 h-11 text-xs">
+                取消
+              </button>
+              <button type="button" onClick={handleSaveTemplate}
+                className="btn-main flex-1 py-2 h-11 text-xs bg-primary hover:bg-primary-hover shadow-md font-bold animate-pulse">
+                保存模板
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Editor Inner Exercise Selector Modal */}
+      {showExerciseSelector && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card dark:border-border-card-dark w-full max-w-sm rounded-2xl shadow-xl flex flex-col max-h-[75vh] overflow-hidden">
+            {/* Header */}
+            <div className="p-3 border-b border-border-card dark:border-border-card-dark flex items-center justify-between select-none">
+              <h3 className="text-sm font-bold text-text-main dark:text-text-main-dark">选择模板动作</h3>
+              <button type="button" onClick={() => setShowExerciseSelector(false)}
+                className="w-6 h-6 rounded-lg hover:bg-bg-hover dark:hover:bg-bg-hover-dark text-text-secondary hover:text-text-main flex items-center justify-center text-sm font-bold cursor-pointer">
+                ×
+              </button>
+            </div>
+
+            {/* Search Bar */}
+            <div className="p-3 border-b border-border-card dark:border-border-card-dark space-y-2">
+              <div className="relative">
+                <input type="text" placeholder="搜索动作名称、流派..."
+                  className="input input-bordered input-sm w-full pl-8 bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary text-xs h-8"
+                  value={exerciseSelectorSearch} onChange={(e) => setExerciseSelectorSearch(e.target.value)} autoFocus />
+                <Search size={12} className="absolute left-2.5 top-2.5 text-text-secondary/50" />
+              </div>
+
+              {/* Genre Filter */}
+              <div className="flex gap-1 overflow-x-auto pb-1 select-none">
+                {[
+                  { label: '全部', value: '' },
+                  { label: '拉伸', value: 'stretching' },
+                  { label: '动物流', value: 'animal_flow' },
+                  { label: '关节活动', value: 'mobility' },
+                  { label: '筋膜放松', value: 'myofascial_release' },
+                  { label: '力量', value: 'strength' }
+                ].map(genre => (
+                  <button key={genre.value} type="button"
+                    onClick={() => setExerciseSelectorType(genre.value)}
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all shrink-0 whitespace-nowrap cursor-pointer ${
+                      exerciseSelectorType === genre.value
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-bg-main/20 dark:bg-bg-main-dark/20 text-text-secondary border-border-card dark:border-border-card-dark'
+                    }`}>
+                    {genre.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Scrollable list */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-bg-main/5 dark:bg-bg-main-dark/5">
+              {(() => {
+                const filtered = allExercises.filter(ex => {
+                  if (exerciseSelectorType && ex.exercise_type !== exerciseSelectorType) return false;
+                  if (exerciseSelectorSearch.trim()) {
+                    const q = exerciseSelectorSearch.trim().toLowerCase();
+                    const name = (ex.name || '').toLowerCase();
+                    const nameCn = (ex.name_cn || '').toLowerCase();
+                    if (!name.includes(q) && !nameCn.includes(q)) return false;
+                  }
+                  return true;
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <p className="text-center py-6 text-xs text-text-secondary/50 select-none">无匹配动作</p>
+                  );
+                }
+
+                return filtered.map(ex => {
+                  const isAdded = editorExercises.some(item => item.exercise === ex.name);
+                  const typeLabel = EXERCISE_TYPE_MAP[ex.exercise_type] || ex.exercise_type;
+                  
+                  return (
+                    <button key={ex.id} type="button"
+                      disabled={isAdded}
+                      onClick={() => handleAddExerciseToEditor(ex)}
+                      className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all border border-transparent hover:bg-bg-hover dark:hover:bg-bg-hover-dark cursor-pointer disabled:opacity-50 disabled:pointer-events-none`}>
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-bold text-text-main dark:text-text-main-dark truncate">
+                            {ex.name_cn || ex.name}
+                          </span>
+                          <span className="badge badge-outline border-border-card text-[8px] scale-90 -translate-x-0.5 font-bold whitespace-nowrap bg-bg-main/30">
+                            {typeLabel}
+                          </span>
+                        </div>
+                        <span className="text-[9px] text-text-secondary/70 font-mono mt-0.5">
+                          记录: {RECORDING_METHOD_MAP[ex.recording_method] || ex.recording_method}
+                        </span>
+                      </div>
+                      {isAdded && (
+                        <span className="text-[9px] text-text-secondary/50 font-bold bg-bg-main/20 px-1.5 py-0.5 rounded select-none">已添加</span>
+                      )}
+                    </button>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -4,7 +4,8 @@ import {
   fetchLastEndedUserProgram,
   fetchExercises,
   fetchOneRmRecords,
-  saveUserProgram
+  saveUserProgram,
+  fetchWorkoutTemplates
 } from './services/programService';
 import { Loader2, ArrowLeft, Save, ShieldAlert, CheckCircle, Scale, Zap, Dumbbell, Search, Calendar, Sparkles, Calculator, X } from 'lucide-react';
 import { convertWeight, toStorageWeight, roundToClosestLoadable } from './unitUtils';
@@ -258,6 +259,131 @@ function InfiniteScrollPicker({ options, value, onChange, label }) {
   );
 }
 
+// ==================== WarmupSetsEditor ====================
+function WarmupSetsEditor({ enabled, onEnabledChange, sets, onSetsChange }) {
+  const [open, setOpen] = useState(false);
+
+  const update = (i, patch) => {
+    const next = sets.map((s, idx) => idx === i ? { ...s, ...patch } : s);
+    onSetsChange(next);
+  };
+  const remove = (i) => {
+    onSetsChange(sets.filter((_, idx) => idx !== i));
+  };
+  const add = () => {
+    onSetsChange([
+      ...sets,
+      { pct: 50, reps: 5 }
+    ]);
+  };
+  const applyDefault = () => {
+    onSetsChange([
+      { pct: 50, reps: 5 },
+      { pct: 75, reps: 3 }
+    ]);
+  };
+
+  const label = sets && sets.length > 0 
+    ? sets.map(s => `${s.pct}%×${s.reps}下`).join(' → ')
+    : '使用默认两组热身比例 (50%×5, 75%×3)';
+
+  return (
+    <div className="text-xs border border-border-card/50 dark:border-border-card-dark/50 rounded-md p-2 bg-bg-main/30 dark:bg-bg-main-dark/30 shadow-xs mt-1.5">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <label className="flex items-center gap-1.5 font-bold text-text-main dark:text-text-main-dark cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={!!enabled}
+            onChange={(e) => onEnabledChange(e.target.checked)}
+            className="checkbox checkbox-xs checkbox-primary"
+          />
+          <span>配置热身组</span>
+        </label>
+        {enabled && (
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              type="button"
+              onClick={() => setOpen(!open)}
+              className="text-[10px] text-text-secondary dark:text-text-secondary-dark hover:text-text-main transition-colors font-bold cursor-pointer"
+            >
+              配置详情 ({sets ? sets.length : 0}组) {open ? '▲' : '▼'}
+            </button>
+            <button
+              type="button"
+              onClick={applyDefault}
+              className="text-[10px] text-primary hover:underline font-bold flex items-center gap-0.5 cursor-pointer"
+              title="一键应用默认热身组"
+            >
+              ⚡ 默认热身组
+            </button>
+          </div>
+        )}
+      </div>
+
+      {enabled && (
+        <div className="mt-1 text-[10px] text-text-secondary font-mono leading-tight">
+          当前：{label}
+        </div>
+      )}
+
+      {enabled && open && (
+        <div className="mt-2 pt-2 border-t border-border-card/40 dark:border-border-card-dark/40 space-y-1.5">
+          {(sets || []).map((s, i) => (
+            <div key={i} className="flex items-center gap-1.5 bg-bg-main/40 dark:bg-bg-main-dark/40 p-1.5 rounded-md border border-border-card/30 dark:border-border-card-dark/30">
+              <span className="text-[10px] text-text-secondary font-semibold shrink-0">第 {i+1} 组</span>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  value={s.pct || ''}
+                  min={1}
+                  max={200}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    update(i, { pct: val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0) });
+                  }}
+                  onBlur={() => { if (!s.pct || s.pct < 1) update(i, { pct: 50 }); }}
+                  className="h-7 w-12 rounded border border-input bg-bg-card dark:bg-bg-card-dark text-center text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary px-0 text-text-main dark:text-text-main-dark"
+                />
+                <span className="text-[10px] text-text-secondary shrink-0">% 重量</span>
+              </div>
+              <span className="text-[10px] text-text-secondary/50 shrink-0">×</span>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  value={s.reps || ''}
+                  min={1}
+                  max={100}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    update(i, { reps: val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0) });
+                  }}
+                  onBlur={() => { if (!s.reps || s.reps < 1) update(i, { reps: 5 }); }}
+                  className="h-7 w-10 rounded border border-input bg-bg-card dark:bg-bg-card-dark text-center text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary px-0 text-text-main dark:text-text-main-dark"
+                />
+                <span className="text-[10px] text-text-secondary shrink-0">次</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                className="text-[10px] text-error hover:underline ml-auto font-bold cursor-pointer"
+              >
+                删除
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={add}
+            className="w-full py-1 border border-dashed border-border-card/60 dark:border-border-card-dark/60 rounded-md text-center text-xs text-text-secondary hover:text-text-main hover:bg-bg-main/30 font-bold cursor-pointer"
+          >
+            + 新增热身组
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ==================== ProgressionChainEditor ====================
 // 移植自插件 GzclpConfigPanel.tsx:193-277
 function ProgressionChainEditor({ chain, onChange, tierLabel }) {
@@ -416,6 +542,21 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
   const [pressT1Chain, setPressT1Chain] = useState(DEFAULT_T1_CHAIN.map(s => ({ ...s })));
   const [pressT2Chain, setPressT2Chain] = useState(DEFAULT_T2_CHAIN.map(s => ({ ...s })));
 
+  // 热身组配置状态
+  const [squatWarmupEnabled, setSquatWarmupEnabled] = useState(false);
+  const [squatWarmupSets, setSquatWarmupSets] = useState([]);
+  const [benchWarmupEnabled, setBenchWarmupEnabled] = useState(false);
+  const [benchWarmupSets, setBenchWarmupSets] = useState([]);
+  const [deadliftWarmupEnabled, setDeadliftWarmupEnabled] = useState(false);
+  const [deadliftWarmupSets, setDeadliftWarmupSets] = useState([]);
+  const [pressWarmupEnabled, setPressWarmupEnabled] = useState(false);
+  const [pressWarmupSets, setPressWarmupSets] = useState([]);
+
+  // 模板库与导入状态
+  const [workoutTemplates, setWorkoutTemplates] = useState([]);
+  const [templateImporterOpen, setTemplateImporterOpen] = useState(false);
+  const [importerTarget, setImporterTarget] = useState(null); // { dayLabel, type: 'warmup' | 'stretching' }
+
   // 1RM 拉取钩子
   const latestOneRms = useLatestOneRms();
 
@@ -548,10 +689,14 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
     setLoading(true);
     setError(null);
     try {
-      // 并行加载：user_programs 当前活跃配置 + 动作库
-      const [existingActive, exRes] = await Promise.all([
+      // 并行加载：user_programs 当前活跃配置 + 动作库 + 模板库
+      const [existingActive, exRes, templatesRes] = await Promise.all([
         fetchActiveUserProgram(program.id),
-        fetchExercises()
+        fetchExercises(),
+        fetchWorkoutTemplates().catch(err => {
+          console.warn('加载模板库失败:', err);
+          return [];
+        })
       ]);
 
       let existingUP = existingActive;
@@ -576,6 +721,8 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
 
       // 加载动作库
       setExercises(exRes || []);
+      // 加载模板库
+      setWorkoutTemplates(templatesRes || []);
 
       // 从 exercise_config 加载 T3 动作配置
       const t3Names = Object.keys(ec).filter(key =>
@@ -594,7 +741,9 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
       const baseDayMap = userDayMap || program.config?.day_map || {};
       const template = Object.keys(baseDayMap).map(label => ({
         label,
-        t3: baseDayMap[label]?.T3 || []
+        t3: baseDayMap[label]?.T3 || [],
+        warmup: baseDayMap[label]?.warmup || [],
+        stretching: baseDayMap[label]?.stretching || []
       }));
       if (template.length > 0) {
         setDayTemplate(template);
@@ -663,6 +812,16 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
       const deT2c = loadChain(getT2Chain('deadlift')); if (deT2c) setDeadliftT2Chain(deT2c);
       const prT1c = loadChain(getT1Chain('press')); if (prT1c) setPressT1Chain(prT1c);
       const prT2c = loadChain(getT2Chain('press')); if (prT2c) setPressT2Chain(prT2c);
+
+      // 加载各主项的热身配置
+      setSquatWarmupEnabled(ec.squat?.warmup_enabled || false);
+      setSquatWarmupSets(ec.squat?.warmup_sets || []);
+      setBenchWarmupEnabled(ec.bench?.warmup_enabled || false);
+      setBenchWarmupSets(ec.bench?.warmup_sets || []);
+      setDeadliftWarmupEnabled(ec.deadlift?.warmup_enabled || false);
+      setDeadliftWarmupSets(ec.deadlift?.warmup_sets || []);
+      setPressWarmupEnabled(ec.press?.warmup_enabled || false);
+      setPressWarmupSets(ec.press?.warmup_sets || []);
 
       // 加载训练日程
       if (schedule?.scheduleType) {
@@ -792,6 +951,8 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
           t1_chain: squatT1Chain.map(s => ({ sets: s.sets, reps: s.reps, amrap: !!s.amrap })),
           t2_chain: squatT2Chain.map(s => ({ sets: s.sets, reps: s.reps, amrap: !!s.amrap })),
           unit: exerciseUnits.squat || weightUnit,
+          warmup_enabled: squatWarmupEnabled,
+          warmup_sets: squatWarmupSets,
         },
         bench: {
           initial_weight: toKg(benchW, 'bench'),
@@ -801,6 +962,8 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
           t1_chain: benchT1Chain.map(s => ({ sets: s.sets, reps: s.reps, amrap: !!s.amrap })),
           t2_chain: benchT2Chain.map(s => ({ sets: s.sets, reps: s.reps, amrap: !!s.amrap })),
           unit: exerciseUnits.bench || weightUnit,
+          warmup_enabled: benchWarmupEnabled,
+          warmup_sets: benchWarmupSets,
         },
         deadlift: {
           initial_weight: toKg(deadliftW, 'deadlift'),
@@ -810,6 +973,8 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
           t1_chain: deadliftT1Chain.map(s => ({ sets: s.sets, reps: s.reps, amrap: !!s.amrap })),
           t2_chain: deadliftT2Chain.map(s => ({ sets: s.sets, reps: s.reps, amrap: !!s.amrap })),
           unit: exerciseUnits.deadlift || weightUnit,
+          warmup_enabled: deadliftWarmupEnabled,
+          warmup_sets: deadliftWarmupSets,
         },
         press: {
           initial_weight: toKg(pressW, 'press'),
@@ -819,6 +984,8 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
           t1_chain: pressT1Chain.map(s => ({ sets: s.sets, reps: s.reps, amrap: !!s.amrap })),
           t2_chain: pressT2Chain.map(s => ({ sets: s.sets, reps: s.reps, amrap: !!s.amrap })),
           unit: exerciseUnits.press || weightUnit,
+          warmup_enabled: pressWarmupEnabled,
+          warmup_sets: pressWarmupSets,
         },
         ...Object.fromEntries(t3Exercises.map(ex => {
           const unit = exerciseUnits[ex.name] || weightUnit;
@@ -834,12 +1001,14 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
         }))
       };
 
-      // 构建更新后的 day_map（包含用户选择的 T3 动作）
+      // 构建更新后的 day_map（包含用户选择的 T3 动作、热身和拉伸动作）
       const updatedDayMap = {};
       for (const day of dayTemplate) {
         updatedDayMap[day.label] = {
           ...program.config?.day_map?.[day.label],
-          T3: (day.t3 || []).filter(name => name && name.trim())
+          T3: (day.t3 || []).filter(name => name && name.trim()),
+          warmup: (day.warmup || []).filter(item => item.exercise && item.exercise.trim()),
+          stretching: (day.stretching || []).filter(item => item.exercise && item.exercise.trim())
         };
       }
 
@@ -876,6 +1045,35 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
     } finally {
       setSaving(false);
     }
+  };
+
+  // ============== 从模板库导入热身/拉伸 ==============
+  const handleImportTemplate = (template) => {
+    if (!importerTarget) return;
+    const { dayLabel, type } = importerTarget;
+    
+    const newExercises = (template.exercises || []).map(item => ({
+      exercise: item.exercise,
+      sets: item.sets || 2,
+      reps: item.reps || 10,
+      recording_method: item.recording_method || 'reps_only'
+    }));
+
+    const newTemplate = dayTemplate.map(d => {
+      if (d.label === dayLabel) {
+        return {
+          ...d,
+          [type]: [
+            ...(d[type] || []).filter(ex => ex.exercise), // 过滤掉未填写的空行
+            ...newExercises
+          ]
+        };
+      }
+      return d;
+    });
+
+    setDayTemplate(newTemplate);
+    setTemplateImporterOpen(false);
   };
 
   // ============== 一键应用: 1RM → initial_weight ==============
@@ -1347,10 +1545,10 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
         <div className="flex flex-col gap-3">
           {(() => {
             const lifts = [
-              { key: 'squat',    label: '深蹲 (Squat)',    oneRm: squatOneRm,    setOneRm: setSquatOneRm,    t1Step: squatT1Step, setT1: setSquatT1Step,    t2Step: squatT2Step, setT2: setSquatT2Step,    t1Chain: squatT1Chain, setT1Chain: setSquatT1Chain, t2Chain: squatT2Chain, setT2Chain: setSquatT2Chain },
-              { key: 'bench',    label: '卧推 (Bench)',    oneRm: benchOneRm,    setOneRm: setBenchOneRm,    t1Step: benchT1Step, setT1: setBenchT1Step,    t2Step: benchT2Step, setT2: setBenchT2Step,    t1Chain: benchT1Chain, setT1Chain: setBenchT1Chain, t2Chain: benchT2Chain, setT2Chain: setBenchT2Chain },
-              { key: 'deadlift', label: '硬拉 (Deadlift)', oneRm: deadliftOneRm, setOneRm: setDeadliftOneRm, t1Step: deadliftT1Step, setT1: setDeadliftT1Step, t2Step: deadliftT2Step, setT2: setDeadliftT2Step, t1Chain: deadliftT1Chain, setT1Chain: setDeadliftT1Chain, t2Chain: deadliftT2Chain, setT2Chain: setDeadliftT2Chain },
-              { key: 'press',    label: '推举 (Press)',    oneRm: pressOneRm,    setOneRm: setPressOneRm,    t1Step: pressT1Step, setT1: setPressT1Step,    t2Step: pressT2Step, setT2: setPressT2Step,    t1Chain: pressT1Chain, setT1Chain: setPressT1Chain, t2Chain: pressT2Chain, setT2Chain: setPressT2Chain },
+              { key: 'squat',    label: '深蹲 (Squat)',    oneRm: squatOneRm,    setOneRm: setSquatOneRm,    t1Step: squatT1Step, setT1: setSquatT1Step,    t2Step: squatT2Step, setT2: setSquatT2Step,    t1Chain: squatT1Chain, setT1Chain: setSquatT1Chain, t2Chain: squatT2Chain, setT2Chain: setSquatT2Chain, warmupEnabled: squatWarmupEnabled, setWarmupEnabled: setSquatWarmupEnabled, warmupSets: squatWarmupSets, setWarmupSets: setSquatWarmupSets },
+              { key: 'bench',    label: '卧推 (Bench)',    oneRm: benchOneRm,    setOneRm: setBenchOneRm,    t1Step: benchT1Step, setT1: setBenchT1Step,    t2Step: benchT2Step, setT2: setBenchT2Step,    t1Chain: benchT1Chain, setT1Chain: setBenchT1Chain, t2Chain: benchT2Chain, setT2Chain: setBenchT2Chain, warmupEnabled: benchWarmupEnabled, setWarmupEnabled: setBenchWarmupEnabled, warmupSets: benchWarmupSets, setWarmupSets: setBenchWarmupSets },
+              { key: 'deadlift', label: '硬拉 (Deadlift)', oneRm: deadliftOneRm, setOneRm: setDeadliftOneRm, t1Step: deadliftT1Step, setT1: setDeadliftT1Step, t2Step: deadliftT2Step, setT2: setDeadliftT2Step, t1Chain: deadliftT1Chain, setT1Chain: setDeadliftT1Chain, t2Chain: deadliftT2Chain, setT2Chain: setDeadliftT2Chain, warmupEnabled: deadliftWarmupEnabled, setWarmupEnabled: setDeadliftWarmupEnabled, warmupSets: deadliftWarmupSets, setWarmupSets: setDeadliftWarmupSets },
+              { key: 'press',    label: '推举 (Press)',    oneRm: pressOneRm,    setOneRm: setPressOneRm,    t1Step: pressT1Step, setT1: setPressT1Step,    t2Step: pressT2Step, setT2: setPressT2Step,    t1Chain: pressT1Chain, setT1Chain: setPressT1Chain, t2Chain: pressT2Chain, setT2Chain: setPressT2Chain, warmupEnabled: pressWarmupEnabled, setWarmupEnabled: setPressWarmupEnabled, warmupSets: pressWarmupSets, setWarmupSets: setPressWarmupSets },
             ];
             return lifts.map(L => {
               const exUnit = exerciseUnits[L.key] || weightUnit;
@@ -1469,6 +1667,12 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                       tierLabel="T2"
                       chain={L.t2Chain}
                       onChange={L.setT2Chain}
+                    />
+                    <WarmupSetsEditor
+                      enabled={L.warmupEnabled}
+                      onEnabledChange={L.setWarmupEnabled}
+                      sets={L.warmupSets}
+                      onSetsChange={L.setWarmupSets}
                     />
                   </div>
                 </div>
@@ -1689,14 +1893,308 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
         })()}
       </div>
 
-      {/* T3 动作选择器模态框 */}
+      {/* 4. 练前热身与练后拉伸 */}
+      <div className="card flex flex-col gap-4">
+        <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
+          <Sparkles size={16} className="text-primary" /><span>第四步：练前热身与练后拉伸</span>
+        </h3>
+        <p className="text-xs text-text-secondary dark:text-text-secondary-dark leading-relaxed">
+          合理的练前热身与练后拉伸可以显著改善关节活动度、提高训练表现并加速恢复。您可以为每个训练日独立配置动作，或直接从模板库导入常用组合。
+        </p>
+
+        <div className="flex flex-col gap-4">
+          {dayTemplate.map((day, dayIdx) => (
+            <div key={day.label} className="flex flex-col gap-3 p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50">
+              <div className="flex items-center justify-between border-b border-border-card/30 pb-1.5">
+                <span className="text-sm font-black text-text-main dark:text-text-main-dark">{day.label} 动作流</span>
+              </div>
+
+              {/* 练前热身 (Warmup) */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-tier-t1 flex items-center gap-1">⚡ 练前热身</span>
+                  <button
+                    type="button"
+                    className="text-[10px] text-primary hover:underline font-bold bg-transparent border-0 cursor-pointer"
+                    onClick={() => {
+                      setImporterTarget({ dayLabel: day.label, type: 'warmup' });
+                      setTemplateImporterOpen(true);
+                    }}
+                  >
+                    从模板导入
+                  </button>
+                </div>
+                
+                <div className="flex flex-col gap-2">
+                  {(day.warmup || []).map((item, idx) => {
+                    const exInfo = exerciseNameMap[item.exercise];
+                    const displayName = exInfo?.name_cn || item.exercise;
+                    const suffix = item.recording_method === 'duration_only' ? '秒' : '次';
+                    return (
+                      <div key={idx} className="flex items-center gap-1.5 bg-bg-card dark:bg-bg-card-dark p-1.5 rounded-lg border border-border-card/40 dark:border-border-card-dark/40">
+                        {/* 动作选择按钮 */}
+                        <button
+                          type="button"
+                          className="flex-1 text-left justify-start cursor-pointer truncate text-xs font-bold bg-transparent border-0 text-text-main dark:text-text-main-dark"
+                          onClick={() => {
+                            setSelectingTarget({ dayLabel: day.label, idx, type: 'warmup' });
+                            setSelectorShowAll(false);
+                            setSelectorOpen(true);
+                          }}
+                        >
+                          <span className={item.exercise ? 'text-text-main dark:text-text-main-dark' : 'text-text-secondary/70 italic font-normal'}>
+                            {displayName || '点击选择动作...'}
+                          </span>
+                        </button>
+                        
+                        {/* 组数输入 */}
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <input
+                            type="number"
+                            min="1"
+                            max="20"
+                            value={item.sets || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const newTemplate = [...dayTemplate];
+                              newTemplate[dayIdx].warmup[idx].sets = val === '' ? 0 : Math.max(1, parseInt(val, 10) || 1);
+                              setDayTemplate(newTemplate);
+                            }}
+                            className="h-7 w-8 rounded border border-border-card bg-bg-main/20 text-center text-xs font-semibold font-mono text-text-main dark:text-text-main-dark"
+                          />
+                          <span className="text-[10px] text-text-secondary">组</span>
+                        </div>
+
+                        {/* 次数/秒数输入 */}
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <input
+                            type="number"
+                            min="1"
+                            max="600"
+                            value={item.reps || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const newTemplate = [...dayTemplate];
+                              newTemplate[dayIdx].warmup[idx].reps = val === '' ? 0 : Math.max(1, parseInt(val, 10) || 1);
+                              setDayTemplate(newTemplate);
+                            }}
+                            className="h-7 w-10 rounded border border-border-card bg-bg-main/20 text-center text-xs font-semibold font-mono text-text-main dark:text-text-main-dark"
+                          />
+                          <span className="text-[10px] text-text-secondary">{suffix}</span>
+                        </div>
+
+                        {/* 删除按钮 */}
+                        <button
+                          type="button"
+                          className="text-error hover:text-error/80 p-1 font-extrabold text-xs shrink-0 bg-transparent border-0 cursor-pointer"
+                          onClick={() => {
+                            const newTemplate = [...dayTemplate];
+                            newTemplate[dayIdx].warmup.splice(idx, 1);
+                            setDayTemplate(newTemplate);
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    );
+                  })}
+                  
+                  <button
+                    type="button"
+                    className="py-1 border border-dashed border-border-card/60 dark:border-border-card-dark/60 rounded-lg text-center text-xs text-text-secondary hover:text-text-main hover:bg-bg-main/30 font-bold cursor-pointer"
+                    onClick={() => {
+                      const newTemplate = [...dayTemplate];
+                      newTemplate[dayIdx].warmup = [
+                        ...(newTemplate[dayIdx].warmup || []),
+                        { exercise: '', sets: 2, reps: 10, recording_method: 'reps_only' }
+                      ];
+                      setDayTemplate(newTemplate);
+                    }}
+                  >
+                    + 添加热身动作
+                  </button>
+                </div>
+              </div>
+
+              {/* 练后拉伸 (Stretching) */}
+              <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-border-card/20">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-tier-t2 flex items-center gap-1">🧘 练后拉伸</span>
+                  <button
+                    type="button"
+                    className="text-[10px] text-primary hover:underline font-bold bg-transparent border-0 cursor-pointer"
+                    onClick={() => {
+                      setImporterTarget({ dayLabel: day.label, type: 'stretching' });
+                      setTemplateImporterOpen(true);
+                    }}
+                  >
+                    从模板导入
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {(day.stretching || []).map((item, idx) => {
+                    const exInfo = exerciseNameMap[item.exercise];
+                    const displayName = exInfo?.name_cn || item.exercise;
+                    const suffix = item.recording_method === 'duration_only' ? '秒' : '次';
+                    return (
+                      <div key={idx} className="flex items-center gap-1.5 bg-bg-card dark:bg-bg-card-dark p-1.5 rounded-lg border border-border-card/40 dark:border-border-card-dark/40">
+                        {/* 动作选择按钮 */}
+                        <button
+                          type="button"
+                          className="flex-1 text-left justify-start cursor-pointer truncate text-xs font-bold bg-transparent border-0 text-text-main dark:text-text-main-dark"
+                          onClick={() => {
+                            setSelectingTarget({ dayLabel: day.label, idx, type: 'stretching' });
+                            setSelectorShowAll(false);
+                            setSelectorOpen(true);
+                          }}
+                        >
+                          <span className={item.exercise ? 'text-text-main dark:text-text-main-dark' : 'text-text-secondary/70 italic font-normal'}>
+                            {displayName || '点击选择动作...'}
+                          </span>
+                        </button>
+                        
+                        {/* 组数输入 */}
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <input
+                            type="number"
+                            min="1"
+                            max="20"
+                            value={item.sets || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const newTemplate = [...dayTemplate];
+                              newTemplate[dayIdx].stretching[idx].sets = val === '' ? 0 : Math.max(1, parseInt(val, 10) || 1);
+                              setDayTemplate(newTemplate);
+                            }}
+                            className="h-7 w-8 rounded border border-border-card bg-bg-main/20 text-center text-xs font-semibold font-mono text-text-main dark:text-text-main-dark"
+                          />
+                          <span className="text-[10px] text-text-secondary">组</span>
+                        </div>
+
+                        {/* 次数/秒数输入 */}
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <input
+                            type="number"
+                            min="1"
+                            max="600"
+                            value={item.reps || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const newTemplate = [...dayTemplate];
+                              newTemplate[dayIdx].stretching[idx].reps = val === '' ? 0 : Math.max(1, parseInt(val, 10) || 1);
+                              setDayTemplate(newTemplate);
+                            }}
+                            className="h-7 w-10 rounded border border-border-card bg-bg-main/20 text-center text-xs font-semibold font-mono text-text-main dark:text-text-main-dark"
+                          />
+                          <span className="text-[10px] text-text-secondary">{suffix}</span>
+                        </div>
+
+                        {/* 删除按钮 */}
+                        <button
+                          type="button"
+                          className="text-error hover:text-error/80 p-1 font-extrabold text-xs shrink-0 bg-transparent border-0 cursor-pointer"
+                          onClick={() => {
+                            const newTemplate = [...dayTemplate];
+                            newTemplate[dayIdx].stretching.splice(idx, 1);
+                            setDayTemplate(newTemplate);
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    className="py-1 border border-dashed border-border-card/60 dark:border-border-card-dark/60 rounded-lg text-center text-xs text-text-secondary hover:text-text-main hover:bg-bg-main/30 font-bold cursor-pointer"
+                    onClick={() => {
+                      const newTemplate = [...dayTemplate];
+                      newTemplate[dayIdx].stretching = [
+                        ...(newTemplate[dayIdx].stretching || []),
+                        { exercise: '', sets: 2, reps: 30, recording_method: 'duration_only' }
+                      ];
+                      setDayTemplate(newTemplate);
+                    }}
+                  >
+                    + 添加拉伸动作
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 模板导入弹窗 */}
+      {templateImporterOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs select-none">
+          <div className="bg-bg-card dark:bg-bg-card-dark rounded-2xl w-full max-w-sm border border-border-card dark:border-border-card-dark shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-sheet-slide-up">
+            <div className="p-4 border-b border-border-card dark:border-border-card-dark flex items-center justify-between">
+              <h3 className="text-sm font-bold text-text-main dark:text-text-main-dark">
+                选择要导入的 {importerTarget?.type === 'warmup' ? '热身' : '拉伸'} 模板
+              </h3>
+              <button
+                type="button"
+                onClick={() => setTemplateImporterOpen(false)}
+                className="text-text-secondary hover:text-text-main font-bold text-sm bg-transparent border-0 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {workoutTemplates
+                .filter(t => t.type === importerTarget?.type)
+                .map(t => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className="w-full text-left p-3 rounded-xl border border-border-card dark:border-border-card-dark bg-bg-main/10 hover:bg-bg-hover transition-colors flex flex-col gap-1 cursor-pointer"
+                    onClick={() => handleImportTemplate(t)}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-xs font-bold text-text-main dark:text-text-main-dark">{t.name}</span>
+                      <div className="flex gap-1">
+                        {(t.target_body_parts || []).map((p, idx) => (
+                          <span key={idx} className="badge badge-xs badge-neutral text-[9px]">{p}</span>
+                        ))}
+                      </div>
+                    </div>
+                    {t.description && (
+                      <p className="text-[10px] text-text-secondary leading-relaxed mt-0.5">{t.description}</p>
+                    )}
+                    <div className="text-[9px] text-text-secondary/70 font-mono mt-1">
+                      动作数量: {(t.exercises || []).length} 个
+                    </div>
+                  </button>
+                ))}
+              {workoutTemplates.filter(t => t.type === importerTarget?.type).length === 0 && (
+                <div className="text-center py-8 text-text-secondary italic text-xs">
+                  暂无匹配类型的模板，请先在「模板库」中创建。
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 动作选择器模态框 */}
       {selectorOpen && selectingTarget && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-bg-card dark:bg-bg-card-dark border border-border-card dark:border-border-card-dark w-full max-w-sm rounded-2xl shadow-xl flex flex-col max-h-[80vh] overflow-hidden">
             {/* Header */}
             <div className="p-3.5 border-b border-border-card dark:border-border-card-dark flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-text-main dark:text-text-main-dark">选择 T3 辅助动作</h3>
+                <h3 className="text-sm font-bold text-text-main dark:text-text-main-dark">
+                  {selectingTarget.type === 'warmup'
+                    ? '选择练前热身动作'
+                    : selectingTarget.type === 'stretching'
+                      ? '选择练后拉伸动作'
+                      : '选择 T3 辅助动作'}
+                </h3>
                 <p className="text-xs text-text-secondary dark:text-text-secondary-dark mt-0.5">
                   为 {selectingTarget.dayLabel} 选择动作
                 </p>
@@ -1734,17 +2232,44 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                   </button>
                 ))}
               </div>
+              <div className="flex items-center justify-between pt-1 select-none">
+                <label className="flex items-center gap-1.5 text-xs text-text-secondary dark:text-text-secondary-dark cursor-pointer font-semibold">
+                  <input
+                    type="checkbox"
+                    checked={selectorShowAll}
+                    onChange={(e) => setSelectorShowAll(e.target.checked)}
+                    className="checkbox checkbox-xs checkbox-primary"
+                  />
+                  <span>显示动作库全部动作</span>
+                </label>
+              </div>
             </div>
 
             {/* Exercise List */}
             <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5 min-h-[150px] max-h-[40vh]">
               <button type="button" onClick={() => {
-                const newTemplate = dayTemplate.map(d =>
-                  d.label === selectingTarget.dayLabel
-                    ? { ...d, t3: d.t3.map((ex, i) => i === selectingTarget.idx ? '' : ex) }
-                    : d
-                );
-                setDayTemplate(newTemplate);
+                if (selectingTarget.type === 'warmup') {
+                  const newTemplate = dayTemplate.map(d =>
+                    d.label === selectingTarget.dayLabel
+                      ? { ...d, warmup: d.warmup.map((item, i) => i === selectingTarget.idx ? { ...item, exercise: '' } : item) }
+                      : d
+                  );
+                  setDayTemplate(newTemplate);
+                } else if (selectingTarget.type === 'stretching') {
+                  const newTemplate = dayTemplate.map(d =>
+                    d.label === selectingTarget.dayLabel
+                      ? { ...d, stretching: d.stretching.map((item, i) => i === selectingTarget.idx ? { ...item, exercise: '' } : item) }
+                      : d
+                  );
+                  setDayTemplate(newTemplate);
+                } else {
+                  const newTemplate = dayTemplate.map(d =>
+                    d.label === selectingTarget.dayLabel
+                      ? { ...d, t3: d.t3.map((ex, i) => i === selectingTarget.idx ? '' : ex) }
+                      : d
+                  );
+                  setDayTemplate(newTemplate);
+                }
                 setSelectorOpen(false);
               }}
                 className="w-full text-left p-2 rounded-lg border border-dashed border-border-card/60 dark:border-border-card-dark/60 hover:border-error/40 hover:bg-bg-alert/10 text-text-secondary hover:text-error flex items-center justify-between transition-all">
@@ -1752,7 +2277,12 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
               </button>
 
               {filteredExercises.map(ex => {
-                const isSelected = dayTemplate.find(d => d.label === selectingTarget.dayLabel)?.t3[selectingTarget.idx] === ex.name;
+                const isSelected = selectingTarget.type === 'warmup'
+                  ? dayTemplate.find(d => d.label === selectingTarget.dayLabel)?.warmup[selectingTarget.idx]?.exercise === ex.name
+                  : selectingTarget.type === 'stretching'
+                    ? dayTemplate.find(d => d.label === selectingTarget.dayLabel)?.stretching[selectingTarget.idx]?.exercise === ex.name
+                    : dayTemplate.find(d => d.label === selectingTarget.dayLabel)?.t3[selectingTarget.idx] === ex.name;
+
                 return (
                   <button key={ex.name} type="button"
                     className={`w-full text-left p-2 rounded-lg border transition-all flex items-center justify-between gap-3 cursor-pointer ${
@@ -1761,12 +2291,52 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                         : 'bg-bg-main/20 dark:bg-bg-main-dark/20 hover:bg-bg-hover dark:hover:bg-bg-hover-dark border-border-card/30 dark:border-border-card-dark/30 text-text-main dark:text-text-main-dark'
                     }`}
                     onClick={() => {
-                      const newTemplate = dayTemplate.map(d =>
-                        d.label === selectingTarget.dayLabel
-                          ? { ...d, t3: d.t3.map((name, i) => i === selectingTarget.idx ? ex.name : name) }
-                          : d
-                      );
-                      setDayTemplate(newTemplate);
+                      if (selectingTarget.type === 'warmup') {
+                        const newTemplate = dayTemplate.map(d =>
+                          d.label === selectingTarget.dayLabel
+                            ? {
+                                ...d,
+                                warmup: d.warmup.map((item, i) =>
+                                  i === selectingTarget.idx
+                                    ? {
+                                        exercise: ex.name,
+                                        sets: item.sets || 2,
+                                        reps: item.reps || (ex.recording_method === 'duration_only' ? 30 : 10),
+                                        recording_method: ex.recording_method || 'reps_only'
+                                      }
+                                    : item
+                                )
+                              }
+                            : d
+                        );
+                        setDayTemplate(newTemplate);
+                      } else if (selectingTarget.type === 'stretching') {
+                        const newTemplate = dayTemplate.map(d =>
+                          d.label === selectingTarget.dayLabel
+                            ? {
+                                ...d,
+                                stretching: d.stretching.map((item, i) =>
+                                  i === selectingTarget.idx
+                                    ? {
+                                        exercise: ex.name,
+                                        sets: item.sets || 2,
+                                        reps: item.reps || (ex.recording_method === 'duration_only' ? 30 : 10),
+                                        recording_method: ex.recording_method || 'reps_only'
+                                      }
+                                    : item
+                                )
+                              }
+                            : d
+                        );
+                        setDayTemplate(newTemplate);
+                      } else {
+                        const newTemplate = dayTemplate.map(d =>
+                          d.label === selectingTarget.dayLabel
+                            ? { ...d, t3: d.t3.map((name, i) => i === selectingTarget.idx ? ex.name : name) }
+                            : d
+                        );
+                        setDayTemplate(newTemplate);
+                      }
                       setSelectorOpen(false);
                     }}>
                     <div className="flex flex-col min-w-0">
@@ -1775,6 +2345,12 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                         <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark">{(ex.primary_muscles || []).slice(0, 2).join(', ')}</span>
                         <span className="text-[10px] text-text-secondary/50">•</span>
                         <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark">{(ex.equipment || []).slice(0, 1).join(', ')}</span>
+                        {ex.exercise_type && ex.exercise_type !== 'strength' && (
+                          <>
+                            <span className="text-[10px] text-text-secondary/50">•</span>
+                            <span className="text-[10px] text-primary font-bold">{ex.exercise_type === 'stretching' ? '拉伸' : ex.exercise_type === 'animal_flow' ? '动物流' : ex.exercise_type === 'mobility' ? '活动度' : '其它'}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                     {isSelected && (
