@@ -7,7 +7,7 @@ import {
   saveUserProgram,
   fetchWorkoutTemplates
 } from './services/programService';
-import { Loader2, ArrowLeft, Save, ShieldAlert, CheckCircle, Scale, Zap, Dumbbell, Search, Calendar, Sparkles, Calculator, X } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, ShieldAlert, CheckCircle, Scale, Zap, Dumbbell, Search, Calendar, Sparkles, Calculator, X, Shuffle } from 'lucide-react';
 import { convertWeight, toStorageWeight, roundToClosestLoadable } from './unitUtils';
 import { deriveStartFromOneRm, MAIN_LIFT_KEYS } from './oneRmUtils';
 import { getCNName } from './exerciseNames';
@@ -202,10 +202,10 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
   // T3 动作库相关
   const [exercises, setExercises] = useState([]);
   const [dayTemplate, setDayTemplate] = useState([
-    { label: 'Day1', t3: [] },
-    { label: 'Day2', t3: [] },
-    { label: 'Day3', t3: [] },
-    { label: 'Day4', t3: [] },
+    { label: 'Day1', T1: 'squat', T2: 'bench', t3: [] },
+    { label: 'Day2', T1: 'deadlift', T2: 'press', t3: [] },
+    { label: 'Day3', T1: 'bench', T2: 'squat', t3: [] },
+    { label: 'Day4', T1: 'press', T2: 'deadlift', t3: [] },
   ]);
   const [t3Exercises, setT3Exercises] = useState([]); // { name, targetReps, incrementKg, startWeightKg }
   const [selectorOpen, setSelectorOpen] = useState(false);
@@ -323,6 +323,8 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
       const baseDayMap = userDayMap || program.config?.day_map || {};
       const template = Object.keys(baseDayMap).map(label => ({
         label,
+        T1: baseDayMap[label]?.T1 || null,
+        T2: baseDayMap[label]?.T2 || null,
         t3: baseDayMap[label]?.T3 || [],
         warmup: baseDayMap[label]?.warmup || [],
         stretching: baseDayMap[label]?.stretching || []
@@ -499,6 +501,32 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
       return;
     }
 
+    // 验证 T1/T2 训练日搭配
+    for (const day of dayTemplate) {
+      if (!day.T1 || !day.T2) {
+        setError(`「第二步」${day.label} 未配置 T1 或 T2，请为每个训练日选择 T1 和 T2 主项`);
+        setSuccessMsg(null);
+        return;
+      }
+      if (day.T1 === day.T2) {
+        setError(`「第二步」${day.label} 的 T1 和 T2 不能选择相同动作`);
+        setSuccessMsg(null);
+        return;
+      }
+    }
+    const t1Set = new Set(dayTemplate.map(d => d.T1));
+    const t2Set = new Set(dayTemplate.map(d => d.T2));
+    if (t1Set.size < dayTemplate.length) {
+      setError('「第二步」T1 存在重复：每个主项在 T1 中只能出现一次');
+      setSuccessMsg(null);
+      return;
+    }
+    if (t2Set.size < dayTemplate.length) {
+      setError('「第二步」T2 存在重复：每个主项在 T2 中只能出现一次');
+      setSuccessMsg(null);
+      return;
+    }
+
     // 验证 T3 动作配置
     for (const ex of t3Exercises) {
       if (isNaN(ex.incrementKg) || ex.incrementKg < 0.5) {
@@ -596,11 +624,13 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
         }))
       };
 
-      // 构建更新后的 day_map（包含用户选择的 T3 动作、热身和拉伸动作）
+      // 构建更新后的 day_map（包含用户选择的 T1/T2 搭配、T3 动作、热身和拉伸动作）
       const updatedDayMap = {};
       for (const day of dayTemplate) {
         updatedDayMap[day.label] = {
           ...program.config?.day_map?.[day.label],
+          T1: day.T1 || null,
+          T2: day.T2 || null,
           T3: (day.t3 || []).filter(name => name && name.trim()),
           warmup: (day.warmup || []).filter(item => item.exercise && item.exercise.trim()),
           stretching: (day.stretching || []).filter(item => item.exercise && item.exercise.trim())
@@ -1008,9 +1038,11 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
 
       <div className="alert-box text-sm leading-relaxed border-l-4 mb-4">
         💡 <b>GZCLP 配置向导（推荐配置流程）：</b><br />
-        1️⃣ <b>第一步：</b> 填入您的各主项 1RM，系统将以此计算合理的起步重量。如果您不知道 1RM，可以直接跳到第二步。<br />
-        2️⃣ <b>第二步：</b> 确认首训的起始重量。如果您在第一步中点击了一键应用，此处将自动填充；否则，您需要在此手动填入首次训练的重量。<br />
-        3️⃣ <b>第三步：</b> 挑选并配置您的 T3 辅助动作（如二头弯举、高位下拉等），以补充主项训练。
+        1️⃣ <b>第一步：</b> 统一设置重量单位（KG / LBS），也可按动作单独微调。<br />
+        2️⃣ <b>第二步：</b> 搭配每个训练日的 T1/T2 主项。标准 GZCLP 采用四天轮转，T1 大重量低次数，T2 次极限容量组。<br />
+        3️⃣ <b>第三步：</b> 填入您的各主项 1RM，系统将以此计算合理的起步重量。如果您不知道 1RM，可以直接跳到第四步。<br />
+        4️⃣ <b>第四步：</b> 确认首训的起始重量。如果您在第三步中点击了一键应用，此处将自动填充。<br />
+        5️⃣ <b>第五步：</b> 挑选并配置 T3 辅助动作和热身拉伸，以补充主项训练。
       </div>
 
       {error && (
@@ -1052,16 +1084,20 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
         {scheduleType === 'weekly' && (
           <>
             <div className="flex gap-1.5 sm:gap-2 justify-between">
-              {weekdays.map(d => (
+              {weekdays.map(d => {
+                const isSelected = trainingDays.includes(d.key);
+                return (
                 <button key={d.key} type="button"
                   className={`btn btn-sm flex-1 max-w-10 aspect-square min-h-0 min-w-0 p-0 rounded-xl font-bold text-xs sm:text-sm cursor-pointer transition-all ${
-                    trainingDays.includes(d.key) ? 'btn-primary text-white shadow-md' : 'btn-outline border-border-card dark:border-border-card-dark text-text-secondary'
+                    isSelected ? 'btn-primary text-white shadow-md' : 'btn-outline border-border-card dark:border-border-card-dark text-text-secondary'
                   }`}
-                  onClick={() => setTrainingDays(prev => prev.includes(d.key) ? prev.filter(x => x !== d.key) : [...prev, d.key])}
+                  onClick={() => setTrainingDays(prev => isSelected ? prev.filter(x => x !== d.key) : [...prev, d.key])}
                 >{d.label}</button>
-              ))}
+                );
+              })}
             </div>
             <p className="text-xs text-text-secondary dark:text-text-secondary-dark">每周 {trainingDays.length} 天训练</p>
+            <p className="text-[10px] text-text-secondary/60 dark:text-text-secondary-dark/60 leading-relaxed">💡 4个训练日配置（ABCD）按顺序轮转，与每周练几天无关。如每周5天则为 ABCDA，6天为 ABCDAB，以此类推。</p>
           </>
         )}
 
@@ -1216,18 +1252,181 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
           </div>
         </div>
         <p className="text-[10px] text-text-secondary/60 leading-relaxed">
-          💡 全局单位影响所有主项的显示和计算。如需个别动作使用不同单位（如深蹲用 KG、卧推用 LBS），可在上方按动作微调。T3 辅助动作的单位请在第四步中单独设置。
+          💡 全局单位影响所有主项的显示和计算。如需个别动作使用不同单位（如深蹲用 KG、卧推用 LBS），可在上方按动作微调。T3 辅助动作的单位请在第五步中单独设置。
         </p>
       </div>
 
-      {/* 第二步：各主项 1RM 与进阶参数 */}
+      {/* 第二步：T1/T2 训练日搭配 */}
+      {(() => {
+        const MAIN_LIFTS = [
+          { key: 'squat', label: '深蹲 (Squat)' },
+          { key: 'bench', label: '卧推 (Bench)' },
+          { key: 'deadlift', label: '硬拉 (Deadlift)' },
+          { key: 'press', label: '推举 (Press)' },
+        ];
+
+        // 计算 T1/T2 分配校验
+        const t1Used = dayTemplate.map(d => d.T1).filter(Boolean);
+        const t2Used = dayTemplate.map(d => d.T2).filter(Boolean);
+        const t1Conflicts = MAIN_LIFTS.filter(l => t1Used.filter(x => x === l.key).length > 1).map(l => l.key);
+        const t2Conflicts = MAIN_LIFTS.filter(l => t2Used.filter(x => x === l.key).length > 1).map(l => l.key);
+        const t1Missing = MAIN_LIFTS.filter(l => !t1Used.includes(l.key)).map(l => l.key);
+        const t2Missing = MAIN_LIFTS.filter(l => !t2Used.includes(l.key)).map(l => l.key);
+        const sameDayConflicts = dayTemplate.filter(d => d.T1 && d.T2 && d.T1 === d.T2).map(d => d.label);
+
+        const hasViolations = t1Conflicts.length > 0 || t2Conflicts.length > 0 || sameDayConflicts.length > 0;
+
+        const setDayT1 = (dayLabel, liftKey) => {
+          setDayTemplate(prev => prev.map(d => d.label === dayLabel ? { ...d, T1: liftKey } : d));
+        };
+        const setDayT2 = (dayLabel, liftKey) => {
+          setDayTemplate(prev => prev.map(d => d.label === dayLabel ? { ...d, T2: liftKey } : d));
+        };
+
+        const resetToDefault = () => {
+          setDayTemplate(prev => {
+            const defaults = [
+              { label: 'Day1', T1: 'squat', T2: 'bench' },
+              { label: 'Day2', T1: 'deadlift', T2: 'press' },
+              { label: 'Day3', T1: 'bench', T2: 'squat' },
+              { label: 'Day4', T1: 'press', T2: 'deadlift' },
+            ];
+            return prev.map((d, i) => {
+              const def = defaults[i];
+              return def ? { ...d, T1: def.T1, T2: def.T2 } : d;
+            });
+          });
+        };
+
+        return (
+          <div className="card flex flex-col gap-4">
+            <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
+              <Shuffle size={16} className="text-primary" /><span>第二步：T1/T2 训练日搭配</span>
+            </h3>
+            <p className="text-xs text-text-secondary dark:text-text-secondary-dark leading-relaxed bg-bg-main/30 dark:bg-bg-main-dark/30 border border-border-card/30 rounded-lg p-2.5">
+              👉 <b>GZCLP 标准四天轮转：</b>每个主项分别作为 T1（大重量低次数）和 T2（次极限容量组）各出现一次。<br />
+              您可以根据自身偏好调整搭配（例如改为 Upper/Lower 分法），只需确保每个主项在 T1 和 T2 中各出现一次即可。
+            </p>
+
+            {/* 校验错误提示 */}
+            {hasViolations && (
+              <div className="p-2.5 rounded-lg bg-bg-alert/10 dark:bg-bg-alert-dark/10 border border-alert/20 dark:border-alert-dark/20 flex flex-col gap-1 text-xs text-alert dark:text-alert-dark">
+                {t1Conflicts.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <ShieldAlert size={12} className="shrink-0" />
+                    <span>T1 重复：{t1Conflicts.map(k => MAIN_LIFTS.find(l => l.key === k)?.label || k).join('、')} 被分配了多次</span>
+                  </div>
+                )}
+                {t1Missing.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <ShieldAlert size={12} className="shrink-0" />
+                    <span>T1 缺失：{t1Missing.map(k => MAIN_LIFTS.find(l => l.key === k)?.label || k).join('、')} 未被分配到任何训练日</span>
+                  </div>
+                )}
+                {t2Conflicts.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <ShieldAlert size={12} className="shrink-0" />
+                    <span>T2 重复：{t2Conflicts.map(k => MAIN_LIFTS.find(l => l.key === k)?.label || k).join('、')} 被分配了多次</span>
+                  </div>
+                )}
+                {t2Missing.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <ShieldAlert size={12} className="shrink-0" />
+                    <span>T2 缺失：{t2Missing.map(k => MAIN_LIFTS.find(l => l.key === k)?.label || k).join('、')} 未被分配到任何训练日</span>
+                  </div>
+                )}
+                {sameDayConflicts.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <ShieldAlert size={12} className="shrink-0" />
+                    <span>同日冲突：{sameDayConflicts.join('、')} 的 T1 和 T2 选择了相同动作</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 每个训练日的 T1/T2 选择 */}
+            <div className="flex flex-col gap-3">
+              {dayTemplate.map((day) => {
+                const daySameConflict = day.T1 && day.T2 && day.T1 === day.T2;
+                return (
+                  <div key={day.label} className={`p-3 rounded-xl border transition-colors ${
+                    daySameConflict
+                      ? 'bg-bg-alert/5 border-alert/30 dark:bg-bg-alert-dark/5 dark:border-alert-dark/30'
+                      : 'bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card/50 dark:border-border-card-dark/50'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-sm font-black text-text-main dark:text-text-main-dark">{day.label}</span>
+                      {daySameConflict && (
+                        <span className="text-[10px] font-bold text-alert dark:text-alert-dark bg-alert/10 px-1.5 py-0.5 rounded">T1 ≠ T2</span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* T1 选择器 */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-bold text-tier-t1 dark:text-tier-t1-dark uppercase tracking-wide">T1 · 大重量极限</label>
+                        <select
+                          className={`select-standard ${
+                            day.T1 && t1Conflicts.includes(day.T1)
+                              ? '!border-alert dark:!border-alert-dark !ring-1 !ring-alert/30'
+                              : ''
+                          }`}
+                          value={day.T1 || ''}
+                          onChange={(e) => setDayT1(day.label, e.target.value || null)}
+                        >
+                          <option value="">请选择 T1...</option>
+                          {MAIN_LIFTS.map(l => (
+                            <option key={l.key} value={l.key}>{l.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* T2 选择器 */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-bold text-tier-t2 dark:text-tier-t2-dark uppercase tracking-wide">T2 · 容量次极限</label>
+                        <select
+                          className={`select-standard ${
+                            day.T2 && t2Conflicts.includes(day.T2)
+                              ? '!border-alert dark:!border-alert-dark !ring-1 !ring-alert/30'
+                              : ''
+                          }`}
+                          value={day.T2 || ''}
+                          onChange={(e) => setDayT2(day.label, e.target.value || null)}
+                        >
+                          <option value="">请选择 T2...</option>
+                          {MAIN_LIFTS.map(l => (
+                            <option key={l.key} value={l.key}>{l.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 重置按钮 */}
+            <div className="flex justify-end">
+              <button
+                type="button"
+                className="btn-aux flex items-center gap-1"
+                onClick={resetToDefault}
+                title="恢复 GZCLP 标准四天搭配"
+              >
+                <span>🔄 恢复 GZCLP 默认搭配</span>
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 第三步：各主项 1RM 与进阶参数 */}
       <div className="card">
         <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark mb-2 pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
-          <Zap size={16} className="text-primary" /><span>第二步：设置各主项 1RM 与进阶参数（推荐）</span>
+          <Zap size={16} className="text-primary" /><span>第三步：设置各主项 1RM 与进阶参数（推荐）</span>
         </h3>
         <p className="text-xs text-text-secondary dark:text-text-secondary-dark mb-4 leading-relaxed bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-lg p-2.5">
-          👉 <b>最佳实践：</b>请在此输入您的 1RM（单次最大重量），然后点击下方的<b>「一键应用 1RM → 起始重量」</b>按钮。系统将自动按 <b>85%</b> 的安全比例计算 T1 首训起始重量并同步到下方的「第三步」，同时 T2 按 <b>65%</b> 比例计算。<br />
-          ⚠️ <i>如果您不知道 1RM，可以直接跳过此步，直接到「第三步」手动填入起始重量。</i>
+          👉 <b>最佳实践：</b>请在此输入您的 1RM（单次最大重量），然后点击下方的<b>「一键应用 1RM → 起始重量」</b>按钮。系统将自动按 <b>85%</b> 的安全比例计算 T1 首训起始重量并同步到下方的「第四步」，同时 T2 按 <b>65%</b> 比例计算。<br />
+          ⚠️ <i>如果您不知道 1RM，可以直接跳过此步，直接到「第四步」手动填入起始重量。</i>
         </p>
 
         <div className="flex flex-col gap-3">
@@ -1370,15 +1569,15 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
         </div>
       </div>
 
-      {/* 第三步：首训起始重量（T1/T2 分开） */}
+      {/* 第四步：首训起始重量（T1/T2 分开） */}
       <div className="card">
         <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark mb-2 pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
-          <Scale size={16} className="text-primary" /><span>第三步：确认或手动设置「首训起始重量」</span>
+          <Scale size={16} className="text-primary" /><span>第四步：确认或手动设置「首训起始重量」</span>
         </h3>
         <p className="text-xs text-text-secondary dark:text-text-secondary-dark mb-4 leading-relaxed bg-bg-main/30 dark:bg-bg-main-dark/30 border border-border-card/30 rounded-lg p-2.5">
           👉 <b>GZCLP 区分 T1 与 T2：</b>T1 使用较重的负重、低次数（如 5×3）；T2 使用较轻的负重、高次数（如 3×10）。<br />
-          1. <b>如果您已完成第二步：</b>点击上方的「一键应用」后，T1（85%×1RM）和 T2（65%×1RM）已被自动填充。<br />
-          2. <b>如果您跳过了第二步：</b>请手动填入首次训练时 T1 和 T2 各自的起始负重。
+          1. <b>如果您已完成第三步：</b>点击上方的「一键应用」后，T1（85%×1RM）和 T2（65%×1RM）已被自动填充。<br />
+          2. <b>如果您跳过了第三步：</b>请手动填入首次训练时 T1 和 T2 各自的起始负重。
         </p>
 
         <div className="flex flex-col gap-4">
@@ -1417,10 +1616,10 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
         </div>
       </div>
 
-      {/* 第四步：T3 辅助动作配置 */}
+      {/* 第五步：T3 辅助动作配置 */}
       <div className="card flex flex-col gap-4">
         <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
-          <Dumbbell size={16} className="text-primary" /><span>第四步：T3 辅助动作配置</span>
+          <Dumbbell size={16} className="text-primary" /><span>第五步：T3 辅助动作配置</span>
         </h3>
         <p className="text-xs text-text-secondary dark:text-text-secondary-dark leading-relaxed">
           GZCLP 推荐使用 T3 辅助动作（高次数、小重量、接近力竭）来针对性增强弱项肌肉并提升耐力。请为每一天选择 1-2 个辅助动作，并设定它们的起始重量和加重步长。
@@ -1577,7 +1776,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
       {/* 4. 练前热身与练后拉伸 */}
       <div className="card flex flex-col gap-4">
         <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
-          <Sparkles size={16} className="text-primary" /><span>第四步：练前热身与练后拉伸</span>
+          <Sparkles size={16} className="text-primary" /><span>第五步：练前热身与练后拉伸</span>
         </h3>
         <p className="text-xs text-text-secondary dark:text-text-secondary-dark leading-relaxed">
           合理的练前热身与练后拉伸可以显著改善关节活动度、提高训练表现并加速恢复。您可以为每个训练日独立配置动作，或直接从模板库导入常用组合。
