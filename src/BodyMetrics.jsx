@@ -7,7 +7,7 @@ import {
   bulkInsertBodyMetrics
 } from './services/bodyService';
 import { getBmiInfo, getWhtrInfo } from './healthUtils';
-import { Heart, Loader2, Activity, Zap, Trash2, ShieldAlert } from 'lucide-react';
+import { Heart, Loader2, Activity, Zap, Trash2, ShieldAlert, Scale, Ruler, Moon, TrendingUp } from 'lucide-react';
 
 const STORAGE_KEY = 'body_metrics_history';
 
@@ -370,27 +370,27 @@ function BodyMetrics() {
         {/* 曲线类型页签选择 */}
         <div className="grid grid-cols-5 bg-bg-main/30 dark:bg-bg-main-dark/30 rounded-xl p-1 gap-1 select-none">
           {[
-            { key: 'weight', label: '体重', icon: '⚖️' },
-            { key: 'waist', label: '腰围', icon: '📏' },
-            { key: 'hr', label: '心率', icon: '💓' },
-            { key: 'sleep', label: '睡眠', icon: '🛌' },
-            { key: 'fatigue', label: '疲劳', icon: '⚡' },
-          ].map(tab => (
+            { key: 'weight', label: '体重', Icon: Scale },
+            { key: 'waist', label: '腰围', Icon: Ruler },
+            { key: 'hr', label: '心率', Icon: Heart },
+            { key: 'sleep', label: '睡眠', Icon: Moon },
+            { key: 'fatigue', label: '疲劳', Icon: Zap },
+          ].map(({ key, label, Icon }) => (
             <button
-              key={tab.key}
+              key={key}
               type="button"
               className={`flex flex-col items-center justify-center py-1.5 rounded-lg text-[10px] font-extrabold transition-all ${
-                activeMetric === tab.key
+                activeMetric === key
                   ? 'bg-primary text-white shadow-sm'
                   : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark'
               }`}
               onClick={() => {
-                setActiveMetric(tab.key);
+                setActiveMetric(key);
                 setHoveredIdx(null);
               }}
             >
-              <span>{tab.icon}</span>
-              <span className="mt-0.5">{tab.label}</span>
+              <Icon size={14} />
+              <span className="mt-0.5">{label}</span>
             </button>
           ))}
         </div>
@@ -653,7 +653,7 @@ function BodyMetrics() {
 
           {liveBmi && (
             <div className="bg-bg-main/30 dark:bg-bg-main-dark/30 rounded-xl p-2.5 border border-border-card/40 flex flex-col gap-1 select-none text-[10.5px] leading-relaxed text-text-secondary">
-              <div>📈 BMI（身体质量指数）: <strong className="font-mono text-text-main dark:text-text-main-dark text-xs">{liveBmi.bmi}</strong>
+              <div><TrendingUp size={14} className="inline" /> BMI（身体质量指数）: <strong className="font-mono text-text-main dark:text-text-main-dark text-xs">{liveBmi.bmi}</strong>
                 <span className={`ml-2 badge badge-sm font-bold scale-90 ${liveBmi.badgeColor}`}>{liveBmi.label}</span>
               </div>
               {liveWhtr && (

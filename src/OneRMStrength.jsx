@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { fetchOneRmHistory, saveOneRmRecord, deleteOneRmRecord } from './services/workoutService';
 import { calcE1RM, FORMULA_LABEL, MAIN_LIFTS, pickLatestByLift } from './oneRmUtils';
 import { getCNName } from './exerciseNames';
-import { Loader2, Trash2, TrendingUp, Sparkles } from 'lucide-react';
+import { Loader2, Trash2, TrendingUp, Sparkles, Lightbulb } from 'lucide-react';
 
 const LIFT_COLORS = {
   squat: { bg: 'bg-blue-500/10', text: 'text-blue-500', border: 'border-blue-500/30' },
@@ -197,7 +197,7 @@ function OneRMStrength({ onLatestChange }) {
 
             {liveE1rm && (
               <p className="text-sm text-text-secondary dark:text-text-secondary-dark bg-bg-main/40 dark:bg-bg-main-dark/40 border border-border-card/50 dark:border-border-card-dark/50 rounded-lg p-2 font-mono">
-                💡 推算 1RM ≈ <span className="font-bold text-primary text-base">{liveE1rm.e1rm} kg</span>
+                <Lightbulb size={14} className="inline shrink-0" /> 推算 1RM ≈ <span className="font-bold text-primary text-base">{liveE1rm.e1rm} kg</span>
                 <span className="text-xs ml-1">（{FORMULA_LABEL[liveE1rm.formula]}）</span>
               </p>
             )}

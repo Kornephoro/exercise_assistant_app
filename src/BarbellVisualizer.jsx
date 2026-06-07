@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { RotateCcw, Target } from 'lucide-react';
 
 // 标准 IPF/IWF 杠铃片颜色与尺寸配置 (KG 模式)
 const PLATE_CONFIGS_KG = {
@@ -354,7 +355,7 @@ export function BarbellVisualizer({ plates = [], barWeight = 20, unit = 'kg', en
             onClick={toggleBarWeight}
             className="text-xs font-black px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary font-mono cursor-pointer hover:bg-primary/20 active:scale-95 transition-all"
           >
-            空杆: {activeBarWeight} {unit} 🔄
+            空杆: {activeBarWeight} {unit} <RotateCcw size={10} className="inline" />
           </button>
         </div>
       </div>
@@ -362,7 +363,7 @@ export function BarbellVisualizer({ plates = [], barWeight = 20, unit = 'kg', en
       {/* 右栏 40%：备选方案列表 */}
       <div className="w-[135px] shrink-0 flex flex-col justify-center gap-1.5">
         <span className="text-xs font-black text-text-muted dark:text-text-secondary-dark tracking-wider uppercase select-none">
-          🎯 配片备选方案
+          <Target size={12} /> 配片备选方案
         </span>
         <div className="flex flex-col gap-1 overflow-y-auto max-h-[85px] pr-0.5">
           {alternatives.length > 0 ? (

@@ -169,7 +169,7 @@ export function auditNutritionSafety(totalKcal, bmr, proteinG, fatG, currentWeig
   if (totalKcal > 0 && bmr > 0 && totalKcal < bmr) {
     warnings.push({
       type: 'danger',
-      message: `⚠️ 热量预算 (${Math.round(totalKcal)} kcal) 低于您的基础代谢率 BMR (${Math.round(bmr)} kcal)。长期摄入低于基础代谢可能导致严重的代谢适应性损伤、体能崩溃及免疫力下降。`,
+      message: `热量预算 (${Math.round(totalKcal)} kcal) 低于您的基础代谢率 BMR (${Math.round(bmr)} kcal)。长期摄入低于基础代谢可能导致严重的代谢适应性损伤、体能崩溃及免疫力下降。`,
     });
   }
 
@@ -178,7 +178,7 @@ export function auditNutritionSafety(totalKcal, bmr, proteinG, fatG, currentWeig
   if (proteinG > 0 && proteinPerKg < 1.4) {
     warnings.push({
       type: 'warning',
-      message: `⚠️ 蛋白质配比 (${proteinG}g, 约 ${proteinPerKg.toFixed(2)} g/kg) 低于减脂/增力期肌肉保留安全线 1.4 g/kg。这可能会导致训练后肌肉无法有效修复，增加瘦体重（肌肉）流失的风险。`,
+      message: `蛋白质配比 (${proteinG}g, 约 ${proteinPerKg.toFixed(2)} g/kg) 低于减脂/增力期肌肉保留安全线 1.4 g/kg。这可能会导致训练后肌肉无法有效修复，增加瘦体重（肌肉）流失的风险。`,
     });
   }
 
@@ -188,7 +188,7 @@ export function auditNutritionSafety(totalKcal, bmr, proteinG, fatG, currentWeig
   if (fatG > 0 && (fatPerKg < 0.5 || fatG < minFatAbs)) {
     warnings.push({
       type: 'danger',
-      message: `⚠️ 脂肪配比 (${fatG}g, 约 ${fatPerKg.toFixed(2)} g/kg) 过低。成年人脂肪摄入长期低于 0.5 g/kg 或绝对值低于 ${minFatAbs}g，易引发内分泌失调、脂溶性维生素吸收不良及激素（如睾酮/雌激素）分泌受损。`,
+      message: `脂肪配比 (${fatG}g, 约 ${fatPerKg.toFixed(2)} g/kg) 过低。成年人脂肪摄入长期低于 0.5 g/kg 或绝对值低于 ${minFatAbs}g，易引发内分泌失调、脂溶性维生素吸收不良及激素（如睾酮/雌激素）分泌受损。`,
     });
   }
 
@@ -210,17 +210,17 @@ export function getAiDietTuneUp(feedbackType, currentGrams) {
     case 'difficult':
       return {
         suggestion: { carbs: carbsVal + 40, protein: proteinVal, fat: fatVal },
-        reason: '💡 检测到您近期训练体感偏疲惫或体重下降过快。AI 建议：上调 40g 碳水化合物以迅速补足肌糖原，改善运动体能与中枢疲劳。蛋白质和脂肪建议锁定不动。',
+        reason: '检测到您近期训练体感偏疲惫或体重下降过快。AI 建议：上调 40g 碳水化合物以迅速补足肌糖原，改善运动体能与中枢疲劳。蛋白质和脂肪建议锁定不动。',
       };
     case 'plateau':
       return {
         suggestion: { carbs: Math.max(80, carbsVal - 30), protein: proteinVal, fat: fatVal },
-        reason: '💡 检测到您近期减脂进度停滞（进入平台期）。AI 建议：在保留高蛋白质防御肌肉流失的前提下，温和下调 30g 碳水化合物，制造微量的额外热量缺口打破平台。',
+        reason: '检测到您近期减脂进度停滞（进入平台期）。AI 建议：在保留高蛋白质防御肌肉流失的前提下，温和下调 30g 碳水化合物，制造微量的额外热量缺口打破平台。',
       };
     case 'gain':
       return {
         suggestion: { carbs: carbsVal + 60, protein: proteinVal + 10, fat: fatVal },
-        reason: '💡 检测到您转为增肌/增力期，需要合成代谢热量。AI 建议：大幅上调 60g 碳水化合物以充盈合成代谢环境，并上调 10g 蛋白质作为肌纤维肥大的原料。',
+        reason: '检测到您转为增肌/增力期，需要合成代谢热量。AI 建议：大幅上调 60g 碳水化合物以充盈合成代谢环境，并上调 10g 蛋白质作为肌纤维肥大的原料。',
       };
     default:
       return {

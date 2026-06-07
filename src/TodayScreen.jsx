@@ -3,7 +3,7 @@ import { calcCalorieBudget, calcMacronutrientTargets } from './dietUtils';
 import { saveDietLog } from './services/dietService';
 import { saveBodyMetrics } from './services/bodyService';
 import { getBmiInfo, getWhtrInfo } from './healthUtils';
-import { Play, RotateCcw, CheckCircle, Heart, Utensils, Calendar, ChevronDown, ArrowRight, SkipForward, Flag, Loader2, Zap } from 'lucide-react';
+import { Play, RotateCcw, CheckCircle, Heart, Utensils, Calendar, ChevronDown, ArrowRight, SkipForward, Flag, Loader2, Zap, Dumbbell, Timer, Scale, Moon, ClipboardList, Pause } from 'lucide-react';
 
 const TIER_COLORS = {
   T1: { bg: 'bg-tier-t1/10', text: 'text-tier-t1', darkText: 'dark:text-tier-t1-dark', border: 'border-tier-t1/20', darkBorder: 'dark:border-tier-t1-dark/20' },
@@ -32,9 +32,9 @@ function WorkoutSummary({ exercises }) {
 
   return (
     <div className="flex flex-col gap-2 text-sm text-text-secondary dark:text-text-secondary-dark">
-      <div className="flex items-center gap-2"><span>💪</span><span><span className="font-bold text-text-main dark:text-text-main-dark">{exCount}</span> 个动作</span></div>
-      <div className="flex items-center gap-2"><span>🏋️</span><span>总训练量 <span className="font-bold text-text-main dark:text-text-main-dark font-mono">{totalWeight.toFixed(1)}kg</span></span></div>
-      <div className="flex items-center gap-2"><span>⏱️</span><span>预计耗时 <span className="font-bold text-text-main dark:text-text-main-dark">{estMinutes}</span> 分钟</span></div>
+      <div className="flex items-center gap-2"><Dumbbell size={14} /><span><span className="font-bold text-text-main dark:text-text-main-dark">{exCount}</span> 个动作</span></div>
+      <div className="flex items-center gap-2"><Dumbbell size={14} /><span>总训练量 <span className="font-bold text-text-main dark:text-text-main-dark font-mono">{totalWeight.toFixed(1)}kg</span></span></div>
+      <div className="flex items-center gap-2"><Timer size={14} /><span>预计耗时 <span className="font-bold text-text-main dark:text-text-main-dark">{estMinutes}</span> 分钟</span></div>
     </div>
   );
 }
@@ -513,7 +513,7 @@ function TodayScreen({
 
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div className="bg-bg-main/20 dark:bg-bg-main-dark/20 p-2.5 rounded-xl border border-border-card/30 flex flex-col justify-center">
-              <span className="text-text-secondary/70 font-semibold select-none text-xs">⚖️ 体重</span>
+              <span className="text-text-secondary/70 font-semibold select-none text-xs"><Scale size={12} className="inline mr-0.5" />体重</span>
               <strong className="text-lg font-extrabold text-text-main dark:text-text-main-dark font-mono mt-0.5">
                 {todayBodyMetrics.weight_kg.toFixed(1)} <small className="text-xs font-bold text-text-secondary">kg</small>
               </strong>
@@ -544,7 +544,7 @@ function TodayScreen({
             </div>
 
             <div className="bg-bg-main/20 dark:bg-bg-main-dark/20 p-2.5 rounded-xl border border-border-card/30 flex flex-col justify-center">
-              <span className="text-text-secondary/70 font-semibold select-none text-xs">🛌 睡眠 & ⚡ 疲劳</span>
+              <span className="text-text-secondary/70 font-semibold select-none text-xs"><Moon size={12} className="inline mr-0.5" />睡眠 & <Zap size={12} className="inline mr-0.5" />疲劳</span>
               <div className="flex flex-col gap-0.5 mt-0.5">
                 <span className="text-lg font-extrabold text-text-main dark:text-text-main-dark font-mono">
                   {todayBodyMetrics.sleep_hours ? `${todayBodyMetrics.sleep_hours.toFixed(1)} h` : '未录入'}
@@ -709,7 +709,7 @@ function TodayScreen({
 
         <div className="card hover:border-primary/30 transition-all duration-200 cursor-pointer" onClick={onGoToLibrary}>
           <div className="flex flex-col items-center text-center gap-4 py-6">
-            <span className="text-4xl">📋</span>
+            <ClipboardList size={48} className="text-text-secondary/40" />
             <h3 className="text-xl font-bold text-text-main dark:text-text-main-dark">选择一个训练计划</h3>
             <p className="text-sm text-text-secondary dark:text-text-secondary-dark max-w-xs">
               从计划库中选择一个适合你的训练计划，配置好参数就可以开始训练了。
@@ -834,7 +834,7 @@ function TodayScreen({
             </div>
             <div className="flex items-center gap-2 flex-wrap mb-3">
               <span className="text-xl font-extrabold text-text-main dark:text-text-main-dark">休息日</span>
-              <span className="badge badge-ghost font-bold text-xs">☕ 休息日</span>
+              <span className="badge badge-ghost font-bold text-xs"><Pause size={10} className="inline mr-0.5" />休息日</span>
               {activeProgram && (
                 <span className="badge badge-outline font-bold text-xs text-text-secondary dark:text-text-secondary-dark">
                   {activeProgram.name}
@@ -879,7 +879,7 @@ function TodayScreen({
                   <span className="badge badge-success badge-outline font-bold text-xs">🎉 已完成</span>
                 )}
                 {!isSessionActive && !isTodayCompleted && (
-                  <span className="badge badge-primary badge-outline font-bold text-xs">⚡ 训练日</span>
+                  <span className="badge badge-primary badge-outline font-bold text-xs"><Zap size={10} className="inline mr-0.5" />训练日</span>
                 )}
                 {activeProgram && (
                   <span className="badge badge-outline font-bold text-xs text-text-secondary dark:text-text-secondary-dark">

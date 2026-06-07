@@ -1,20 +1,21 @@
 import { useState } from 'react';
 import { saveUserProfile } from './services/profileService';
-import { 
-  Dumbbell, 
-  User, 
-  Activity, 
-  Sliders, 
-  ChevronRight, 
-  ChevronLeft, 
-  Check, 
-  Calculator, 
+import {
+  Dumbbell,
+  User,
+  Activity,
+  Sliders,
+  ChevronRight,
+  ChevronLeft,
+  Check,
+  Calculator,
   HelpCircle,
   Sparkles,
   Calendar,
   Award,
   AlertTriangle,
-  Loader2
+  Loader2,
+  Wrench
 } from 'lucide-react';
 
 /**
@@ -547,7 +548,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
               {/* 1RM 估算器工具面板 */}
               {showEstimator && (
                 <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex flex-col gap-3 animate-fadeIn">
-                  <h4 className="text-xs font-extrabold text-primary flex items-center gap-1">🛠️ 1RM 极限重量估算器</h4>
+                  <h4 className="text-xs font-extrabold text-primary flex items-center gap-1"><Wrench size={12} /> 1RM 极限重量估算器</h4>
                   <p className="text-[10px] text-text-secondary dark:text-text-secondary-dark leading-normal">
                     根据 Epley 公式：1RM = 负重 × (1 + 次数 / 30)
                   </p>

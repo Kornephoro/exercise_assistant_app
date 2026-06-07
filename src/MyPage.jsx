@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { Sun, Moon, Settings, BookOpen, RotateCcw, Info, ChevronRight, Dumbbell, Scale } from 'lucide-react';
+import { Sun, Moon, Settings, BookOpen, RotateCcw, Info, ChevronRight, Dumbbell, Scale, Trash2, Lightbulb } from 'lucide-react';
 import { DEFAULT_GYM_EQUIPMENT_CONFIG } from './unitUtils';
 import { saveUserProfile } from './services/profileService';
 
@@ -165,7 +165,7 @@ function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymE
       </div>
 
       <p className="text-xs text-text-secondary dark:text-text-secondary-dark text-center py-2 opacity-60">
-        💪 训练助手 · 让坚持更简单
+        <Dumbbell size={14} className="inline" /> 训练助手 · 让坚持更简单
       </p>
 
       {showBarbellModal && (
@@ -590,7 +590,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
               </div>
 
               <p className="text-[10px] text-text-secondary mt-1 select-none">
-                💡 自动圆整将排除未勾选的片。常用标准片不能删除，自定义添加的非标片可点击右上角 `×` 彻底清除。
+                <Lightbulb size={12} className="inline shrink-0" /> 自动圆整将排除未勾选的片。常用标准片不能删除，自定义添加的非标片可点击右上角 `×` 彻底清除。
               </p>
             </div>
           </div>
@@ -609,7 +609,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
             </div>
             
             <p className="text-[10px] text-text-secondary dark:text-text-secondary-dark/80 select-none leading-relaxed">
-              💡 <b>多分段说明</b>：支持自定义多个重量区间的递增步长。例如第一段上限设为 10，步长为 2，系统会生成 2 至 10{activeUnit} 的规格。第二段上限设为 20，步长为 2.5，系统会继续接续生成 12.5 至 20{activeUnit} 的规格（即包含开区间 `(10, 20]`）。最后的一段为无上限，代表超出之前所有上限后的步长。如果您的健身房所有哑铃都使用同一个递增步长，只需点击 🗑️ 删掉其他所有的分段规则，只留下最后一条「全部重量」分段并设置您的步长即可。
+              <Lightbulb size={12} className="inline shrink-0" /> <b>多分段说明</b>：支持自定义多个重量区间的递增步长。例如第一段上限设为 10，步长为 2，系统会生成 2 至 10{activeUnit} 的规格。第二段上限设为 20，步长为 2.5，系统会继续接续生成 12.5 至 20{activeUnit} 的规格（即包含开区间 `(10, 20]`）。最后的一段为无上限，代表超出之前所有上限后的步长。如果您的健身房所有哑铃都使用同一个递增步长，只需点击 🗑️ 删掉其他所有的分段规则，只留下最后一条「全部重量」分段并设置您的步长即可。
             </p>
 
             <div className="space-y-2.5 mt-1">
@@ -659,7 +659,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
                           className="text-xs text-error hover:text-error/80 p-1 font-bold select-none shrink-0 cursor-pointer ml-1"
                           title="删除此分段"
                         >
-                          🗑️
+                          <Trash2 size={14} />
                         </button>
                       )}
                     </div>
@@ -684,7 +684,7 @@ function GymEquipmentModal({ isOpen, onClose, initialConfig, onSave }) {
               />
             </div>
             <p className="text-[10px] text-text-secondary select-none font-medium">
-              💡 用于龙门架或固定器械，系统会自动将重量圆整为最临近的倍数（例如设为 5{activeUnit} 时，13{activeUnit} 将圆整为 15{activeUnit}）。
+              <Lightbulb size={12} className="inline shrink-0" /> 用于龙门架或固定器械，系统会自动将重量圆整为最临近的倍数（例如设为 5{activeUnit} 时，13{activeUnit} 将圆整为 15{activeUnit}）。
             </p>
           </div>
         </div>

@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Minimize2, X, Check, Sparkles, SkipForward, Plus, FastForward, Dumbbell, Calculator, Play, Pause, Settings, PenLine, Filter, Search, ChevronDown } from 'lucide-react';
+import { Minimize2, X, Check, Sparkles, SkipForward, Plus, FastForward, Dumbbell, Calculator, Play, Pause, Settings, PenLine, Filter, Search, ChevronDown, Zap, RotateCcw, Timer, Lightbulb } from 'lucide-react';
 import { convertWeight, getBarbellPlateBreakdown, toStorageWeight } from './unitUtils';
 import BarbellVisualizer from './BarbellVisualizer';
 import { fetchLatestOneRmForExercises } from './services/workoutService';
@@ -1159,7 +1159,7 @@ function TrainSession({
                     return (
                       <div className="flex flex-col gap-1.5 mb-2 select-none w-full px-3">
                         <div className="text-[10px] text-base-content/45 bg-base-200/50 px-2.5 py-1.5 rounded-lg font-semibold w-fit border border-base-300/40">
-                          💡 配片: 空杆 {barWeight}{unit}
+                          <Lightbulb size={12} className="inline shrink-0" /> 配片: 空杆 {barWeight}{unit}
                         </div>
                       </div>
                     );
@@ -1174,7 +1174,7 @@ function TrainSession({
                   return (
                     <div className="flex flex-col gap-1.5 mb-2 select-none w-full px-3">
                       <div className="text-[10px] text-primary dark:text-primary-dark bg-primary/5 dark:bg-primary/10 border border-primary/10 rounded-lg px-2.5 py-1.5 flex items-center gap-1 font-semibold">
-                        <span>💡 配片建议:</span>
+                        <span><Lightbulb size={12} className="inline shrink-0" /> 配片建议:</span>
                         <span>{barWeight}{unit} 空杆 + 单侧 [{plateTexts.join(', ')}]</span>
                       </div>
                     </div>
@@ -1203,7 +1203,7 @@ function TrainSession({
                       <button key={setIdx} type="button" className={btnClassName} onClick={() => openSetCard(exIdx, setIdx)}>
                         <div className="flex items-center gap-3">
                           {isSkipped ? (
-                            <div className="w-8 h-8 rounded-full border border-base-300 flex items-center justify-center"><span className="text-xs text-base-content/30 font-bold">⏭️</span></div>
+                            <div className="w-8 h-8 rounded-full border border-base-300 flex items-center justify-center"><SkipForward size={12} className="text-base-content/30" /></div>
                           ) : set.completed ? (
                             <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center"><Check size={14} className="text-white" /></div>
                           ) : (
@@ -1982,7 +1982,7 @@ function TrainSession({
                 isAmrap ? 'border-accent bg-accent/10 text-accent hover:bg-accent/20' : 'border-base-300'
               }`}
             >
-              ⚡ {isAmrap ? '回退为普通组' : '改为 AMRAP 组'}
+              <Zap size={12} className="inline" /> {isAmrap ? '回退为普通组' : '改为 AMRAP 组'}
             </button>
 
 
@@ -1992,7 +1992,7 @@ function TrainSession({
               onClick={handleSyncToSubsequent}
               className="btn btn-outline border-base-300 w-full h-11 rounded-xl text-sm font-bold text-base-content/85 hover:bg-base-200 active:scale-95 transition-all flex items-center justify-center gap-2"
             >
-              🔄 同步重量和次数到后续组
+              <RotateCcw size={12} className="inline" /> 同步重量和次数到后续组
             </button>
           </div>
         </div>
@@ -2043,7 +2043,7 @@ function TrainSession({
                 onClick={handleSkipExercise}
                 className="btn btn-outline border-error bg-error/5 hover:bg-error hover:text-white text-error w-full h-11 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
               >
-                ⏭️ 跳过整组动作
+                <SkipForward size={12} className="inline" /> 跳过整组动作
               </button>
             </div>
 
@@ -2261,7 +2261,7 @@ function TrainSession({
           className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] h-12 bg-warning/15 dark:bg-warning/25 border-b border-warning/30 backdrop-blur z-[60] flex items-center justify-between px-4 cursor-pointer animate-fadeIn shadow-md"
         >
           <span className="text-xs font-black text-warning flex items-center gap-1.5 animate-pulse">
-            ⏱️ 休息中: 还有 {restTimer.remaining} 秒 (点击恢复)
+            <Timer size={12} className="inline" /> 休息中: 还有 {restTimer.remaining} 秒 (点击恢复)
           </span>
           <div className="flex gap-2">
             <button 

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Zap } from 'lucide-react';
 
 /**
  * 热身组配置编辑器 — 从 ProgramConfigScreen GzclpConfig 中提取
@@ -31,7 +32,7 @@ function WarmupSetsEditor({ enabled, onEnabledChange, sets, onSetsChange }) {
               配置详情 ({sets ? sets.length : 0}组) {open ? '▲' : '▼'}
             </button>
             <button type="button" onClick={applyDefault} className="text-[10px] text-primary hover:underline font-bold flex items-center gap-0.5 cursor-pointer" title="一键应用默认热身组">
-              ⚡ 默认热身组
+              <Zap size={10} /> 默认热身组
             </button>
           </div>
         )}

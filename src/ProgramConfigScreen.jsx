@@ -7,7 +7,7 @@ import {
   saveUserProgram,
   fetchWorkoutTemplates
 } from './services/programService';
-import { Loader2, ArrowLeft, Save, ShieldAlert, CheckCircle, Scale, Zap, Dumbbell, Search, Calendar, Sparkles, Calculator, X, Shuffle } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, ShieldAlert, CheckCircle, Scale, Zap, Dumbbell, Search, Calendar, Sparkles, Calculator, X, Shuffle, Info, RotateCcw, Ban, Activity, Lightbulb, AlertTriangle } from 'lucide-react';
 import { convertWeight, toStorageWeight, roundToClosestLoadable } from './unitUtils';
 import { deriveStartFromOneRm, MAIN_LIFT_KEYS } from './oneRmUtils';
 import { getCNName } from './exerciseNames';
@@ -724,7 +724,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
     }
     t1SetterMap[lift](String(roundedT1));
     t2SetterMap[lift](String(roundedT2));
-    setSuccessMsg(`✨ ${LIFT_CN_NAMES[lift]}: T1 起始 ${roundedT1}${exUnit} · T2 起始 ${roundedT2}${exUnit}`);
+    setSuccessMsg(`${LIFT_CN_NAMES[lift]}: T1 起始 ${roundedT1}${exUnit} · T2 起始 ${roundedT2}${exUnit}`);
     setError(null);
   };
 
@@ -1019,7 +1019,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
             {/* Reps warning notice (User note requirement) */}
             <div className="p-3 rounded-xl bg-bg-main/30 dark:bg-bg-main-dark/30 border border-border-card/50 dark:border-border-card-dark/50 text-xs text-text-secondary dark:text-text-secondary-dark leading-relaxed mt-2">
               <span className="font-bold text-text-main dark:text-text-main-dark flex items-center gap-1 mb-1">
-                💡 估算提示与建议
+                <Lightbulb size={14} className="inline shrink-0" /> 估算提示与建议
               </span>
               估算公式在重复次数较少时（如 <b>2-8 次</b>）最为准确。如果次数过多（<b>大于 15 次</b>），由于耐力因素影响，估算误差会随之变大。建议使用低重复组数据进行估算。
             </div>
@@ -1037,7 +1037,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
       </div>
 
       <div className="alert-box text-sm leading-relaxed border-l-4 mb-4">
-        💡 <b>GZCLP 配置向导（推荐配置流程）：</b><br />
+        <Lightbulb size={14} className="inline shrink-0" /> <b>GZCLP 配置向导（推荐配置流程）：</b><br />
         1️⃣ <b>第一步：</b> 统一设置重量单位（KG / LBS），也可按动作单独微调。<br />
         2️⃣ <b>第二步：</b> 搭配每个训练日的 T1/T2 主项。标准 GZCLP 采用四天轮转，T1 大重量低次数，T2 次极限容量组。<br />
         3️⃣ <b>第三步：</b> 填入您的各主项 1RM，系统将以此计算合理的起步重量。如果您不知道 1RM，可以直接跳到第四步。<br />
@@ -1052,7 +1052,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
       )}
       {successMsg && (
         <div className="alert-box !border-success dark:!border-success bg-green-500/10 dark:bg-green-500/5 !text-success dark:!text-success flex items-center gap-2 text-sm border-l-4">
-          <CheckCircle size={14} className="flex-shrink-0" /><span>{successMsg}</span>
+          <Sparkles size={14} className="flex-shrink-0" /><span>{successMsg}</span>
         </div>
       )}
 
@@ -1097,7 +1097,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
               })}
             </div>
             <p className="text-xs text-text-secondary dark:text-text-secondary-dark">每周 {trainingDays.length} 天训练</p>
-            <p className="text-[10px] text-text-secondary/60 dark:text-text-secondary-dark/60 leading-relaxed">💡 4个训练日配置（ABCD）按顺序轮转，与每周练几天无关。如每周5天则为 ABCDA，6天为 ABCDAB，以此类推。</p>
+            <p className="text-[10px] text-text-secondary/60 dark:text-text-secondary-dark/60 leading-relaxed"><Lightbulb size={12} className="inline shrink-0" /> 4个训练日配置（ABCD）按顺序轮转，与每周练几天无关。如每周5天则为 ABCDA，6天为 ABCDAB，以此类推。</p>
           </>
         )}
 
@@ -1252,7 +1252,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
           </div>
         </div>
         <p className="text-[10px] text-text-secondary/60 leading-relaxed">
-          💡 全局单位影响所有主项的显示和计算。如需个别动作使用不同单位（如深蹲用 KG、卧推用 LBS），可在上方按动作微调。T3 辅助动作的单位请在第五步中单独设置。
+          <Lightbulb size={12} className="inline shrink-0" /> 全局单位影响所有主项的显示和计算。如需个别动作使用不同单位（如深蹲用 KG、卧推用 LBS），可在上方按动作微调。T3 辅助动作的单位请在第五步中单独设置。
         </p>
       </div>
 
@@ -1304,7 +1304,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
               <Shuffle size={16} className="text-primary" /><span>第二步：T1/T2 训练日搭配</span>
             </h3>
             <p className="text-xs text-text-secondary dark:text-text-secondary-dark leading-relaxed bg-bg-main/30 dark:bg-bg-main-dark/30 border border-border-card/30 rounded-lg p-2.5">
-              👉 <b>GZCLP 标准四天轮转：</b>每个主项分别作为 T1（大重量低次数）和 T2（次极限容量组）各出现一次。<br />
+              <Info size={14} className="text-primary shrink-0" /> <b>GZCLP 标准四天轮转：</b>每个主项分别作为 T1（大重量低次数）和 T2（次极限容量组）各出现一次。<br />
               您可以根据自身偏好调整搭配（例如改为 Upper/Lower 分法），只需确保每个主项在 T1 和 T2 中各出现一次即可。
             </p>
 
@@ -1412,7 +1412,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                 onClick={resetToDefault}
                 title="恢复 GZCLP 标准四天搭配"
               >
-                <span>🔄 恢复 GZCLP 默认搭配</span>
+                <RotateCcw size={12} /><span>恢复 GZCLP 默认搭配</span>
               </button>
             </div>
           </div>
@@ -1425,8 +1425,8 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
           <Zap size={16} className="text-primary" /><span>第三步：设置各主项 1RM 与进阶参数（推荐）</span>
         </h3>
         <p className="text-xs text-text-secondary dark:text-text-secondary-dark mb-4 leading-relaxed bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-lg p-2.5">
-          👉 <b>最佳实践：</b>请在此输入您的 1RM（单次最大重量），然后点击下方的<b>「一键应用 1RM → 起始重量」</b>按钮。系统将自动按 <b>85%</b> 的安全比例计算 T1 首训起始重量并同步到下方的「第四步」，同时 T2 按 <b>65%</b> 比例计算。<br />
-          ⚠️ <i>如果您不知道 1RM，可以直接跳过此步，直接到「第四步」手动填入起始重量。</i>
+          <Info size={14} className="text-primary shrink-0" /> <b>最佳实践：</b>请在此输入您的 1RM（单次最大重量），然后点击下方的<b>「一键应用 1RM → 起始重量」</b>按钮。系统将自动按 <b>85%</b> 的安全比例计算 T1 首训起始重量并同步到下方的「第四步」，同时 T2 按 <b>65%</b> 比例计算。<br />
+          <AlertTriangle size={14} className="inline shrink-0" /> <i>如果您不知道 1RM，可以直接跳过此步，直接到「第四步」手动填入起始重量。</i>
         </p>
 
         <div className="flex flex-col gap-3">
@@ -1538,7 +1538,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
 
                   {rm > 0 && (
                     <p className="text-sm text-text-secondary dark:text-text-secondary-dark font-mono bg-bg-main/40 dark:bg-bg-main-dark/40 border border-border-card/50 dark:border-border-card-dark/50 rounded-lg p-2">
-                      💡 1RM 推导：T1 起始 <span className="font-bold text-primary">{t1Start}{exUnit}</span>
+                      <Lightbulb size={14} className="inline shrink-0" /> 1RM 推导：T1 起始 <span className="font-bold text-primary">{t1Start}{exUnit}</span>
                       <span className="mx-1 opacity-50">·</span>
                       T2 起始 <span className="font-bold text-primary">{t2Start}{exUnit}</span>
                     </p>
@@ -1575,7 +1575,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
           <Scale size={16} className="text-primary" /><span>第四步：确认或手动设置「首训起始重量」</span>
         </h3>
         <p className="text-xs text-text-secondary dark:text-text-secondary-dark mb-4 leading-relaxed bg-bg-main/30 dark:bg-bg-main-dark/30 border border-border-card/30 rounded-lg p-2.5">
-          👉 <b>GZCLP 区分 T1 与 T2：</b>T1 使用较重的负重、低次数（如 5×3）；T2 使用较轻的负重、高次数（如 3×10）。<br />
+          <Info size={14} className="text-primary shrink-0" /> <b>GZCLP 区分 T1 与 T2：</b>T1 使用较重的负重、低次数（如 5×3）；T2 使用较轻的负重、高次数（如 3×10）。<br />
           1. <b>如果您已完成第三步：</b>点击上方的「一键应用」后，T1（85%×1RM）和 T2（65%×1RM）已被自动填充。<br />
           2. <b>如果您跳过了第三步：</b>请手动填入首次训练时 T1 和 T2 各自的起始负重。
         </p>
@@ -1792,7 +1792,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
               {/* 练前热身 (Warmup) */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-tier-t1 flex items-center gap-1">⚡ 练前热身</span>
+                  <span className="text-xs font-bold text-tier-t1 flex items-center gap-1"><Zap size={12} /> 练前热身</span>
                   <button
                     type="button"
                     className="text-[10px] text-primary hover:underline font-bold bg-transparent border-0 cursor-pointer"
@@ -1899,7 +1899,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
               {/* 练后拉伸 (Stretching) */}
               <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-border-card/20">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-tier-t2 flex items-center gap-1">🧘 练后拉伸</span>
+                  <span className="text-xs font-bold text-tier-t2 flex items-center gap-1"><Activity size={12} /> 练后拉伸</span>
                   <button
                     type="button"
                     className="text-[10px] text-primary hover:underline font-bold bg-transparent border-0 cursor-pointer"
@@ -2092,7 +2092,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
               setSelectorOpen(false);
             }}
             className="px-2 py-1 text-[10px] font-bold rounded-lg border border-dashed border-border-card/60 hover:border-error/40 hover:bg-bg-alert/10 text-text-secondary hover:text-error transition-all cursor-pointer">
-            🚫 清除选择
+            <Ban size={12} /> 清除选择
           </button>
         }
         exercises={filteredExercises}

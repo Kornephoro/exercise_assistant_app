@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Dumbbell, ClipboardList, UtensilsCrossed, ChartColumnIncreasing, User } from 'lucide-react';
 import { fetchActivePrograms, fetchAllUserPrograms, fetchExercises, saveUserProgram } from './services/programService';
 import { fetchUserProfile } from './services/profileService';
 import { fetchBodyMetrics } from './services/bodyService';
@@ -1019,35 +1020,35 @@ function App() {
           className={`transition-all duration-200 ${activeTab === 'today' ? 'dock-active text-primary font-bold bg-transparent' : 'text-text-secondary dark:text-text-secondary-dark'}`}
           onClick={() => updateNavigationState({ tab: 'today' })}
         >
-          <span className="text-xl">🏋️</span>
+          <Dumbbell size={22} />
           <span className="dock-label text-xs font-bold">今日</span>
         </button>
         <button type="button"
           className={`transition-all duration-200 ${activeTab === 'plan' ? 'dock-active text-primary font-bold bg-transparent' : 'text-text-secondary dark:text-text-secondary-dark'}`}
           onClick={() => updateNavigationState({ tab: 'plan' })}
         >
-          <span className="text-xl">📋</span>
+          <ClipboardList size={22} />
           <span className="dock-label text-xs font-bold">训练</span>
         </button>
         <button type="button"
           className={`transition-all duration-200 ${activeTab === 'diet' ? 'dock-active text-primary font-bold bg-transparent' : 'text-text-secondary dark:text-text-secondary-dark'}`}
           onClick={() => updateNavigationState({ tab: 'diet' })}
         >
-          <span className="text-xl">🍎</span>
+          <UtensilsCrossed size={22} />
           <span className="dock-label text-xs font-bold">饮食</span>
         </button>
         <button type="button"
           className={`transition-all duration-200 ${activeTab === 'data' ? 'dock-active text-primary font-bold bg-transparent' : 'text-text-secondary dark:text-text-secondary-dark'}`}
           onClick={() => updateNavigationState({ tab: 'data' })}
         >
-          <span className="text-xl">📊</span>
+          <ChartColumnIncreasing size={22} />
           <span className="dock-label text-xs font-bold">数据</span>
         </button>
         <button type="button"
           className={`transition-all duration-200 ${activeTab === 'me' ? 'dock-active text-primary font-bold bg-transparent' : 'text-text-secondary dark:text-text-secondary-dark'}`}
           onClick={() => updateNavigationState({ tab: 'me' })}
         >
-          <span className="text-xl">👤</span>
+          <User size={22} />
           <span className="dock-label text-xs font-bold">我的</span>
         </button>
       </div>

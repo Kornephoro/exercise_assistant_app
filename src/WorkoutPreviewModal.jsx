@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Play, ChevronDown, ChevronRight } from 'lucide-react';
+import { X, Play, ChevronDown, ChevronRight, Lightbulb } from 'lucide-react';
 import { convertWeight, getBarbellPlateBreakdown } from './unitUtils';
 import { MAIN_LIFT_KEYS } from './oneRmUtils';
 import BarbellVisualizer from './BarbellVisualizer';
@@ -132,7 +132,7 @@ function WorkoutPreviewModal({
                         return (
                           <div className="flex flex-col gap-1.5 mt-1 select-none w-full">
                             <div className="text-[10px] text-text-secondary dark:text-text-secondary-dark/60 bg-bg-main/50 dark:bg-bg-main-dark/50 px-2 py-1.5 rounded-lg border border-border-card/30 font-semibold">
-                              💡 配片说明: 空杆 {barWeight} {unit}
+                              <Lightbulb size={12} className="inline shrink-0" /> 配片说明: 空杆 {barWeight} {unit}
                             </div>
                             <BarbellVisualizer plates={[]} barWeight={barWeight} unit={unit} enabledPlates={enabledPlates} plateLimits={plateLimits} />
                           </div>
@@ -148,7 +148,7 @@ function WorkoutPreviewModal({
                       return (
                         <div className="flex flex-col gap-1.5 mt-1 select-none w-full">
                           <div className="text-[10px] text-primary dark:text-primary-dark bg-primary/5 dark:bg-primary/10 border border-primary/10 rounded-lg p-2 flex items-center gap-1.5 font-semibold">
-                            <span>💡 配片建议:</span>
+                            <span><Lightbulb size={12} className="inline shrink-0" /> 配片建议:</span>
                             <span>{barWeight}{unit} 空杆 + 单侧 [{plateTexts.join(', ')}]</span>
                           </div>
                           <BarbellVisualizer plates={breakdown.plates} barWeight={barWeight} unit={unit} enabledPlates={enabledPlates} plateLimits={plateLimits} />

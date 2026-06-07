@@ -1,32 +1,33 @@
 import { useState } from 'react';
+import { Dumbbell, Activity, Calendar } from 'lucide-react';
 import OneRMStrength from './OneRMStrength';
 import BodyMetrics from './BodyMetrics';
 import CalendarScreen from './CalendarScreen';
 
 const SUB_TABS = [
-  { key: 'strength', label: '力量表现', icon: '💪' },
-  { key: 'body', label: '身体记录', icon: '🩺' },
-  { key: 'calendar', label: '训练日历', icon: '📅' },
+  { key: 'strength', label: '力量表现', Icon: Dumbbell },
+  { key: 'body', label: '身体记录', Icon: Activity },
+  { key: 'calendar', label: '训练日历', Icon: Calendar },
 ];
 
 function SubTabBar({ active, onChange }) {
   return (
     <div className="flex w-full bg-bg-card dark:bg-bg-card-dark border border-border-card dark:border-border-card-dark rounded-xl p-1 gap-1">
-      {SUB_TABS.map(t => {
-        const isActive = active === t.key;
+      {SUB_TABS.map(({ key, label, Icon }) => {
+        const isActive = active === key;
         return (
           <button
-            key={t.key}
+            key={key}
             type="button"
-            onClick={() => onChange(t.key)}
+            onClick={() => onChange(key)}
             className={`flex-1 flex items-center justify-center gap-1.5 h-10 rounded-lg text-sm font-bold transition-all ${
               isActive
                 ? 'bg-primary text-primary-content shadow-sm'
                 : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark'
             }`}
           >
-            <span className="text-base">{t.icon}</span>
-            <span>{t.label}</span>
+            <Icon size={16} />
+            <span>{label}</span>
           </button>
         );
       })}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { Lock, LockOpen, Scale, Settings, Dumbbell, Pause, Zap, Pen, Target, TrendingDown, Frown, Lightbulb, AlertTriangle } from 'lucide-react';
 import {
   fetchDietLog,
   saveDietLog,
@@ -566,7 +567,7 @@ function DietScreen({
             </div>
           </div>
           <div className="text-xs md:text-sm text-text-secondary dark:text-text-secondary-dark/80 leading-normal border-t border-border-card/30 dark:border-border-card-dark/30 pt-2">
-            💡 Mifflin-St Jeor 公式得出基础代谢 BMR：<strong>{strengthDayStats.cal.bmr} kcal</strong>。无运动能耗（BMR * {configForm.neat_tef_factor}）为：<strong>{Math.round(strengthDayStats.cal.bmr * configForm.neat_tef_factor)} kcal</strong>。
+            <Lightbulb size={14} className="inline shrink-0" /> Mifflin-St Jeor 公式得出基础代谢 BMR：<strong>{strengthDayStats.cal.bmr} kcal</strong>。无运动能耗（BMR * {configForm.neat_tef_factor}）为：<strong>{Math.round(strengthDayStats.cal.bmr * configForm.neat_tef_factor)} kcal</strong>。
           </div>
         </div>
 
@@ -772,7 +773,7 @@ function DietScreen({
                     : 'bg-primary text-white border-primary shadow-xs'
                 }`}
               >
-                {isSliderLocked ? '🔒 防误触锁定' : '🔓 编辑中'}
+                {isSliderLocked ? <><Lock size={12} className="inline" /> 防误触锁定</> : <><LockOpen size={12} className="inline" /> 编辑中</>}
               </button>
             </span>
             <span 
@@ -864,21 +865,21 @@ function DietScreen({
         <div className="grid grid-cols-3 bg-bg-main/30 dark:bg-bg-main-dark/30 rounded-xl p-1 gap-1 select-none">
           {[
             { key: 'ratio', label: '热量占比', icon: '📊' },
-            { key: 'weight_multiple', label: '体重倍数', icon: '⚖️' },
-            { key: 'custom', label: '自定义克数', icon: '⚙️' },
-          ].map(tab => (
+            { key: 'weight_multiple', label: '体重倍数', icon: Scale },
+            { key: 'custom', label: '自定义克数', icon: Settings },
+          ].map(({ key, label, icon: Icon }) => (
             <button
-              key={tab.key}
+              key={key}
               type="button"
               className={`flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 py-2.5 sm:py-3.5 rounded-xl text-xs sm:text-sm md:text-base font-black transition-all whitespace-nowrap ${
-                configForm.calc_mode === tab.key
+                configForm.calc_mode === key
                   ? 'bg-primary text-white shadow-sm'
                   : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark'
               }`}
-              onClick={() => setConfigForm(prev => ({ ...prev, calc_mode: tab.key }))}
+              onClick={() => setConfigForm(prev => ({ ...prev, calc_mode: key }))}
             >
-              <span>{tab.icon}</span>
-              <span>{tab.label}</span>
+              <Icon size={16} />
+              <span>{label}</span>
             </button>
           ))}
         </div>
@@ -926,7 +927,7 @@ function DietScreen({
             
             {/* 力量日 */}
             <div className="flex flex-col gap-3 pb-3 border-b border-border-card/45 dark:border-border-card-dark/45">
-              <span className="section-subtitle select-none flex items-center gap-1 text-primary">🏋️ 力训日倍数：</span>
+              <span className="section-subtitle select-none flex items-center gap-1 text-primary"><Dumbbell size={12} />力训日倍数：</span>
               <div className="grid grid-cols-3 gap-3">
                 <div className="flex flex-col gap-1">
                   <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-semibold text-center">碳水 g/kg</span>
@@ -985,7 +986,7 @@ function DietScreen({
             {/* 休息日 */}
             {configForm.plan_type === 'split' && (
               <div className="flex flex-col gap-3">
-                <span className="section-subtitle select-none flex items-center gap-1">☕ 休息日倍数：</span>
+                <span className="section-subtitle select-none flex items-center gap-1"><Pause size={12} />休息日倍数：</span>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="flex flex-col gap-1">
                     <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-semibold text-center">碳水 g/kg</span>
@@ -1051,7 +1052,7 @@ function DietScreen({
             
             {/* 力量日 */}
             <div className="flex flex-col gap-3 pb-3 border-b border-border-card/45 dark:border-border-card-dark/45">
-              <span className="section-subtitle select-none flex items-center gap-1 text-primary">🏋️ 力训日目标：</span>
+              <span className="section-subtitle select-none flex items-center gap-1 text-primary"><Dumbbell size={12} />力训日目标：</span>
               <div className="grid grid-cols-3 gap-3">
                 <div className="flex flex-col gap-1">
                   <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-semibold text-center">碳水 g</span>
@@ -1107,7 +1108,7 @@ function DietScreen({
             {/* 休息日 */}
             {configForm.plan_type === 'split' && (
               <div className="flex flex-col gap-3">
-                <span className="section-subtitle select-none flex items-center gap-1">☕ 休息日目标：</span>
+                <span className="section-subtitle select-none flex items-center gap-1"><Pause size={12} />休息日目标：</span>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="flex flex-col gap-1">
                     <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-semibold text-center">碳水 g</span>
@@ -1272,7 +1273,7 @@ function DietScreen({
                 key={idx}
                 className="p-3 rounded-xl border text-left bg-amber-500/5 border-amber-500/10 text-amber-600 dark:text-amber-500 font-medium"
               >
-                {audit.message}
+                <AlertTriangle size={14} className="inline shrink-0 mr-1" />{audit.message}
               </div>
             ))}
           </div>
@@ -1290,22 +1291,22 @@ function DietScreen({
 
         <div className="grid grid-cols-3 gap-2.5 select-none">
           {[
-            { key: 'difficult', label: '疲惫/减太快', icon: '😮‍💨' },
-            { key: 'plateau', label: '平台期/减太慢', icon: '📉' },
-            { key: 'gain', label: '转力训增肌', icon: '💪' },
-          ].map(feedback => (
+            { key: 'difficult', label: '疲惫/减太快', Icon: Frown },
+            { key: 'plateau', label: '平台期/减太慢', Icon: TrendingDown },
+            { key: 'gain', label: '转力训增肌', Icon: Dumbbell },
+          ].map(({ key, label, Icon }) => (
             <button
-              key={feedback.key}
+              key={key}
               type="button"
               className={`flex flex-col items-center justify-center p-2 rounded-2xl h-16 border transition-all cursor-pointer ${
-                aiFeedbackType === feedback.key
+                aiFeedbackType === key
                   ? 'bg-primary border-primary text-white shadow-sm'
                   : 'bg-bg-card dark:bg-bg-card-dark border-border-card/50 dark:border-border-card-dark text-text-secondary dark:text-text-secondary-dark hover:text-text-main hover:bg-bg-hover/30'
               }`}
-              onClick={() => handleAiTuneRequest(feedback.key)}
+              onClick={() => handleAiTuneRequest(key)}
             >
-              <span className="text-lg md:text-xl">{feedback.icon}</span>
-              <span className="text-[10px] sm:text-xs md:text-sm font-bold mt-1 text-center whitespace-normal leading-tight">{feedback.label}</span>
+              <Icon size={22} />
+              <span className="text-[10px] sm:text-xs md:text-sm font-bold mt-1 text-center whitespace-normal leading-tight">{label}</span>
             </button>
           ))}
         </div>
@@ -1314,7 +1315,7 @@ function DietScreen({
         {aiTuneResult && (
           <div className="p-4 bg-bg-card dark:bg-bg-card-dark rounded-xl border border-border-card/50 dark:border-border-card-dark/50 flex flex-col gap-3 animate-fadeIn text-xs md:text-sm shadow-sm">
             <p className="text-xs md:text-sm text-text-secondary dark:text-text-secondary-dark leading-relaxed bg-bg-main/30 dark:bg-bg-main-dark/30 p-3 rounded-lg font-medium border border-border-card/25 dark:border-border-card-dark/25">
-              {aiTuneResult.reason}
+              <Lightbulb size={14} className="inline shrink-0 mr-1" />{aiTuneResult.reason}
             </p>
             <div className="flex justify-between items-center select-none flex-wrap gap-2 pt-1 border-t border-border-card/10 dark:border-border-card-dark/10">
               <span className="text-xs md:text-sm text-text-secondary dark:text-text-secondary-dark font-bold">
@@ -1378,7 +1379,7 @@ function DietScreen({
                         : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark'
                     }`}
                   >
-                    ⚡ 力训日
+                    <Zap size={12} className="inline" /> 力训日
                   </button>
                   <button
                     type="button"
@@ -1392,7 +1393,7 @@ function DietScreen({
                         : 'text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark'
                     }`}
                   >
-                    ☕ 休息日
+                    <Pause size={12} className="inline" /> 休息日
                   </button>
                 </div>
               </div>
@@ -1403,7 +1404,7 @@ function DietScreen({
           <div className="p-4 border border-border-card/60 dark:border-border-card-dark/60 rounded-xl bg-bg-main/10 dark:bg-bg-main-dark/10 flex flex-col gap-2 select-none">
             <div className="flex justify-between items-center border-b border-border-card/30 dark:border-border-card-dark/30 pb-2 flex-wrap gap-1">
               <span className="text-sm md:text-base font-extrabold text-text-main dark:text-text-main-dark flex items-center gap-1.5">
-                📅 {auditDate} {configForm.plan_type === 'unified' ? '(统一方案)' : `(${auditDayType === 'strength_day' ? '力训日' : '休息日'})`} 目标
+                <Calendar size={14} className="inline" /> {auditDate} {configForm.plan_type === 'unified' ? '(统一方案)' : `(${auditDayType === 'strength_day' ? '力训日' : '休息日'})`} 目标
               </span>
               <span className="badge badge-success text-white font-bold rounded-lg text-xs">
                 基准：{configForm.calc_mode === 'ratio' ? '热量占比' : configForm.calc_mode === 'weight_multiple' ? '体重倍数' : '自定义克数'}
@@ -1439,7 +1440,7 @@ function DietScreen({
 
           {/* 录入实际摄入 */}
           <div className="border-t border-border-card/20 dark:border-border-card-dark/20 pt-4 flex flex-col gap-3">
-            <span className="block text-base font-extrabold text-text-main dark:text-text-main-dark">✍️ 录入实际摄入数据 (源自外部食物识别 App)</span>
+            <span className="block text-base font-extrabold text-text-main dark:text-text-main-dark"><Pen size={16} className="inline mr-1" />录入实际摄入数据 (源自外部食物识别 App)</span>
 
             {/* 输入模式切换 */}
             <div className="flex bg-bg-main/30 dark:bg-bg-main-dark/30 border border-border-card dark:border-border-card-dark p-1 rounded-xl items-center gap-1 select-none h-12">
@@ -1556,7 +1557,7 @@ function DietScreen({
                   if (sum !== 100) {
                     return (
                       <p className="text-xs text-error font-bold flex items-center gap-1 animate-pulse">
-                        ⚠️ 比例之和必须等于 100% (当前为: {sum}%)
+                        <AlertTriangle size={14} className="inline shrink-0" /> 比例之和必须等于 100% (当前为: {sum}%)
                       </p>
                     );
                   }
@@ -1587,7 +1588,7 @@ function DietScreen({
 
           {/* 实时对比偏差看板 (Expected vs. Actual) */}
           <div className="border-t border-border-card/20 dark:border-border-card-dark/20 pt-4 flex flex-col gap-3 select-none">
-            <span className="block text-base md:text-lg font-extrabold text-text-main dark:text-text-main-dark">⚖️ 今日摄入偏差核算 (预计 ➔ 实际)</span>
+            <span className="block text-base md:text-lg font-extrabold text-text-main dark:text-text-main-dark"><Scale size={16} className="inline mr-1" />今日摄入偏差核算 (预计 ➔ 实际)</span>
             <div className="grid grid-cols-2 gap-2 sm:gap-3.5">
               {/* 热量偏差 */}
               {(() => {
@@ -1762,7 +1763,7 @@ function DietScreen({
                     <span className={`text-[10px] md:text-xs px-2 py-0.5 rounded-lg border font-bold ${
                       item.dayType === '力训日' ? 'bg-primary/10 text-primary border-primary/20' : 'bg-success/10 text-success border-success/20'
                     }`}>
-                      {item.dayType === '力训日' ? '⚡ 力训' : '☕ 休息'}
+                      {item.dayType === '力训日' ? <><Zap size={10} className="inline" /> 力训</> : <><Pause size={10} className="inline" /> 休息</>}
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
