@@ -4,7 +4,7 @@ import { DEFAULT_GYM_EQUIPMENT_CONFIG } from './unitUtils';
 import { saveUserProfile } from './services/profileService';
 import { getAuthState, signUpWithEmail, signInWithEmail, signOut, upgradeAnonymousWithEmail } from './services/authService';
 
-function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymEquipmentConfig = null, setGymEquipmentConfig = null, onRefreshProfile = null, onAuthChange = null }) {
+function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymEquipmentConfig = null, setGymEquipmentConfig = null, onRefreshProfile = null, onAuthChange = null, currentUserId = null, currentEmail = null, currentIsAnonymous = true }) {
   const [nickname] = useState(() => localStorage.getItem('user_nickname') || '');
   const [showBarbellModal, setShowBarbellModal] = useState(false);
   const [toastMsg, setToastMsg] = useState(null);
@@ -22,7 +22,8 @@ function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymE
   const displayName = nickname || '未设置昵称';
 
   // ==================== 认证状态 ====================
-  const [authState, setAuthState] = useState({ userId: null, email: null, isAnonymous: true });
+  // 从 App.jsx 传入，零延迟，不会闪烁
+  const [authState, setAuthState] = useState({ userId: currentUserId, email: currentEmail, isAnonymous: currentIsAnonymous });
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState('upgrade'); // 'upgrade' | 'login' | 'register'
   const [authEmail, setAuthEmail] = useState('');
@@ -31,9 +32,10 @@ function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymE
   const [authError, setAuthError] = useState(null);
   const [authSuccess, setAuthSuccess] = useState(null);
 
+  // 同步 App.jsx 传来的认证状态（避免切换 tab 时闪烁）
   useEffect(() => {
-    getAuthState().then(setAuthState);
-  }, []);
+    setAuthState({ userId: currentUserId, email: currentEmail, isAnonymous: currentIsAnonymous });
+  }, [currentUserId, currentEmail, currentIsAnonymous]);
 
   const refreshAuthState = async () => {
     const state = await getAuthState();

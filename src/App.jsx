@@ -16,7 +16,7 @@ import { DEFAULT_GYM_EQUIPMENT_CONFIG } from './unitUtils';
 import { getCNName } from './exerciseNames';
 import { useRestTimer } from './hooks/useRestTimer';
 import { useNavigation } from './hooks/useNavigation';
-import { ensureAppUser, clearEnsureUserCache } from './supabaseClient';
+import { supabase, ensureAppUser, clearEnsureUserCache } from './supabaseClient';
 import ErrorBoundary from './components/ErrorBoundary';
 
 const TodayScreen = lazy(() => import('./TodayScreen'));
@@ -59,6 +59,8 @@ function App() {
 
   // 当前认证用户 ID（用于检测用户切换）
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState(null);
+  const [currentUserIsAnonymous, setCurrentUserIsAnonymous] = useState(true);
 
   // 用户切换时清理 user-scoped localStorage
   const clearUserLocalStorage = () => {
@@ -252,6 +254,14 @@ function App() {
       }
 
       const newUserId = await ensureAppUser();
+      // 获取当前用户的 email 和匿名状态，供 MyPage 直接使用
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setCurrentUserEmail(user.email || null);
+          setCurrentUserIsAnonymous(user.is_anonymous || false);
+        }
+      } catch (e) { /* 非关键，静默失败 */ }
 
       // 用户 ID 变化时清理 user-scoped localStorage，避免数据串号
       if (prevUserId && newUserId && prevUserId !== newUserId) {
@@ -1052,9 +1062,14 @@ function App() {
               gymEquipmentConfig={gymEquipmentConfig}
               setGymEquipmentConfig={setGymEquipmentConfig}
               onRefreshProfile={loadWorkoutData}
+              currentUserId={currentUserId}
+              currentEmail={currentUserEmail}
+              currentIsAnonymous={currentUserIsAnonymous}
               onAuthChange={() => {
                 clearEnsureUserCache();
                 setCurrentUserId(null);
+                setCurrentUserEmail(null);
+                setCurrentUserIsAnonymous(true);
                 loadWorkoutData();
               }}
             />
