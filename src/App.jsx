@@ -41,6 +41,15 @@ const ScreenFallback = ({ label = '加载中...' }) => (
   </div>
 );
 
+const createSessionId = () => {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+    const rand = Math.random() * 16 | 0;
+    const value = char === 'x' ? rand : (rand & 0x3 | 0x8);
+    return value.toString(16);
+  });
+};
+
 function App() {
   const [activeTab, setActiveTab] = useState('today');
 
@@ -569,6 +578,12 @@ function App() {
 
     const setsToInsert = [];
     const workoutRecords = [];
+    const sessionId = createSessionId();
+    const sessionDurationSeconds = Math.max(0, (sessionState.elapsedTime || 0) + (
+      sessionState.isPaused
+        ? 0
+        : Math.floor((Date.now() - (sessionState.startTime || Date.now())) / 1000)
+    ));
     let hasValidationError = false;
     let isFirstSetAdded = false;
 
@@ -746,6 +761,8 @@ function App() {
       const updatedAt = new Date().toISOString();
 
       await completeWorkoutSession({
+        session_id: sessionId,
+        session_duration_seconds: sessionDurationSeconds,
         user_program_id: activeUP.id,
         program_state: newState,
         updated_at: updatedAt,

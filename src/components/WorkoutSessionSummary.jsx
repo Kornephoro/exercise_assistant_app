@@ -1,0 +1,164 @@
+import { Activity, Calendar, Clock, Dumbbell, ListChecks } from 'lucide-react';
+import { buildWorkoutSessions, formatDateTime, formatDuration, formatSetResult } from '../utils/workoutSummary';
+
+const TIER_STYLES = {
+  T1: {
+    badge: 'bg-tier-t1/10 text-tier-t1 dark:text-tier-t1-dark border-tier-t1/20 dark:border-tier-t1-dark/20',
+    edge: 'border-l-tier-t1 dark:border-l-tier-t1-dark'
+  },
+  T2: {
+    badge: 'bg-tier-t2/10 text-tier-t2 dark:text-tier-t2-dark border-tier-t2/20 dark:border-tier-t2-dark/20',
+    edge: 'border-l-tier-t2 dark:border-l-tier-t2-dark'
+  },
+  T3: {
+    badge: 'bg-tier-t3/10 text-tier-t3 dark:text-tier-t3-dark border-tier-t3/20 dark:border-tier-t3-dark/20',
+    edge: 'border-l-tier-t3 dark:border-l-tier-t3-dark'
+  }
+};
+
+const formatVolume = (value) => {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return '--';
+  if (n >= 1000) return `${(n / 1000).toFixed(2)}t`;
+  return `${n.toFixed(1)}kg`;
+};
+
+const getExerciseWeightLabel = (exercise) => {
+  const weights = (exercise.sets || [])
+    .map(set => Number(set.weight_kg))
+    .filter(weight => Number.isFinite(weight) && weight > 0);
+  if (weights.length === 0 && exercise.weight_kg !== null && exercise.weight_kg !== undefined) {
+    const weight = Number(exercise.weight_kg);
+    return Number.isFinite(weight) ? `${weight.toFixed(1)}kg` : '--';
+  }
+  if (weights.length === 0) return '--';
+  const unique = Array.from(new Set(weights.map(weight => weight.toFixed(1))));
+  return unique.length === 1 ? `${unique[0]}kg` : `${unique[0]}-${unique[unique.length - 1]}kg`;
+};
+
+function Stat({ icon: Icon, label, value }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-lg border border-border-card/50 dark:border-border-card-dark/50 bg-bg-main/20 dark:bg-bg-main-dark/20 px-3 py-2 min-w-0">
+      <span className="flex items-center gap-1.5 text-[11px] font-semibold text-text-secondary dark:text-text-secondary-dark">
+        <Icon size={12} />
+        {label}
+      </span>
+      <span className="text-sm font-extrabold text-text-main dark:text-text-main-dark truncate">{value}</span>
+    </div>
+  );
+}
+
+function ExerciseSummary({ exercise, getExerciseCNName }) {
+  const tier = exercise.tier || 'T1';
+  const style = TIER_STYLES[tier] || TIER_STYLES.T1;
+  const sets = exercise.sets || [];
+
+  return (
+    <section className={`rounded-xl border border-border-card dark:border-border-card-dark border-l-4 ${style.edge} bg-bg-main/10 dark:bg-bg-main-dark/20 p-3 flex flex-col gap-3`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h4 className="text-base font-extrabold text-text-main dark:text-text-main-dark truncate">
+            {getExerciseCNName(exercise.exercise)}
+          </h4>
+          <p className="text-xs text-text-secondary dark:text-text-secondary-dark mt-0.5">
+            负重 {getExerciseWeightLabel(exercise)} · 容量 {formatVolume(exercise.volumeKg)}
+          </p>
+        </div>
+        <span className={`badge badge-sm font-bold px-2 h-5 rounded border shrink-0 ${style.badge}`}>
+          {tier}
+        </span>
+      </div>
+
+      {sets.length > 0 ? (
+        <div className="flex flex-col gap-1.5">
+          {sets.map((set, index) => (
+            <div
+              key={set.id || `${exercise.id}-${set.set_number}-${index}`}
+              className="grid grid-cols-[52px_1fr_auto] items-center gap-2 rounded-lg bg-bg-card/70 dark:bg-bg-card-dark/70 border border-border-card/45 dark:border-border-card-dark/45 px-2.5 py-2"
+            >
+              <span className={`text-[11px] font-bold ${set.is_warmup ? 'text-text-secondary dark:text-text-secondary-dark' : 'text-primary'}`}>
+                {set.is_warmup ? `热身${set.set_number}` : `第${set.set_number}组`}
+              </span>
+              <span className="text-sm font-bold text-text-main dark:text-text-main-dark truncate">
+                {formatSetResult(set)}
+              </span>
+              <span className={`text-[10px] font-semibold ${set.completed === false ? 'text-text-secondary dark:text-text-secondary-dark' : 'text-success'}`}>
+                {set.completed === false ? '未完成' : '完成'}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-lg bg-bg-card/70 dark:bg-bg-card-dark/70 border border-border-card/45 dark:border-border-card-dark/45 px-3 py-2 text-sm text-text-secondary dark:text-text-secondary-dark">
+          摘要记录：末组 {exercise.actual_last_set_reps ?? '--'}，详细组数据缺失
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SessionSummaryCard({ session, getExerciseCNName, title }) {
+  return (
+    <div className="card flex flex-col gap-4">
+      <header className="flex flex-col gap-2">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-xl font-extrabold text-text-main dark:text-text-main-dark">
+              {title || '训练总结'}
+            </h3>
+            <p className="text-xs font-semibold text-text-secondary dark:text-text-secondary-dark mt-1">
+              {session.trainingDay ? `${session.trainingDay} · ` : ''}{formatDateTime(session.startedAt)}
+            </p>
+          </div>
+          <span className="badge badge-primary badge-outline font-bold shrink-0">
+            {session.exerciseCount} 动作
+          </span>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Stat icon={Activity} label="本次容量" value={formatVolume(session.totalVolumeKg)} />
+        <Stat icon={Clock} label="训练时间" value={formatDuration(session.durationSeconds)} />
+        <Stat icon={Calendar} label="训练日期" value={formatDateTime(session.startedAt).split(' ')[0]} />
+        <Stat icon={ListChecks} label="完成组数" value={`${session.totalSets} 组`} />
+      </div>
+
+      <div className="flex items-center gap-2 text-sm font-bold text-text-main dark:text-text-main-dark">
+        <Dumbbell size={16} className="text-primary" />
+        <span>动作明细</span>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {session.exercises.map((exercise) => (
+          <ExerciseSummary
+            key={exercise.id || `${session.key}-${exercise.exercise}-${exercise.tier}`}
+            exercise={exercise}
+            getExerciseCNName={getExerciseCNName}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WorkoutSessionSummary({ workouts, getExerciseCNName, title, latestOnly = false }) {
+  const sessions = buildWorkoutSessions(workouts);
+  const visibleSessions = latestOnly ? sessions.slice(0, 1) : sessions;
+
+  if (visibleSessions.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {visibleSessions.map((session, index) => (
+        <SessionSummaryCard
+          key={session.key}
+          session={session}
+          getExerciseCNName={getExerciseCNName}
+          title={latestOnly || visibleSessions.length === 1 ? title : `${title || '训练总结'} · 第 ${visibleSessions.length - index} 次`}
+        />
+      ))}
+    </div>
+  );
+}
+
+export default WorkoutSessionSummary;

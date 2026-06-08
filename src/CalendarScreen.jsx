@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { fetchWorkoutsForMonth, fetchWorkoutsForDay } from './services/workoutService';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, AlertCircle } from 'lucide-react';
+import WorkoutSessionSummary from './components/WorkoutSessionSummary';
 
 /**
  * 训练日历页面组件 - 月视图展示已练天数与追溯每日动作详情
@@ -307,96 +308,11 @@ function CalendarScreen({ getExerciseCNName }) {
             </p>
           </div>
         ) : (
-          <div className="flex flex-col gap-4">
-            
-            {/* 训练详情头部 */}
-            <div className="px-1 flex items-center justify-between">
-              <h3 className="text-base font-bold text-text-main dark:text-text-main-dark flex items-center gap-1.5">
-                <span className="w-1 h-4 bg-primary rounded-full"></span>
-                <span>{currentYear}年{currentMonth + 1}月{selectedDate}日 训练总结</span>
-              </h3>
-              <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-bold">
-                共 {dayDetail.length} 个动作
-              </span>
-            </div>
-
-            {/* 训练详情卡片流 */}
-            <div className="flex flex-col gap-4">
-              {dayDetail.map((log) => {
-                let tierBadgeClass;
-                let cardBorderClass;
-                if (log.tier === 'T1') {
-                  tierBadgeClass = 'bg-tier-t1/10 text-tier-t1 dark:text-tier-t1-dark border-tier-t1/20 dark:border-tier-t1-dark/20';
-                  cardBorderClass = 'border-l-4 border-l-tier-t1 dark:border-l-tier-t1-dark';
-                } else if (log.tier === 'T2') {
-                  tierBadgeClass = 'bg-tier-t2/10 text-tier-t2 dark:text-tier-t2-dark border-tier-t2/20 dark:border-tier-t2-dark/20';
-                  cardBorderClass = 'border-l-4 border-l-tier-t2 dark:border-l-tier-t2-dark';
-                } else {
-                  tierBadgeClass = 'bg-tier-t3/10 text-tier-t3 dark:text-tier-t3-dark border-tier-t3/20 dark:border-tier-t3-dark/20';
-                  cardBorderClass = 'border-l-4 border-l-tier-t3 dark:border-l-tier-t3-dark';
-                }
-
-                return (
-                  <div
-                    key={log.id}
-                    className={`card !p-5 transition-all duration-200 hover:-translate-y-0.5 ${cardBorderClass}`}
-                  >
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="text-base font-bold text-text-main dark:text-text-main-dark">
-                        {getExerciseCNName(log.exercise)}
-                      </span>
-                      <span className={`badge badge-sm font-bold px-2 h-5 rounded select-none ${tierBadgeClass}`}>
-                        {log.tier}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2">
-                      {/* 完成负重 */}
-                      <div className="flex flex-col gap-0.5 bg-bg-main/10 dark:bg-bg-main-dark/10 p-2 rounded-lg border border-border-card/45 dark:border-border-card-dark/45 text-center items-center justify-center">
-                        <span className="text-[10px] sm:text-xs text-text-secondary dark:text-text-secondary-dark font-bold select-none">完成负重</span>
-                        <span className="font-mono font-bold text-sm sm:text-base text-text-main dark:text-text-main-dark mt-0.5 leading-none block">
-                          {log.weight_kg.toFixed(1)}
-                        </span>
-                        <span className="text-[9px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90">kg</span>
-                      </div>
-
-                      {/* 动作方案 */}
-                      <div className="flex flex-col gap-0.5 bg-bg-main/10 dark:bg-bg-main-dark/10 p-2 rounded-lg border border-border-card/45 dark:border-border-card-dark/45 text-center items-center justify-center">
-                        <span className="text-[10px] sm:text-xs text-text-secondary dark:text-text-secondary-dark font-bold select-none">动作方案</span>
-                        <span className="font-bold text-xs sm:text-sm text-text-main dark:text-text-main-dark mt-1 truncate select-none leading-none block w-full" title={
-                          log.tier === 'T1' ? (
-                            log.planned_reps === 3 ? '5 组 × 3 次' :
-                            log.planned_reps === 2 ? '6 组 × 2 次' : '10 组 × 1 次'
-                          ) : log.tier === 'T2' ? (
-                            log.planned_reps === 10 ? '3 组 × 10 次' :
-                            log.planned_reps === 8 ? '3 组 × 8 次' : '3 组 × 6 次'
-                          ) : '3 组 × 15 次'
-                        }>
-                          {log.tier === 'T1' ? (
-                            log.planned_reps === 3 ? '5×3' :
-                            log.planned_reps === 2 ? '6×2' : '10×1'
-                          ) : log.tier === 'T2' ? (
-                            log.planned_reps === 10 ? '3×10' :
-                            log.planned_reps === 8 ? '3×8' : '3×6'
-                          ) : '3×15'}
-                        </span>
-                        <span className="text-[9px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90">组×次</span>
-                      </div>
-
-                      {/* 最后一组次数 */}
-                      <div className="flex flex-col gap-0.5 bg-bg-main/10 dark:bg-bg-main-dark/10 p-2 rounded-lg border border-border-card/45 dark:border-border-card-dark/45 text-center items-center justify-center">
-                        <span className="text-[10px] sm:text-xs text-text-secondary dark:text-text-secondary-dark font-bold select-none">末组次数</span>
-                        <span className="font-mono font-bold text-sm sm:text-base text-primary mt-0.5 leading-none block">
-                          {log.actual_last_set_reps}
-                        </span>
-                        <span className="text-[9px] text-text-secondary/70 font-normal font-sans mt-0.5 block leading-none scale-90">次</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <WorkoutSessionSummary
+            workouts={dayDetail}
+            getExerciseCNName={getExerciseCNName}
+            title={`${currentYear}年${currentMonth + 1}月${selectedDate}日 训练总结`}
+          />
         )}
       </div>
       

@@ -15,13 +15,17 @@ alter table public.user_programs
   add column if not exists user_id uuid;
 
 alter table public.workouts
-  add column if not exists user_id uuid;
+  add column if not exists user_id uuid,
+  add column if not exists session_id uuid,
+  add column if not exists session_duration_seconds int;
 
 alter table public.workout_sets
-  add column if not exists user_id uuid;
+  add column if not exists user_id uuid,
+  add column if not exists session_id uuid;
 
 alter table public.one_rm_records
-  add column if not exists user_id uuid;
+  add column if not exists user_id uuid,
+  add column if not exists session_id uuid;
 
 alter table public.body_metrics
   add column if not exists user_id uuid;
@@ -94,6 +98,12 @@ alter table public.workout_sets
 
 create index if not exists idx_workout_sets_workout_id
   on public.workout_sets (workout_id);
+
+create index if not exists idx_workouts_user_session
+  on public.workouts (user_id, session_id, created_at);
+
+create index if not exists idx_workout_sets_user_session
+  on public.workout_sets (user_id, session_id);
 
 -- Current exercise recording modes do not always have weight/reps fields.
 alter table public.workouts
@@ -364,6 +374,8 @@ create policy "workout_templates_delete_own"
 -- 5. Transactional workout save RPC.
 -- The client passes:
 -- {
+--   "session_id": "client-generated uuid",
+--   "session_duration_seconds": 3600,
 --   "user_program_id": 1,
 --   "program_state": {...},
 --   "updated_at": "2026-06-08T...",
@@ -380,6 +392,8 @@ set search_path = public
 as $$
 declare
   v_user_id uuid := auth.uid();
+  v_session_id uuid := nullif(payload->>'session_id', '')::uuid;
+  v_session_duration_seconds int := nullif(payload->>'session_duration_seconds', '')::int;
   v_user_program_id bigint := nullif(payload->>'user_program_id', '')::bigint;
   v_workout jsonb;
   v_set jsonb;
@@ -391,6 +405,10 @@ declare
 begin
   if v_user_id is null then
     raise exception 'Authentication required';
+  end if;
+
+  if v_session_id is null then
+    raise exception 'session_id is required';
   end if;
 
   if v_user_program_id is null then
@@ -416,6 +434,8 @@ begin
 
     insert into public.workouts (
       user_id,
+      session_id,
+      session_duration_seconds,
       training_day,
       tier,
       exercise,
@@ -426,6 +446,8 @@ begin
     )
     values (
       v_user_id,
+      v_session_id,
+      v_session_duration_seconds,
       v_workout->>'training_day',
       v_workout->>'tier',
       v_workout->>'exercise',
@@ -457,6 +479,7 @@ begin
 
     insert into public.workout_sets (
       user_id,
+      session_id,
       workout_id,
       exercise,
       tier,
@@ -478,6 +501,7 @@ begin
     )
     values (
       v_user_id,
+      v_session_id,
       v_workout_id,
       v_set->>'exercise',
       v_set->>'tier',
@@ -507,6 +531,7 @@ begin
 
     insert into public.one_rm_records (
       user_id,
+      session_id,
       exercise,
       date,
       weight_kg,
@@ -518,6 +543,7 @@ begin
     )
     values (
       v_user_id,
+      v_session_id,
       v_one_rm->>'exercise',
       nullif(v_one_rm->>'date', '')::date,
       nullif(v_one_rm->>'weight_kg', '')::numeric,

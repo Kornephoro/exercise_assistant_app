@@ -1,5 +1,32 @@
 import { supabase, requireCurrentUserId, withUserIdPayload } from '../supabaseClient';
 
+const attachWorkoutSets = async (workouts, userId) => {
+  const rows = workouts || [];
+  const workoutIds = rows.map(row => row.id).filter(Boolean);
+  if (workoutIds.length === 0) return rows;
+
+  const { data: setsData, error } = await supabase
+    .from('workout_sets')
+    .select('*')
+    .eq('user_id', userId)
+    .in('workout_id', workoutIds)
+    .order('workout_id', { ascending: true })
+    .order('set_number', { ascending: true });
+
+  if (error) throw error;
+
+  const setsByWorkoutId = {};
+  (setsData || []).forEach((set) => {
+    if (!setsByWorkoutId[set.workout_id]) setsByWorkoutId[set.workout_id] = [];
+    setsByWorkoutId[set.workout_id].push(set);
+  });
+
+  return rows.map(row => ({
+    ...row,
+    sets: setsByWorkoutId[row.id] || []
+  }));
+};
+
 /**
  * 获取特定计划自起止日期后的所有历史记录
  * @param {number} programId
@@ -33,7 +60,7 @@ export const fetchTodayWorkouts = async (todayStartISO) => {
     .order('created_at');
 
   if (error) throw error;
-  return data || [];
+  return attachWorkoutSets(data || [], userId);
 };
 
 /**
@@ -150,7 +177,7 @@ export const fetchWorkoutsForDay = async (dayStart, dayEnd) => {
     .order('created_at', { ascending: true });
 
   if (error) throw error;
-  return data || [];
+  return attachWorkoutSets(data || [], userId);
 };
 
 /**

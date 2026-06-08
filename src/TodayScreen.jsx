@@ -3,13 +3,8 @@ import { calcCalorieBudget, calcMacronutrientTargets } from './dietUtils';
 import { saveDietLog } from './services/dietService';
 import { saveBodyMetrics } from './services/bodyService';
 import { getBmiInfo, getWhtrInfo } from './healthUtils';
-import { Play, RotateCcw, CheckCircle, Heart, Utensils, Calendar, ChevronDown, ArrowRight, SkipForward, Flag, Loader2, Zap, Dumbbell, Timer, Scale, Moon, ClipboardList, Pause, Ruler } from 'lucide-react';
-
-const TIER_COLORS = {
-  T1: { bg: 'bg-tier-t1/10', text: 'text-tier-t1', darkText: 'dark:text-tier-t1-dark', border: 'border-tier-t1/20', darkBorder: 'dark:border-tier-t1-dark/20' },
-  T2: { bg: 'bg-tier-t2/10', text: 'text-tier-t2', darkText: 'dark:text-tier-t2-dark', border: 'border-tier-t2/20', darkBorder: 'dark:border-tier-t2-dark/20' },
-  T3: { bg: 'bg-tier-t3/10', text: 'text-tier-t3', darkText: 'dark:text-tier-t3-dark', border: 'border-tier-t3/20', darkBorder: 'dark:border-tier-t3-dark/20' },
-};
+import { Play, RotateCcw, Heart, Utensils, Calendar, ChevronDown, ArrowRight, SkipForward, Flag, Loader2, Zap, Dumbbell, Timer, Scale, Moon, ClipboardList, Pause, Ruler } from 'lucide-react';
+import WorkoutSessionSummary from './components/WorkoutSessionSummary';
 
 // 训练摘要纯展示组件（从 JSX IIFE 提取）
 const TIER_MINUTES = { T1: 3.5, T2: 2.5, T3: 1.5 };
@@ -769,36 +764,12 @@ function TodayScreen({
 
         {/* 已完成 */}
         {isTodayCompleted ? (
-          <div className="card !border-green-500/20 dark:!border-green-500/30">
-            <div className="flex flex-col items-center text-center gap-2.5 mb-5 select-none">
-              <CheckCircle className="text-green-500" size={48} />
-              <h3 className="text-xl font-bold text-text-main dark:text-text-main-dark">今日训练已完成</h3>
-              <p className="text-sm text-text-secondary dark:text-text-secondary-dark">你今天做得棒极了！以下是训练摘要：</p>
-            </div>
-            <div className="flex flex-col gap-3.5">
-              {todayWorkoutSummary.map((log, idx) => {
-                const tc = TIER_COLORS[log.tier] || TIER_COLORS.T1;
-                return (
-                  <div key={log.id || idx} className={`flex justify-between items-center p-3 rounded-xl border bg-bg-main/20 dark:bg-bg-main-dark/20 ${tc.border} ${tc.darkBorder}`}>
-                    <div className="flex items-center gap-2">
-                      <span className={`badge font-bold text-xs px-2 py-0.5 rounded ${tc.bg} ${tc.text} ${tc.darkText} ${tc.border} ${tc.darkBorder}`}>
-                        {log.tier}
-                      </span>
-                      <span className="text-base font-bold text-text-main dark:text-text-main-dark">{getExerciseCNName(log.exercise)}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-bold text-text-main dark:text-text-main-dark bg-bg-hover dark:bg-bg-hover-dark px-2 py-0.5 rounded">
-                        {log.weight_kg?.toFixed(1)}kg
-                      </span>
-                      <span className="text-sm text-text-secondary dark:text-text-secondary-dark">
-                        末组 <span className="text-text-main dark:text-text-main-dark text-base font-bold">{log.actual_last_set_reps}</span>
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <WorkoutSessionSummary
+            workouts={todayWorkoutSummary}
+            getExerciseCNName={getExerciseCNName}
+            title="今日训练总结"
+            latestOnly
+          />
         ) : daysUntilStart > 0 ? (
           /* 尚未开始 */
           <div className="card !border-primary/20 dark:!border-primary/30">
