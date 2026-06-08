@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { Dumbbell, ClipboardList, UtensilsCrossed, ChartColumnIncreasing, User } from 'lucide-react';
+import { Dumbbell, ClipboardList, UtensilsCrossed, ChartColumnIncreasing, User, CheckCircle, AlertTriangle, SkipForward } from 'lucide-react';
 import { fetchActivePrograms, fetchAllUserPrograms, fetchExercises, saveUserProgram } from './services/programService';
 import { fetchUserProfile } from './services/profileService';
 import { fetchBodyMetrics } from './services/bodyService';
@@ -17,13 +17,7 @@ import { getCNName } from './exerciseNames';
 import { useRestTimer } from './hooks/useRestTimer';
 import { useNavigation } from './hooks/useNavigation';
 import { ensureAppUser, clearEnsureUserCache } from './supabaseClient';
-import { getAuthState } from './services/authService';
 import ErrorBoundary from './components/ErrorBoundary';
-import {
-  CheckCircle,
-  AlertTriangle,
-  SkipForward
-} from 'lucide-react';
 
 const TodayScreen = lazy(() => import('./TodayScreen'));
 const PlanScreen = lazy(() => import('./PlanScreen'));
@@ -257,8 +251,7 @@ function App() {
         return;
       }
 
-      await ensureAppUser();
-      const { userId: newUserId } = await getAuthState();
+      const newUserId = await ensureAppUser();
 
       // 用户 ID 变化时清理 user-scoped localStorage，避免数据串号
       if (prevUserId && newUserId && prevUserId !== newUserId) {
