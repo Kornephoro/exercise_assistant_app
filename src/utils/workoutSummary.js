@@ -73,6 +73,19 @@ export const formatSetResult = (set) => {
   return set.completed ? '已完成' : '未记录';
 };
 
+export const formatSetMeta = (set) => {
+  const hasTempo = ['tempo_eccentric', 'tempo_pause_bottom', 'tempo_concentric', 'tempo_pause_top']
+    .every(key => set[key] !== null && set[key] !== undefined);
+  const tempo = hasTempo
+    ? `${set.tempo_eccentric}-${set.tempo_pause_bottom}-${set.tempo_concentric}-${set.tempo_pause_top}`
+    : '';
+  const rest = set.rest_duration !== null && set.rest_duration !== undefined
+    ? `${toNumber(set.rest_duration)}秒`
+    : '';
+
+  return [tempo, rest].filter(Boolean).join(' · ');
+};
+
 export const getSetVolume = (set) => {
   if (set.is_warmup || set.completed === false) return 0;
   const weight = toNumber(set.weight_kg);

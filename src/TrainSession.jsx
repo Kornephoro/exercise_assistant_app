@@ -477,6 +477,24 @@ function TrainSession({
   const completeSet = () => {
     if (!focusedSet) return;
     const { exerciseIdx, setIdx } = focusedSet;
+    const setKey = getSetKey(exerciseIdx, setIdx);
+    const exercise = todayWorkout?.exercises?.[exerciseIdx];
+    const method = exercise ? getRecordingMethod(exercise.exercise) : 'standard';
+    const shouldRecordTempo = ['standard', 'reps_only', 'bodyweight_added', 'bodyweight_assisted'].includes(method);
+    setSetDetails(prev => {
+      const detail = prev[setKey] || {};
+      return {
+        ...prev,
+        [setKey]: {
+          ...detail,
+          tempo_eccentric: shouldRecordTempo && detail.record_tempo !== false ? (detail.tempo_eccentric ?? 3) : detail.tempo_eccentric,
+          tempo_pause_bottom: shouldRecordTempo && detail.record_tempo !== false ? (detail.tempo_pause_bottom ?? 1) : detail.tempo_pause_bottom,
+          tempo_concentric: shouldRecordTempo && detail.record_tempo !== false ? (detail.tempo_concentric ?? 1) : detail.tempo_concentric,
+          tempo_pause_top: shouldRecordTempo && detail.record_tempo !== false ? (detail.tempo_pause_top ?? 0) : detail.tempo_pause_top,
+          rest_duration: detail.record_rest === false ? null : customRestSeconds
+        }
+      };
+    });
     handleToggleSet(exerciseIdx, setIdx);
     closeSetCard();
 
@@ -865,13 +883,31 @@ function TrainSession({
 
             {/* 组间休息调整 */}
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-base-content/50">组间休息（秒）</label>
-              <div className="flex items-stretch gap-1.5">
+              <div className="flex items-center justify-between h-6">
+                <div className="flex items-center gap-2 select-none">
+                  <label className="text-xs font-semibold text-base-content/50">组间休息（秒）</label>
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-primary checkbox-xs rounded"
+                      checked={detail.record_rest !== false}
+                      onChange={(e) => updateSetDetail(setKey, 'record_rest', e.target.checked)}
+                    />
+                    <span className="text-[11px] text-base-content/40 font-bold">记录</span>
+                  </label>
+                </div>
+                {detail.record_rest === false && (
+                  <span className="text-xs font-semibold text-base-content/30">不记录</span>
+                )}
+              </div>
+              <div className={`flex items-stretch gap-1.5 transition-all duration-200 ${detail.record_rest === false ? 'opacity-30 pointer-events-none' : ''}`}>
                 <button type="button" onClick={() => adjustCustomRest(-30)}
+                  disabled={detail.record_rest === false}
                   className="btn btn-outline h-12 w-12 rounded-md font-bold text-sm text-base-content/70 hover:text-error hover:border-error/50 active:scale-95"
                   aria-label="减少 30 秒"
                 >-30s</button>
                 <button type="button" onClick={() => adjustCustomRest(-10)}
+                  disabled={detail.record_rest === false}
                   className="btn btn-outline h-12 w-12 rounded-md font-bold text-sm text-base-content/70 hover:text-error hover:border-error/50 active:scale-95"
                   aria-label="减少 10 秒"
                 >-10s</button>
@@ -882,6 +918,7 @@ function TrainSession({
                   maxLength={4}
                   className="input input-bordered text-center !text-center font-mono text-2xl font-bold flex-1 h-12 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   value={customRestSeconds}
+                  disabled={detail.record_rest === false}
                   onChange={(e) => {
                     const raw = e.target.value.replace(/\D/g, '');
                     setCustomRestSeconds(raw === '' ? 0 : parseInt(raw, 10));
@@ -901,10 +938,12 @@ function TrainSession({
                   }}
                 />
                 <button type="button" onClick={() => adjustCustomRest(10)}
+                  disabled={detail.record_rest === false}
                   className="btn btn-outline h-12 w-12 rounded-md font-bold text-sm text-primary hover:bg-primary hover:text-primary-content hover:border-primary active:scale-95"
                   aria-label="增加 10 秒"
                 >+10s</button>
                 <button type="button" onClick={() => adjustCustomRest(30)}
+                  disabled={detail.record_rest === false}
                   className="btn btn-outline h-12 w-12 rounded-md font-bold text-sm text-primary hover:bg-primary hover:text-primary-content hover:border-primary active:scale-95"
                   aria-label="增加 30 秒"
                 >+30s</button>

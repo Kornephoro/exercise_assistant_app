@@ -1,5 +1,6 @@
-import { Activity, Calendar, Clock, Dumbbell, ListChecks } from 'lucide-react';
-import { buildWorkoutSessions, formatDateTime, formatDuration, formatSetResult } from '../utils/workoutSummary';
+import { useState } from 'react';
+import { Activity, Calendar, ChevronDown, Clock, Dumbbell, ListChecks } from 'lucide-react';
+import { buildWorkoutSessions, formatDateTime, formatDuration, formatSetMeta, formatSetResult } from '../utils/workoutSummary';
 
 const TIER_STYLES = {
   T1: {
@@ -71,22 +72,32 @@ function ExerciseSummary({ exercise, getExerciseCNName }) {
 
       {sets.length > 0 ? (
         <div className="flex flex-col gap-1.5">
-          {sets.map((set, index) => (
-            <div
-              key={set.id || `${exercise.id}-${set.set_number}-${index}`}
-              className="grid grid-cols-[52px_1fr_auto] items-center gap-2 rounded-lg bg-bg-card/70 dark:bg-bg-card-dark/70 border border-border-card/45 dark:border-border-card-dark/45 px-2.5 py-2"
-            >
-              <span className={`text-[11px] font-bold ${set.is_warmup ? 'text-text-secondary dark:text-text-secondary-dark' : 'text-primary'}`}>
-                {set.is_warmup ? `热身${set.set_number}` : `第${set.set_number}组`}
-              </span>
-              <span className="text-sm font-bold text-text-main dark:text-text-main-dark truncate">
-                {formatSetResult(set)}
-              </span>
-              <span className={`text-[10px] font-semibold ${set.completed === false ? 'text-text-secondary dark:text-text-secondary-dark' : 'text-success'}`}>
-                {set.completed === false ? '未完成' : '完成'}
-              </span>
-            </div>
-          ))}
+          {sets.map((set, index) => {
+            const setMeta = formatSetMeta(set);
+            return (
+              <div
+                key={set.id || `${exercise.id}-${set.set_number}-${index}`}
+                className="grid grid-cols-[52px_1fr_auto] items-center gap-2 rounded-lg bg-bg-card/70 dark:bg-bg-card-dark/70 border border-border-card/45 dark:border-border-card-dark/45 px-2.5 py-2"
+              >
+                <span className={`text-[11px] font-bold ${set.is_warmup ? 'text-text-secondary dark:text-text-secondary-dark' : 'text-primary'}`}>
+                  {set.is_warmup ? `热身${set.set_number}` : `第${set.set_number}组`}
+                </span>
+                <span className="text-sm font-bold text-text-main dark:text-text-main-dark truncate">
+                  {formatSetResult(set)}
+                </span>
+                <div className="flex items-center justify-end gap-1.5 min-w-0">
+                  {setMeta && (
+                    <span className="text-[10px] font-semibold text-text-secondary dark:text-text-secondary-dark truncate max-w-[104px]">
+                      {setMeta}
+                    </span>
+                  )}
+                  <span className={`text-[10px] font-semibold shrink-0 ${set.completed === false ? 'text-text-secondary dark:text-text-secondary-dark' : 'text-success'}`}>
+                    {set.completed === false ? '未完成' : '完成'}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="rounded-lg bg-bg-card/70 dark:bg-bg-card-dark/70 border border-border-card/45 dark:border-border-card-dark/45 px-3 py-2 text-sm text-text-secondary dark:text-text-secondary-dark">
@@ -97,9 +108,47 @@ function ExerciseSummary({ exercise, getExerciseCNName }) {
   );
 }
 
-function SessionSummaryCard({ session, getExerciseCNName, title }) {
+function ExerciseOverview({ exercise, getExerciseCNName }) {
+  const tier = exercise.tier || 'T1';
+  const style = TIER_STYLES[tier] || TIER_STYLES.T1;
+
   return (
-    <div className="card flex flex-col gap-4">
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-border-card/45 dark:border-border-card-dark/45 bg-bg-main/10 dark:bg-bg-main-dark/20 px-3 py-2">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className={`badge badge-sm font-bold px-2 h-5 rounded border shrink-0 ${style.badge}`}>
+          {tier}
+        </span>
+        <span className="text-sm font-extrabold text-text-main dark:text-text-main-dark truncate">
+          {getExerciseCNName(exercise.exercise)}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 shrink-0 text-xs">
+        <span className="font-bold text-text-main dark:text-text-main-dark">{formatVolume(exercise.volumeKg)}</span>
+        <span className="text-text-secondary dark:text-text-secondary-dark">{exercise.effectiveSetCount || exercise.sets?.length || 1}组</span>
+      </div>
+    </div>
+  );
+}
+
+function SessionSummaryCard({ session, getExerciseCNName, title, compact = false }) {
+  const [expanded, setExpanded] = useState(!compact);
+  const detailId = `session-detail-${session.key.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+
+  return (
+    <div
+      className={`card flex flex-col gap-4 ${compact ? 'cursor-pointer hover:border-primary/30 transition-colors' : ''}`}
+      role={compact ? 'button' : undefined}
+      tabIndex={compact ? 0 : undefined}
+      aria-expanded={compact ? expanded : undefined}
+      aria-controls={compact ? detailId : undefined}
+      onClick={compact ? () => setExpanded(prev => !prev) : undefined}
+      onKeyDown={compact ? (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          setExpanded(prev => !prev);
+        }
+      } : undefined}
+    >
       <header className="flex flex-col gap-2">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -110,9 +159,17 @@ function SessionSummaryCard({ session, getExerciseCNName, title }) {
               {session.trainingDay ? `${session.trainingDay} · ` : ''}{formatDateTime(session.startedAt)}
             </p>
           </div>
-          <span className="badge badge-primary badge-outline font-bold shrink-0">
-            {session.exerciseCount} 动作
-          </span>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="badge badge-primary badge-outline font-bold">
+              {session.exerciseCount} 动作
+            </span>
+            {compact && (
+              <span className="flex items-center gap-1 text-[11px] font-bold text-text-secondary dark:text-text-secondary-dark">
+                {expanded ? '收起' : '详情'}
+                <ChevronDown size={15} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+              </span>
+            )}
+          </div>
         </div>
       </header>
 
@@ -123,25 +180,43 @@ function SessionSummaryCard({ session, getExerciseCNName, title }) {
         <Stat icon={ListChecks} label="完成组数" value={`${session.totalSets} 组`} />
       </div>
 
-      <div className="flex items-center gap-2 text-sm font-bold text-text-main dark:text-text-main-dark">
-        <Dumbbell size={16} className="text-primary" />
-        <span>动作明细</span>
-      </div>
+      {compact && (
+        <div className="flex flex-col gap-2">
+          {session.exercises.map((exercise) => (
+            <ExerciseOverview
+              key={exercise.id || `${session.key}-overview-${exercise.exercise}-${exercise.tier}`}
+              exercise={exercise}
+              getExerciseCNName={getExerciseCNName}
+            />
+          ))}
+        </div>
+      )}
 
-      <div className="flex flex-col gap-3">
-        {session.exercises.map((exercise) => (
-          <ExerciseSummary
-            key={exercise.id || `${session.key}-${exercise.exercise}-${exercise.tier}`}
-            exercise={exercise}
-            getExerciseCNName={getExerciseCNName}
-          />
-        ))}
+      <div
+        id={detailId}
+        className={`flex flex-col gap-3 ${compact && !expanded ? 'hidden' : ''}`}
+        onClick={compact ? (event) => event.stopPropagation() : undefined}
+      >
+        <div className="flex items-center gap-2 text-sm font-bold text-text-main dark:text-text-main-dark">
+          <Dumbbell size={16} className="text-primary" />
+          <span>动作明细</span>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          {session.exercises.map((exercise) => (
+            <ExerciseSummary
+              key={exercise.id || `${session.key}-${exercise.exercise}-${exercise.tier}`}
+              exercise={exercise}
+              getExerciseCNName={getExerciseCNName}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-function WorkoutSessionSummary({ workouts, getExerciseCNName, title, latestOnly = false }) {
+function WorkoutSessionSummary({ workouts, getExerciseCNName, title, latestOnly = false, compact = false }) {
   const sessions = buildWorkoutSessions(workouts);
   const visibleSessions = latestOnly ? sessions.slice(0, 1) : sessions;
 
@@ -154,6 +229,7 @@ function WorkoutSessionSummary({ workouts, getExerciseCNName, title, latestOnly 
           key={session.key}
           session={session}
           getExerciseCNName={getExerciseCNName}
+          compact={compact}
           title={latestOnly || visibleSessions.length === 1 ? title : `${title || '训练总结'} · 第 ${visibleSessions.length - index} 次`}
         />
       ))}

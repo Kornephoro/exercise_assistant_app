@@ -769,6 +769,7 @@ function TodayScreen({
             getExerciseCNName={getExerciseCNName}
             title="今日训练总结"
             latestOnly
+            compact
           />
         ) : daysUntilStart > 0 ? (
           /* 尚未开始 */
