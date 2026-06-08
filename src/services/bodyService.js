@@ -1,18 +1,18 @@
-﻿import { supabase, getCurrentUserId, withUserId, withUserIdPayload } from '../supabaseClient';
+import { supabase, requireCurrentUserId, withUserIdPayload } from '../supabaseClient';
 
 /**
  * 获取用户的身高画像
  */
 export const fetchUserHeight = async () => {
-  const userId = await getCurrentUserId();
+  const userId = await requireCurrentUserId();
   const { data, error } = await supabase
     .from('user_profiles')
     .select('height_cm')
-    
-    .limit(1);
+    .eq('user_id', userId)
+    .maybeSingle();
 
   if (error) throw error;
-  return data?.[0]?.height_cm || null;
+  return data?.height_cm || null;
 };
 
 /**
@@ -20,11 +20,11 @@ export const fetchUserHeight = async () => {
  * @param {string} date - YYYY-MM-DD
  */
 export const fetchBodyMetrics = async (date) => {
-  const userId = await getCurrentUserId();
+  const userId = await requireCurrentUserId();
   const { data, error } = await supabase
     .from('body_metrics')
     .select('*')
-    
+    .eq('user_id', userId)
     .eq('date', date)
     .maybeSingle();
 
@@ -38,10 +38,10 @@ export const fetchBodyMetrics = async (date) => {
  * @param {Object} entry - 身体状态记录 payload
  */
 export const saveBodyMetrics = async (entry) => {
-  const userId = await getCurrentUserId();
+  const userId = await requireCurrentUserId();
   const { error } = await supabase
     .from('body_metrics')
-    .upsert({ ...entry, user_id: userId }, { onConflict: 'date, user_id' });
+    .upsert({ ...entry, user_id: userId }, { onConflict: 'date,user_id' });
 
   if (error) throw error;
 };
@@ -51,12 +51,12 @@ export const saveBodyMetrics = async (entry) => {
  * @param {number} id - 记录的自增主键 ID
  */
 export const deleteBodyMetrics = async (id) => {
-  const userId = await getCurrentUserId();
+  const userId = await requireCurrentUserId();
   const { error } = await supabase
     .from('body_metrics')
     .delete()
     .eq('id', id)
-    ;
+    .eq('user_id', userId);
 
   if (error) throw error;
 };
@@ -65,11 +65,11 @@ export const deleteBodyMetrics = async (id) => {
  * 获取全量身体状态历史记录 (按日期降序)
  */
 export const fetchHistoryBodyMetrics = async () => {
-  const userId = await getCurrentUserId();
+  const userId = await requireCurrentUserId();
   const { data, error } = await supabase
     .from('body_metrics')
     .select('*')
-    
+    .eq('user_id', userId)
     .order('date', { ascending: false })
     .limit(365);
 
@@ -82,8 +82,8 @@ export const fetchHistoryBodyMetrics = async () => {
  * @param {Array} array
  */
 export const bulkInsertBodyMetrics = async (array) => {
-  const userId = await getCurrentUserId();
-  const payload = array.map(r => ({ ...r, user_id: userId }));
+  const userId = await requireCurrentUserId();
+  const payload = withUserIdPayload(array, userId);
   const { error } = await supabase
     .from('body_metrics')
     .insert(payload);

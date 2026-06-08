@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Lock, LockOpen, Scale, Settings, Dumbbell, Pause, Zap, Pen, Target, TrendingDown, TrendingUp, Frown, Lightbulb, AlertTriangle, Activity, Inbox, PieChart } from 'lucide-react';
 import {
   fetchDietLog,
@@ -63,9 +63,12 @@ function DietScreen({
     }
   });
 
-  // 从传入配置同步本地表单状态（useEffect 本身已是异步，无需 Promise.resolve 包装）
+  // 从传入配置同步本地表单状态
   useEffect(() => {
-    if (userNutritionConfig) {
+    if (!userNutritionConfig) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
       setConfigForm({
         neat_tef_factor: parseFloat(userNutritionConfig.neat_tef_factor) || 1.10,
         strength_level: userNutritionConfig.strength_level || 'beginner',
@@ -86,7 +89,8 @@ function DietScreen({
           rest_day: { carbs: 180, protein: 140, fat: 50 }
         }
       });
-    }
+    });
+    return () => { cancelled = true; };
   }, [userNutritionConfig]);
 
   // 3. 有氧周消耗计算器状态
@@ -248,7 +252,7 @@ function DietScreen({
   };
 
   // 加载 7 天历史记录
-  const fetchHistoryLogs = async () => {
+  const fetchHistoryLogs = useCallback(async () => {
     try {
       setHistoryLoading(true);
       const data = await fetchHistoryDietLogs(7);
@@ -300,25 +304,34 @@ function DietScreen({
     } finally {
       setHistoryLoading(false);
     }
-  };
+  }, [configForm, latestWeight, userProfile]);
 
   useEffect(() => {
-    if (auditDate) fetchAuditLog(auditDate);
-    // fetchAuditLog is intentionally not in deps — it's stable (wrapped in useCallback elsewhere)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!auditDate) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) fetchAuditLog(auditDate);
+    });
+    return () => { cancelled = true; };
   }, [auditDate]);
 
   useEffect(() => {
     if (auditDate === todayDateStr && !isAuditDayTypeManuallySet) {
-      setAuditDayType(isRestDay ? 'rest_day' : 'strength_day');
+      let cancelled = false;
+      queueMicrotask(() => {
+        if (!cancelled) setAuditDayType(isRestDay ? 'rest_day' : 'strength_day');
+      });
+      return () => { cancelled = true; };
     }
   }, [isRestDay, auditDate, todayDateStr, isAuditDayTypeManuallySet]);
 
   useEffect(() => {
-    fetchHistoryLogs();
-    // fetchHistoryLogs intentionally omitted — stable callback
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userNutritionConfig]);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) fetchHistoryLogs();
+    });
+    return () => { cancelled = true; };
+  }, [fetchHistoryLogs]);
 
   const actualValues = useMemo(() => {
     if (inputMode === 'grams') {

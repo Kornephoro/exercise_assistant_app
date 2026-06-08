@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Dumbbell, ClipboardList, UtensilsCrossed, ChartColumnIncreasing, User } from 'lucide-react';
 import { fetchActivePrograms, fetchAllUserPrograms, fetchExercises, saveUserProgram } from './services/programService';
 import { fetchUserProfile } from './services/profileService';
@@ -7,10 +7,8 @@ import { fetchDietLog, fetchActiveUserNutritionConfig } from './services/dietSer
 import {
   fetchProgramWorkoutsHistory,
   fetchTodayWorkouts,
-  saveWorkout,
-  saveWorkoutSets,
   fetchLatestOneRmForExercises,
-  saveOneRmRecords
+  completeWorkoutSession
 } from './services/workoutService';
 import { getNextWorkout, getNextDay, isTodayTrainingDay, getNextTrainingDate, getDaysUntilStart } from './programEngine';
 import { calcE1RM, MAIN_LIFT_KEYS } from './oneRmUtils';
@@ -18,21 +16,30 @@ import { DEFAULT_GYM_EQUIPMENT_CONFIG } from './unitUtils';
 import { getCNName } from './exerciseNames';
 import { useRestTimer } from './hooks/useRestTimer';
 import { useNavigation } from './hooks/useNavigation';
-import TodayScreen from './TodayScreen';
-import PlanScreen from './PlanScreen';
-import DataScreen from './DataScreen';
-import MyPage from './MyPage';
-import DietScreen from './DietScreen';
-import TrainSession from './TrainSession';
-import FloatingBall from './FloatingBall';
-import OnboardingScreen from './OnboardingScreen';
-import WorkoutPreviewModal from './WorkoutPreviewModal';
+import { ensureAppUser } from './supabaseClient';
 import ErrorBoundary from './components/ErrorBoundary';
 import {
   CheckCircle,
   AlertTriangle,
   SkipForward
 } from 'lucide-react';
+
+const TodayScreen = lazy(() => import('./TodayScreen'));
+const PlanScreen = lazy(() => import('./PlanScreen'));
+const DataScreen = lazy(() => import('./DataScreen'));
+const MyPage = lazy(() => import('./MyPage'));
+const DietScreen = lazy(() => import('./DietScreen'));
+const TrainSession = lazy(() => import('./TrainSession'));
+const FloatingBall = lazy(() => import('./FloatingBall'));
+const OnboardingScreen = lazy(() => import('./OnboardingScreen'));
+const WorkoutPreviewModal = lazy(() => import('./WorkoutPreviewModal'));
+
+const ScreenFallback = ({ label = '加载中...' }) => (
+  <div className="flex flex-col items-center justify-center min-h-[240px] text-text-secondary dark:text-text-secondary-dark gap-3">
+    <span className="loading loading-spinner text-primary"></span>
+    <span className="text-xs font-semibold">{label}</span>
+  </div>
+);
 
 function App() {
   const [activeTab, setActiveTab] = useState('today');
@@ -210,6 +217,8 @@ function App() {
     setLoading(true);
     setError(null);
     try {
+      await ensureAppUser();
+
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
@@ -579,6 +588,7 @@ function App() {
 
       // workout summary record
       const record = {
+        client_key: String(exIdx),
         training_day: todayWorkout.dayLabel,
         tier,
         exercise: tierEx.exercise,
@@ -616,6 +626,7 @@ function App() {
         }
 
         const base = {
+          workout_client_key: String(exIdx),
           exercise: tierEx.exercise,
           tier,
           set_number: s.set_number,
@@ -655,19 +666,6 @@ function App() {
     if (hasValidationError) return;
 
     try {
-      // 先插入 workouts，以便获取返回的 id 并关联到 workout_sets 和 one_rm_records
-      const createdWorkouts = await saveWorkout(workoutRecords);
-
-      const updatedSetsToInsert = setsToInsert.map(s => {
-        const parent = (createdWorkouts || []).find(w => w.exercise === s.exercise && w.tier === s.tier);
-        return {
-          ...s,
-          workout_id: parent?.id || null
-        };
-      });
-
-      await saveWorkoutSets(updatedSetsToInsert);
-
       // ============== 任务 6: 自动推算 + 写入 one_rm_records ==============
       // 规则: 4 个主项 (squat/bench/deadlift/press) T1 高强度组 (reps ≤ 5) 自动推算 1RM
       // 过滤: 如果新 e1rm < 当前 latest × 0.9, 视为脏数据跳过
@@ -676,7 +674,6 @@ function App() {
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       })();
 
-      // 收集符合条件的主项 e1rm 候选
       const candidates = [];
       (todayWorkout.exercises || []).forEach((tierEx, exIdx) => {
         const liftKey = tierEx.exercise;
@@ -689,12 +686,12 @@ function App() {
         const w = Number(lastSet.weight_kg) || 0;
         const r = Number(lastSet.actual_reps) || 0;
         if (w <= 0 || r <= 0) return;
-        // 强度门槛：T1 或者 reps ≤ 5
         const isHighIntensity = tier === 'T1' || r <= 5;
         if (!isHighIntensity) return;
         const result = calcE1RM(w, r);
         if (!result.valid || result.e1rm <= 0) return;
         candidates.push({
+          workout_client_key: String(exIdx),
           exercise: liftKey,
           date: todayISO,
           weight_kg: w,
@@ -705,21 +702,17 @@ function App() {
         });
       });
 
+      let oneRmRecords = [];
       if (candidates.length > 0) {
         try {
-          // 拉取每个主项当前最新 1RM 用于过滤
           const latestData = await fetchLatestOneRmForExercises(candidates.map(c => c.exercise));
-
-          // 按最新 date 取出每一个 exercise 的记录
           const latestByLift = {};
           (latestData || []).forEach(r => {
-            // 因为已经在后端 order('date', { ascending: false })，所以第一条遇到的就是最新的记录
             if (!latestByLift[r.exercise]) {
               latestByLift[r.exercise] = r;
             }
           });
 
-          // 计算两个 YYYY-MM-DD 字符串之间的天数差
           const getDaysBetween = (d1Str, d2Str) => {
             if (!d1Str || !d2Str) return 0;
             const d1 = new Date(d1Str);
@@ -729,39 +722,20 @@ function App() {
             return Math.abs(Math.floor((d1 - d2) / (1000 * 60 * 60 * 24)));
           };
 
-          // 过滤: 新 e1rm ≥ current × 90% 才写入
-          // 重新设计：如果与最近的一条记录相差 > 15 天，认为可能处于停练/力量衰退，直接通过不拦截；在 15 天以内，则应用 0.9 过滤以防输入失误。
-          const filtered = candidates.filter(c => {
+          oneRmRecords = candidates.filter(c => {
             const cur = latestByLift[c.exercise];
-            if (!cur) return true; // 无历史，直接写入
-            
+            if (!cur) return true;
+
             const daysDiff = getDaysBetween(c.date, cur.date);
-            if (daysDiff > 15) {
-              return true; // 超过 15 天，退化保护激活，免于 0.9 过滤限制
-            }
+            if (daysDiff > 15) return true;
             return c.e1rm_kg >= cur.e1rm_kg * 0.9;
           });
-
-          if (filtered.length > 0) {
-            const workoutMap = {};
-            (createdWorkouts || []).forEach(w => {
-              if (!workoutMap[w.exercise]) workoutMap[w.exercise] = w.id;
-            });
-
-            const rowsToInsert = filtered.map(c => ({
-              ...c,
-              source_workout_id: workoutMap[c.exercise] || null,
-            }));
-
-            await saveOneRmRecords(rowsToInsert);
-          }
         } catch (e) {
-          // 1RM 写入失败不阻塞主流程
+          // 1RM 过滤失败不阻塞主流程；本次训练仍会事务化保存
           console.warn('自动推算 1RM 流程出错 (非阻塞):', e.message);
         }
       }
 
-      // 更新 user_programs 的 program_state
       const schedule = activeUP.schedule || {};
       const nextDay = getNextDay(activeProgram, todayWorkout.dayLabel, schedule, activeUP.program_state?.last_training_date, activeUP.program_state?.start_date);
       const newState = {
@@ -769,7 +743,16 @@ function App() {
         current_day: nextDay,
         last_training_date: new Date().toISOString()
       };
-      await saveUserProgram(activeUP.id, null, { program_state: newState, updated_at: new Date().toISOString() });
+      const updatedAt = new Date().toISOString();
+
+      await completeWorkoutSession({
+        user_program_id: activeUP.id,
+        program_state: newState,
+        updated_at: updatedAt,
+        workout_records: workoutRecords,
+        workout_sets: setsToInsert,
+        one_rm_records: oneRmRecords
+      });
 
       const nextDateStr = getNextTrainingDate(schedule, newState.last_training_date, newState.start_date);
       let toastMsg = `保存成功！下次训练日为 ${nextDay}`;
@@ -811,18 +794,6 @@ function App() {
     } finally {
       // no-op
     }
-  };
-
-  const getSessionProgress = (setsData) => {
-    if (!setsData) return '';
-    let completed = 0;
-    let total = 0;
-    Object.keys(setsData).forEach(key => {
-      const sets = setsData[key] || [];
-      total += sets.length;
-      completed += sets.filter(s => s.completed).length;
-    });
-    return `${completed}/${total}`;
   };
 
   const getCurrentSetProgress = (setsData, exercises) => {
@@ -907,109 +878,119 @@ function App() {
               </button>
             </div>
           ) : (
-            <TodayScreen
-              activeProgram={getActiveProgram()}
-              activeUserProgram={getActiveUserProgram()}
-              activeUserPrograms={activeUserPrograms}
-              programs={programs}
-              todayWorkout={todayWorkout}
-              exercisesMap={exercisesMap}
-              sessionState={sessionState}
-              onStartTrain={handleStartOrRestoreTrain}
-              onOpenPreview={() => setPreviewOpen(true)}
-              onSwitchProgram={switchActiveProgram}
-              onGoToLibrary={() => setActiveTab('plan')}
-              getExerciseCNName={getExerciseCNName}
-              isTodayCompleted={isTodayCompleted && !sessionState.isActive}
-              todayWorkoutSummary={todayWorkoutSummary}
-              isRestDay={isRestDayValue}
-              nextTrainingDate={nextTrainingDateValue}
-              onSkipTraining={handleSkipTraining}
-              onExtraTraining={handleExtraTraining}
-              daysUntilStart={daysUntilStartValue}
-              userProfile={userProfile}
-              todayBodyMetrics={todayBodyMetrics}
-              onRefreshBodyMetrics={loadWorkoutData}
-              userNutritionConfig={userNutritionConfig}
-              todayDietLog={todayDietLog}
-              onRefreshDiet={loadWorkoutData}
-              isRestDayValue={isRestDayValue}
-            />
+            <Suspense fallback={<ScreenFallback label="正在加载今日..." />}>
+              <TodayScreen
+                activeProgram={getActiveProgram()}
+                activeUserProgram={getActiveUserProgram()}
+                activeUserPrograms={activeUserPrograms}
+                programs={programs}
+                todayWorkout={todayWorkout}
+                exercisesMap={exercisesMap}
+                sessionState={sessionState}
+                onStartTrain={handleStartOrRestoreTrain}
+                onOpenPreview={() => setPreviewOpen(true)}
+                onSwitchProgram={switchActiveProgram}
+                onGoToLibrary={() => setActiveTab('plan')}
+                getExerciseCNName={getExerciseCNName}
+                isTodayCompleted={isTodayCompleted && !sessionState.isActive}
+                todayWorkoutSummary={todayWorkoutSummary}
+                isRestDay={isRestDayValue}
+                nextTrainingDate={nextTrainingDateValue}
+                onSkipTraining={handleSkipTraining}
+                onExtraTraining={handleExtraTraining}
+                daysUntilStart={daysUntilStartValue}
+                userProfile={userProfile}
+                todayBodyMetrics={todayBodyMetrics}
+                onRefreshBodyMetrics={loadWorkoutData}
+                userNutritionConfig={userNutritionConfig}
+                todayDietLog={todayDietLog}
+                onRefreshDiet={loadWorkoutData}
+                isRestDayValue={isRestDayValue}
+              />
+            </Suspense>
           )
         )}
 
         {/* TAB 2: 计划库 */}
         {activeTab === 'plan' && (
-          <PlanScreen
-            programs={programs}
-            userPrograms={userPrograms}
-            exercisesMap={exercisesMap}
-            gymEquipmentConfig={gymEquipmentConfig}
-            optimisticUpdateUserProgram={optimisticUpdateUserProgram}
-            isOperationLocked={isOperationLocked}
-            selectedProgram={selectedProgram}
-            setSelectedProgram={(prog) => updateNavigationState({ selectedProgram: prog })}
-            selectedActiveProgramId={selectedActiveProgramId}
-            setSelectedActiveProgramId={(id) => updateNavigationState({ selectedActiveProgramId: id })}
-            configProgram={configProgram}
-            setConfigProgram={(prog) => updateNavigationState({ configProgram: prog })}
-            onProgramStarted={() => {
-              setToast({ type: 'success', message: '计划已启用！' });
-              updateNavigationState({ tab: 'today' });
-              loadWorkoutData();
-            }}
-            onProgramPaused={(userProgramId) => {
-              optimisticUpdateUserProgram(userProgramId, { is_active: false, paused_at: new Date().toISOString() });
-              setToast({ type: 'info', message: '计划已暂停。' });
-              loadWorkoutData(null);
-            }}
-            onProgramResumed={(userProgramId) => {
-              optimisticUpdateUserProgram(userProgramId, { is_active: true, paused_at: null });
-              setToast({ type: 'success', message: '计划已恢复。' });
-              updateNavigationState({ tab: 'today' });
-              loadWorkoutData(userProgramId);
-            }}
-            onProgramEnded={(userProgramId) => {
-              optimisticUpdateUserProgram(userProgramId, { is_active: false, ended_at: new Date().toISOString() });
-              setToast({ type: 'info', message: '计划已结束，训练历史已保留。' });
-              updateNavigationState({ tab: 'plan' });
-              loadWorkoutData(null);
-            }}
-            onProgramError={(message) => {
-              setToast({ type: 'error', message });
-            }}
-          />
+          <Suspense fallback={<ScreenFallback label="正在加载计划..." />}>
+            <PlanScreen
+              programs={programs}
+              userPrograms={userPrograms}
+              exercisesMap={exercisesMap}
+              gymEquipmentConfig={gymEquipmentConfig}
+              optimisticUpdateUserProgram={optimisticUpdateUserProgram}
+              isOperationLocked={isOperationLocked}
+              selectedProgram={selectedProgram}
+              setSelectedProgram={(prog) => updateNavigationState({ selectedProgram: prog })}
+              selectedActiveProgramId={selectedActiveProgramId}
+              setSelectedActiveProgramId={(id) => updateNavigationState({ selectedActiveProgramId: id })}
+              configProgram={configProgram}
+              setConfigProgram={(prog) => updateNavigationState({ configProgram: prog })}
+              onProgramStarted={() => {
+                setToast({ type: 'success', message: '计划已启用！' });
+                updateNavigationState({ tab: 'today' });
+                loadWorkoutData();
+              }}
+              onProgramPaused={(userProgramId) => {
+                optimisticUpdateUserProgram(userProgramId, { is_active: false, paused_at: new Date().toISOString() });
+                setToast({ type: 'info', message: '计划已暂停。' });
+                loadWorkoutData(null);
+              }}
+              onProgramResumed={(userProgramId) => {
+                optimisticUpdateUserProgram(userProgramId, { is_active: true, paused_at: null });
+                setToast({ type: 'success', message: '计划已恢复。' });
+                updateNavigationState({ tab: 'today' });
+                loadWorkoutData(userProgramId);
+              }}
+              onProgramEnded={(userProgramId) => {
+                optimisticUpdateUserProgram(userProgramId, { is_active: false, ended_at: new Date().toISOString() });
+                setToast({ type: 'info', message: '计划已结束，训练历史已保留。' });
+                updateNavigationState({ tab: 'plan' });
+                loadWorkoutData(null);
+              }}
+              onProgramError={(message) => {
+                setToast({ type: 'error', message });
+              }}
+            />
+          </Suspense>
         )}
 
         {/* TAB 3: 饮食 */}
         {activeTab === 'diet' && (
-          <DietScreen
-            userProfile={userProfile}
-            userNutritionConfig={userNutritionConfig}
-            todayBodyMetrics={todayBodyMetrics}
-            isRestDay={isRestDayValue}
-            onRefreshDiet={loadWorkoutData}
-          />
+          <Suspense fallback={<ScreenFallback label="正在加载饮食..." />}>
+            <DietScreen
+              userProfile={userProfile}
+              userNutritionConfig={userNutritionConfig}
+              todayBodyMetrics={todayBodyMetrics}
+              isRestDay={isRestDayValue}
+              onRefreshDiet={loadWorkoutData}
+            />
+          </Suspense>
         )}
 
         {/* TAB 4: 数据 */}
         {activeTab === 'data' && (
-          <DataScreen getExerciseCNName={getExerciseCNName} />
+          <Suspense fallback={<ScreenFallback label="正在加载数据..." />}>
+            <DataScreen getExerciseCNName={getExerciseCNName} />
+          </Suspense>
         )}
 
         {/* TAB 5: 我的 */}
         {activeTab === 'me' && (
-          <MyPage
-            themeMode={themeMode}
-            onThemeModeChange={setThemeMode}
-            onReOnboard={() => setShowOnboarding(true)}
-            onOpenLibrary={() => setActiveTab('plan')}
-            userProfile={userProfile}
-            setUserProfile={setUserProfile}
-            gymEquipmentConfig={gymEquipmentConfig}
-            setGymEquipmentConfig={setGymEquipmentConfig}
-            onRefreshProfile={loadWorkoutData}
-          />
+          <Suspense fallback={<ScreenFallback label="正在加载设置..." />}>
+            <MyPage
+              themeMode={themeMode}
+              onThemeModeChange={setThemeMode}
+              onReOnboard={() => setShowOnboarding(true)}
+              onOpenLibrary={() => setActiveTab('plan')}
+              userProfile={userProfile}
+              setUserProfile={setUserProfile}
+              gymEquipmentConfig={gymEquipmentConfig}
+              setGymEquipmentConfig={setGymEquipmentConfig}
+              onRefreshProfile={loadWorkoutData}
+            />
+          </Suspense>
         )}
         </main>
       </ErrorBoundary>
@@ -1056,87 +1037,97 @@ function App() {
       {/* 训练会话覆盖层 */}
       {sessionState.isActive && (
         <div style={{ display: sessionState.isMinimized ? 'none' : 'block' }}>
-          <TrainSession
-            currentDay={todayWorkout?.dayLabel || ''}
-            sessionState={sessionState}
-            setSessionState={setSessionState}
-            todayWorkout={todayWorkout}
-            setTodayWorkout={setTodayWorkout}
-            exercisesMap={exercisesMap}
-            getExerciseCNName={getExerciseCNName}
-            setDetails={setDetails}
-            setSetDetails={setSetDetails}
-            showSetCard={showSetCard}
-            focusedSet={focusedSet}
-            openSetCard={openSetCard}
-            closeSetCard={closeSetCard}
-            onMinimize={() => {
-              if (window.location.hash === '#session') {
-                window.history.back();
-              } else {
-                updateNavigationState({ isMinimized: true });
-              }
-            }}
-            onSave={handleSaveSession}
-            onCancel={handleCancelSession}
-            gymEquipmentConfig={gymEquipmentConfig}
-            unit={getActiveUserProgram()?.exercise_config?._unit || 'kg'}
-            restTimer={restTimer}
-            setRestTimer={setRestTimer}
-          />
+          <Suspense fallback={<ScreenFallback label="正在加载训练..." />}>
+            <TrainSession
+              currentDay={todayWorkout?.dayLabel || ''}
+              sessionState={sessionState}
+              setSessionState={setSessionState}
+              todayWorkout={todayWorkout}
+              setTodayWorkout={setTodayWorkout}
+              exercisesMap={exercisesMap}
+              getExerciseCNName={getExerciseCNName}
+              setDetails={setDetails}
+              setSetDetails={setSetDetails}
+              showSetCard={showSetCard}
+              focusedSet={focusedSet}
+              openSetCard={openSetCard}
+              closeSetCard={closeSetCard}
+              onMinimize={() => {
+                if (window.location.hash === '#session') {
+                  window.history.back();
+                } else {
+                  updateNavigationState({ isMinimized: true });
+                }
+              }}
+              onSave={handleSaveSession}
+              onCancel={handleCancelSession}
+              gymEquipmentConfig={gymEquipmentConfig}
+              unit={getActiveUserProgram()?.exercise_config?._unit || 'kg'}
+              restTimer={restTimer}
+              setRestTimer={setRestTimer}
+            />
+          </Suspense>
         </div>
       )}
 
       {/* 悬浮球 */}
       {sessionState.isActive && sessionState.isMinimized && (
-        <FloatingBall
-          progress={getCurrentSetProgress(sessionState.setsData, todayWorkout?.exercises)}
-          restTimer={restTimer}
-          onRestore={() => updateNavigationState({ sessionActive: true, isMinimized: false })}
-          onCancel={handleCancelSession}
-        />
+        <Suspense fallback={null}>
+          <FloatingBall
+            progress={getCurrentSetProgress(sessionState.setsData, todayWorkout?.exercises)}
+            restTimer={restTimer}
+            onRestore={() => updateNavigationState({ sessionActive: true, isMinimized: false })}
+            onCancel={handleCancelSession}
+          />
+        </Suspense>
       )}
 
       {/* Onboarding */}
       {showOnboarding && (
-        <OnboardingScreen
-          onComplete={() => {
-            setShowOnboarding(false);
-            setToast({ type: 'success', message: '画像保存成功！请在计划库中选择一个训练计划。' });
-            loadWorkoutData();
-          }}
-          onSkip={() => {
-            setShowOnboarding(false);
-            setToast({ type: 'success', message: '已跳过引导，您可随时在计划库中选择训练计划。' });
-            loadWorkoutData();
-          }}
-        />
+        <Suspense fallback={null}>
+          <OnboardingScreen
+            onComplete={() => {
+              setShowOnboarding(false);
+              setToast({ type: 'success', message: '画像保存成功！请在计划库中选择一个训练计划。' });
+              loadWorkoutData();
+            }}
+            onSkip={() => {
+              setShowOnboarding(false);
+              setToast({ type: 'success', message: '已跳过引导，您可随时在计划库中选择训练计划。' });
+              loadWorkoutData();
+            }}
+          />
+        </Suspense>
       )}
 
       {/* 今日训练预览弹窗 */}
-      <WorkoutPreviewModal
-        isOpen={previewOpen}
-        onClose={() => {
-          if (window.location.hash === '#preview') {
-            window.history.back();
-          } else {
-            updateNavigationState({ previewOpen: false });
-          }
-        }}
-        onStartTrain={() => {
-          if (window.location.hash === '#preview') {
-            window.history.back();
-          } else {
-            updateNavigationState({ previewOpen: false });
-          }
-          handleStartOrRestoreTrain();
-        }}
-        todayWorkout={todayWorkout}
-        getExerciseCNName={getExerciseCNName}
-        gymEquipmentConfig={gymEquipmentConfig}
-        exercisesMap={exercisesMap}
-        unit={getActiveUserProgram()?.exercise_config?._unit || 'kg'}
-      />
+      {previewOpen && (
+        <Suspense fallback={null}>
+          <WorkoutPreviewModal
+            isOpen={previewOpen}
+            onClose={() => {
+              if (window.location.hash === '#preview') {
+                window.history.back();
+              } else {
+                updateNavigationState({ previewOpen: false });
+              }
+            }}
+            onStartTrain={() => {
+              if (window.location.hash === '#preview') {
+                window.history.back();
+              } else {
+                updateNavigationState({ previewOpen: false });
+              }
+              handleStartOrRestoreTrain();
+            }}
+            todayWorkout={todayWorkout}
+            getExerciseCNName={getExerciseCNName}
+            gymEquipmentConfig={gymEquipmentConfig}
+            exercisesMap={exercisesMap}
+            unit={getActiveUserProgram()?.exercise_config?._unit || 'kg'}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

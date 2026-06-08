@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { saveUserProgram, fetchExercises, fetchWorkoutTemplates, saveWorkoutTemplate, deleteWorkoutTemplate } from './services/programService';
-import { Search, ChevronRight, X, Users, Calendar, Zap, Target, BookOpen, Pause, Play, StopCircle, Settings, AlertTriangle, Plus, Trash2, Edit, Save, FolderOpen, Heart, Activity, Sparkles, FolderUp, Loader2 } from 'lucide-react';
+import { Search, ChevronRight, X, Users, Calendar, Zap, Target, BookOpen, Pause, Play, StopCircle, Settings, AlertTriangle, Plus, Trash2, Edit, FolderOpen, Loader2 } from 'lucide-react';
 import ProgramConfigScreen from './ProgramConfigScreen';
 import ExerciseLibrary from './ExerciseLibrary';
 import ExercisePickerModal from './components/ExercisePickerModal';
@@ -120,7 +120,11 @@ function PlanScreen({
   };
 
   useEffect(() => {
-    loadTemplatesAndExercises();
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) loadTemplatesAndExercises();
+    });
+    return () => { cancelled = true; };
   }, []);
 
   const handleOpenNewTemplate = () => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 /**
  * 水平循环滚动对齐选择器 — 从 ProgramConfigScreen 和 TrainSession 中消除重复

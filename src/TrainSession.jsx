@@ -1,5 +1,5 @@
-﻿import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Minimize2, X, Check, Sparkles, SkipForward, Plus, FastForward, Dumbbell, Calculator, Play, Pause, Settings, PenLine, Filter, Search, ChevronDown, Zap, RotateCcw, Timer, Lightbulb } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Minimize2, X, Check, Sparkles, SkipForward, Plus, FastForward, Dumbbell, Calculator, Play, Pause, Settings, PenLine, Filter, Search, Zap, RotateCcw, Timer, Lightbulb } from 'lucide-react';
 import { convertWeight, getBarbellPlateBreakdown, toStorageWeight } from './unitUtils';
 import BarbellVisualizer from './BarbellVisualizer';
 import { fetchLatestOneRmForExercises } from './services/workoutService';
@@ -216,15 +216,23 @@ function TrainSession({
       }
     };
 
-    setSecondsElapsed(calculateElapsed());
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setSecondsElapsed(calculateElapsed());
+    });
 
-    if (sessionState.isPaused) return;
+    if (sessionState.isPaused) {
+      return () => { cancelled = true; };
+    }
 
     const interval = setInterval(() => {
       setSecondsElapsed(calculateElapsed());
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [sessionState.isActive, sessionState.startTime, sessionState.elapsedTime, sessionState.isPaused]);
 
   const formatTime = (totalSeconds) => {
@@ -247,23 +255,21 @@ function TrainSession({
   const completedSets = getCompletedSets();
 
   const totalExercises = todayWorkout?.exercises?.length || 0;
-  const completedExercises = useMemo(() => {
-    return (todayWorkout?.exercises || []).reduce((count, ex, idx) => {
-      const sets = sessionState.setsData[idx] || [];
-      const nonSkipped = sets.filter(s => !s.skipped);
-      if (nonSkipped.length > 0 && nonSkipped.every(s => s.completed)) {
-        return count + 1;
-      }
-      return count;
-    }, 0);
-  }, [todayWorkout?.exercises, sessionState.setsData]);
+  const completedExercises = (todayWorkout?.exercises || []).reduce((count, ex, idx) => {
+    const sets = sessionState.setsData[idx] || [];
+    const nonSkipped = sets.filter(s => !s.skipped);
+    if (nonSkipped.length > 0 && nonSkipped.every(s => s.completed)) {
+      return count + 1;
+    }
+    return count;
+  }, 0);
 
-  const { displayPlannedVolume, displayCompletedVolume } = useMemo(() => {
+  const { displayPlannedVolume, displayCompletedVolume } = (() => {
     let totalPlannedVolume = 0;
     let completedVolume = 0;
 
     (todayWorkout?.exercises || []).forEach((ex, exIdx) => {
-      const method = getRecordingMethod(ex.exercise);
+      const method = exercisesMap?.[ex.exercise]?.recording_method || 'standard';
       const sets = sessionState.setsData[exIdx] || [];
 
       const isWeightBased = ['standard', 'bodyweight_added', 'bodyweight_assisted', 'loaded_carry'].includes(method);
@@ -296,7 +302,7 @@ function TrainSession({
       displayPlannedVolume: Math.round(unit === 'lbs' ? convertWeight(totalPlannedVolume, 'lbs') : totalPlannedVolume),
       displayCompletedVolume: Math.round(unit === 'lbs' ? convertWeight(completedVolume, 'lbs') : completedVolume)
     };
-  }, [todayWorkout?.exercises, sessionState.setsData, unit]);
+  })();
 
   // Derived filter options for exercise picker (add & replace sheets)
   const exFilterOptions = useMemo(() => {
@@ -310,8 +316,13 @@ function TrainSession({
 
   useEffect(() => {
     if (!showSetCard) {
-      setShowPlateHelper(false);
-      setCalcOpen(false);
+      let cancelled = false;
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setShowPlateHelper(false);
+        setCalcOpen(false);
+      });
+      return () => { cancelled = true; };
     }
   }, [showSetCard]);
 
@@ -356,7 +367,6 @@ function TrainSession({
     setCustomRestSeconds(prev => Math.max(0, prev + delta));
   };
 
-  const audioContextRef = useRef(null);
   const swipeStartRef = useRef(null);
 
   // 全屏左滑手势 → 触发 onMinimize（非破坏性操作）
@@ -384,22 +394,6 @@ function TrainSession({
     const ex = todayWorkout?.exercises?.[exerciseIdx];
     return ex ? `${ex.tier}_${exerciseIdx}_${setIdx}` : '';
   };
-
-  const playBeep = useCallback((freq = 800, dur = 200) => {
-    try {
-      if (!audioContextRef.current) audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-      const ctx = audioContextRef.current;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.frequency.value = freq; osc.type = 'sine';
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur / 1000);
-      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + dur / 1000);
-    } catch { /* ignore */ }
-  }, []);
-
-
 
   const handleToggleSet = (exIndex, setIndex) => {
     setSessionState(prev => {
@@ -1129,8 +1123,10 @@ function TrainSession({
                       onClick={(e) => {
                         e.stopPropagation();
                         setSettingsExIdx(exIdx);
-                        const curCat = exercisesMap?.[ex.exercise]?.category || '';
-                        setReplaceCategoryFilter(curCat);
+                        const curType = exercisesMap?.[ex.exercise]?.exercise_type || '';
+                        setExFilterType(curType);
+                        setExFilterPattern('');
+                        setExFilterEquipment('');
                         setReplaceExerciseSearch('');
                         setShowExerciseSettingsModal(true);
                       }}
@@ -1918,8 +1914,6 @@ function TrainSession({
     const set = sessionState.setsData[exIdx]?.[setIdx];
     if (!set) return null;
     
-    const setKey = getSetKey(exIdx, setIdx);
-    const detail = setDetails[setKey] || {};
     const isAmrap = !!set.is_amrap;
 
 

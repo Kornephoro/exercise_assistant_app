@@ -1,18 +1,18 @@
-﻿import { supabase, getCurrentUserId, withUserId, withUserIdPayload } from '../supabaseClient';
+import { supabase, requireCurrentUserId } from '../supabaseClient';
 
 /**
  * 拉取用户的基础画像配置
  */
 export const fetchUserProfile = async () => {
-  const userId = await getCurrentUserId();
+  const userId = await requireCurrentUserId();
   const { data, error } = await supabase
     .from('user_profiles')
     .select('*')
-    
-    .limit(1);
+    .eq('user_id', userId)
+    .maybeSingle();
 
   if (error) throw error;
-  return data?.[0] || null;
+  return data || null;
 };
 
 /**
@@ -22,7 +22,7 @@ export const fetchUserProfile = async () => {
  * @param {Object} profileData
  */
 export const saveUserProfile = async (profileData) => {
-  const userId = await getCurrentUserId();
+  const userId = await requireCurrentUserId();
   const { error } = await supabase
     .from('user_profiles')
     .upsert({ ...profileData, user_id: userId }, { onConflict: 'user_id' });

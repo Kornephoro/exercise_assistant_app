@@ -203,11 +203,13 @@ export function BarbellVisualizer({ plates = [], barWeight = 20, unit = 'kg', en
 
   let currentX = sleeveX + 1;
   const plateElements = [];
+  const plateConfigs = unit === 'lbs' ? PLATE_CONFIGS_LBS : PLATE_CONFIGS_KG;
+  const gradientDefs = [];
+  const seenGradientIds = new Set();
 
   sortedPlates.forEach((w, index) => {
     const key = w.toString();
-    const configs = unit === 'lbs' ? PLATE_CONFIGS_LBS : PLATE_CONFIGS_KG;
-    let config = configs[key];
+    let config = plateConfigs[key];
 
     if (!config) {
       const baseMax = unit === 'lbs' ? 45 : 25;
@@ -226,6 +228,11 @@ export function BarbellVisualizer({ plates = [], barWeight = 20, unit = 'kg', en
     const gradId = `plate-grad-${key.replace('.', '_')}`;
     const { height: h, width: wWidth, border } = config;
     const y = centerY - h / 2;
+
+    if (!seenGradientIds.has(gradId)) {
+      seenGradientIds.add(gradId);
+      gradientDefs.push({ gradId, config });
+    }
 
     plateElements.push(
       <rect

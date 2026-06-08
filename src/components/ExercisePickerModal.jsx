@@ -1,4 +1,4 @@
-import { Search, X } from 'lucide-react';
+import { Search } from 'lucide-react';
 
 /**
  * 共享动作选择器模态框 — 消除 PlanScreen 与 ProgramConfigScreen 中 ~100 行的重复实现

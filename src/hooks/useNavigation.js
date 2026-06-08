@@ -128,20 +128,21 @@ export function useNavigation(ctx) {
 
   // ============ 导航状态更新器 ============
   const updateNavigationState = useCallback((updates, replace = false) => {
+    const hasUpdate = (key) => Object.prototype.hasOwnProperty.call(updates, key);
     const next = {
-      tab: updates.hasOwnProperty('tab') ? updates.tab : activeTab,
-      configProgram: updates.hasOwnProperty('configProgram') ? updates.configProgram : configProgram,
-      selectedActiveProgramId: updates.hasOwnProperty('selectedActiveProgramId') ? updates.selectedActiveProgramId : selectedActiveProgramId,
-      selectedProgram: updates.hasOwnProperty('selectedProgram') ? updates.selectedProgram : selectedProgram,
-      previewOpen: updates.hasOwnProperty('previewOpen') ? updates.previewOpen : previewOpen,
-      sessionActive: updates.hasOwnProperty('sessionActive') ? updates.sessionActive : sessionActive,
-      sessionMinimized: updates.hasOwnProperty('isMinimized') ? updates.isMinimized : sessionMinimized,
-      showSetCard: updates.hasOwnProperty('showSetCard') ? updates.showSetCard : showSetCard,
-      focusedSet: updates.hasOwnProperty('focusedSet') ? updates.focusedSet : focusedSet
+      tab: hasUpdate('tab') ? updates.tab : activeTab,
+      configProgram: hasUpdate('configProgram') ? updates.configProgram : configProgram,
+      selectedActiveProgramId: hasUpdate('selectedActiveProgramId') ? updates.selectedActiveProgramId : selectedActiveProgramId,
+      selectedProgram: hasUpdate('selectedProgram') ? updates.selectedProgram : selectedProgram,
+      previewOpen: hasUpdate('previewOpen') ? updates.previewOpen : previewOpen,
+      sessionActive: hasUpdate('sessionActive') ? updates.sessionActive : sessionActive,
+      sessionMinimized: hasUpdate('isMinimized') ? updates.isMinimized : sessionMinimized,
+      showSetCard: hasUpdate('showSetCard') ? updates.showSetCard : showSetCard,
+      focusedSet: hasUpdate('focusedSet') ? updates.focusedSet : focusedSet
     };
 
     // React 状态更新
-    if (updates.hasOwnProperty('tab')) {
+    if (hasUpdate('tab')) {
       setActiveTab(updates.tab);
       if (updates.tab !== 'plan') {
         setConfigProgram(null);
@@ -152,18 +153,18 @@ export function useNavigation(ctx) {
         next.selectedProgram = null;
       }
     }
-    if (updates.hasOwnProperty('configProgram')) setConfigProgram(updates.configProgram);
-    if (updates.hasOwnProperty('selectedActiveProgramId')) setSelectedActiveProgramId(updates.selectedActiveProgramId);
-    if (updates.hasOwnProperty('selectedProgram')) setSelectedProgram(updates.selectedProgram);
-    if (updates.hasOwnProperty('previewOpen')) setPreviewOpen(updates.previewOpen);
-    if (updates.hasOwnProperty('sessionActive') || updates.hasOwnProperty('isMinimized')) {
+    if (hasUpdate('configProgram')) setConfigProgram(updates.configProgram);
+    if (hasUpdate('selectedActiveProgramId')) setSelectedActiveProgramId(updates.selectedActiveProgramId);
+    if (hasUpdate('selectedProgram')) setSelectedProgram(updates.selectedProgram);
+    if (hasUpdate('previewOpen')) setPreviewOpen(updates.previewOpen);
+    if (hasUpdate('sessionActive') || hasUpdate('isMinimized')) {
       setSessionState(prev => ({ ...prev, isActive: next.sessionActive, isMinimized: next.sessionMinimized }));
     }
-    if (updates.hasOwnProperty('showSetCard')) setShowSetCard(updates.showSetCard);
-    if (updates.hasOwnProperty('focusedSet')) setFocusedSet(updates.focusedSet);
+    if (hasUpdate('showSetCard')) setShowSetCard(updates.showSetCard);
+    if (hasUpdate('focusedSet')) setFocusedSet(updates.focusedSet);
 
     // 训练结束/最小化时清理组卡片
-    if ((updates.hasOwnProperty('sessionActive') && !next.sessionActive) || (updates.hasOwnProperty('isMinimized') && next.sessionMinimized)) {
+    if ((hasUpdate('sessionActive') && !next.sessionActive) || (hasUpdate('isMinimized') && next.sessionMinimized)) {
       setShowSetCard(false);
       setFocusedSet(null);
       next.showSetCard = false;

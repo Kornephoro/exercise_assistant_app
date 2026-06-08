@@ -44,7 +44,9 @@ function ExerciseLibrary() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchData(controller.signal);
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) fetchData(controller.signal);
+    });
     return () => controller.abort();
   }, []);
 

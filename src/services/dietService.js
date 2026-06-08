@@ -1,15 +1,15 @@
-﻿import { supabase, getCurrentUserId, withUserId, withUserIdPayload } from '../supabaseClient';
+import { supabase, requireCurrentUserId } from '../supabaseClient';
 
 /**
  * 获取特定日期的饮食对账记录
  * @param {string} date - YYYY-MM-DD
  */
 export const fetchDietLog = async (date) => {
-  const userId = await getCurrentUserId();
+  const userId = await requireCurrentUserId();
   const { data, error } = await supabase
     .from('diet_logs')
     .select('*')
-    
+    .eq('user_id', userId)
     .eq('date', date)
     .maybeSingle();
 
@@ -23,10 +23,10 @@ export const fetchDietLog = async (date) => {
  * @param {Object} entry - 饮食对账记录 payload
  */
 export const saveDietLog = async (entry) => {
-  const userId = await getCurrentUserId();
+  const userId = await requireCurrentUserId();
   const { error } = await supabase
     .from('diet_logs')
-    .upsert({ ...entry, user_id: userId }, { onConflict: 'date, user_id' });
+    .upsert({ ...entry, user_id: userId }, { onConflict: 'date,user_id' });
 
   if (error) throw error;
 };
@@ -36,11 +36,11 @@ export const saveDietLog = async (entry) => {
  * @param {string} date - YYYY-MM-DD
  */
 export const deleteDietLog = async (date) => {
-  const userId = await getCurrentUserId();
+  const userId = await requireCurrentUserId();
   const { error } = await supabase
     .from('diet_logs')
     .delete()
-    
+    .eq('user_id', userId)
     .eq('date', date);
 
   if (error) throw error;
@@ -51,11 +51,11 @@ export const deleteDietLog = async (date) => {
  * @param {number} limit
  */
 export const fetchHistoryDietLogs = async (limit = 7) => {
-  const userId = await getCurrentUserId();
+  const userId = await requireCurrentUserId();
   const { data, error } = await supabase
     .from('diet_logs')
     .select('*')
-    
+    .eq('user_id', userId)
     .order('date', { ascending: false })
     .limit(limit);
 
@@ -64,33 +64,30 @@ export const fetchHistoryDietLogs = async (limit = 7) => {
 };
 
 /**
- * 保存并激活新的饮食配置方案 (会将其他活跃方案置为未激活)
+ * 保存并激活新的饮食配置方案 (会将自己的其他活跃方案置为未激活)
  * @param {Object} config - 饮食配置 payload
  */
 export const saveUserNutritionConfig = async (config) => {
-  const userId = await getCurrentUserId();
+  const userId = await requireCurrentUserId();
 
-  // 1. 获取当前活跃配置的 ID，如果更新失败可以进行回退
   const { data: activeConfigs, error: queryErr } = await supabase
     .from('user_nutrition_configs')
     .select('id')
-    
+    .eq('user_id', userId)
     .eq('is_active', true);
   if (queryErr) throw queryErr;
 
   const activeIds = (activeConfigs || []).map(c => c.id);
 
-  // 2. 将原先的激活方案设为不激活
   if (activeIds.length > 0) {
     const { error: deactivateErr } = await supabase
       .from('user_nutrition_configs')
       .update({ is_active: false })
-      
+      .eq('user_id', userId)
       .in('id', activeIds);
     if (deactivateErr) throw deactivateErr;
   }
 
-  // 3. 插入新的激活配置
   const { error: insertErr } = await supabase
     .from('user_nutrition_configs')
     .insert([{
@@ -99,13 +96,12 @@ export const saveUserNutritionConfig = async (config) => {
       is_active: true
     }]);
 
-  // 4. 如果插入新方案失败，则回滚：恢复之前的激活状态
   if (insertErr) {
     if (activeIds.length > 0) {
       const { error: rollbackErr } = await supabase
         .from('user_nutrition_configs')
         .update({ is_active: true })
-        
+        .eq('user_id', userId)
         .in('id', activeIds);
       if (rollbackErr) {
         console.error('饮食配置回滚失败，系统可能处于无活跃配置状态:', rollbackErr);
@@ -119,11 +115,11 @@ export const saveUserNutritionConfig = async (config) => {
  * 获取当前活跃的饮食目标配置方案
  */
 export const fetchActiveUserNutritionConfig = async () => {
-  const userId = await getCurrentUserId();
+  const userId = await requireCurrentUserId();
   const { data, error } = await supabase
     .from('user_nutrition_configs')
     .select('*')
-    
+    .eq('user_id', userId)
     .eq('is_active', true)
     .maybeSingle();
 

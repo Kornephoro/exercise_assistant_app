@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   fetchActiveUserProgram,
   fetchLastEndedUserProgram,
@@ -7,7 +7,7 @@ import {
   saveUserProgram,
   fetchWorkoutTemplates
 } from './services/programService';
-import { Loader2, ArrowLeft, Save, ShieldAlert, CheckCircle, Scale, Zap, Dumbbell, Search, Calendar, Sparkles, Calculator, X, Shuffle, Info, RotateCcw, Ban, Activity, Lightbulb, AlertTriangle } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, ShieldAlert, Scale, Zap, Dumbbell, Calendar, Sparkles, Calculator, X, Shuffle, Info, RotateCcw, Ban, Activity, Lightbulb, AlertTriangle } from 'lucide-react';
 import { convertWeight, toStorageWeight, roundToClosestLoadable } from './unitUtils';
 import { deriveStartFromOneRm, MAIN_LIFT_KEYS } from './oneRmUtils';
 import { getCNName } from './exerciseNames';
@@ -155,26 +155,31 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
   // 策略: 加载时如果云端有, 用云端的 (因为这是真实测试)
   useEffect(() => {
     if (Object.keys(latestOneRms).length === 0) return;
-    setSquatOneRm(prev => {
-      const cloud = latestOneRms.squat?.e1rm_kg;
-      if (cloud && (Number(prev) === DEFAULT_ONE_RM.squat || !prev)) return String(cloud);
-      return prev;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setSquatOneRm(prev => {
+        const cloud = latestOneRms.squat?.e1rm_kg;
+        if (cloud && (Number(prev) === DEFAULT_ONE_RM.squat || !prev)) return String(cloud);
+        return prev;
+      });
+      setBenchOneRm(prev => {
+        const cloud = latestOneRms.bench?.e1rm_kg;
+        if (cloud && (Number(prev) === DEFAULT_ONE_RM.bench || !prev)) return String(cloud);
+        return prev;
+      });
+      setDeadliftOneRm(prev => {
+        const cloud = latestOneRms.deadlift?.e1rm_kg;
+        if (cloud && (Number(prev) === DEFAULT_ONE_RM.deadlift || !prev)) return String(cloud);
+        return prev;
+      });
+      setPressOneRm(prev => {
+        const cloud = latestOneRms.press?.e1rm_kg;
+        if (cloud && (Number(prev) === DEFAULT_ONE_RM.press || !prev)) return String(cloud);
+        return prev;
+      });
     });
-    setBenchOneRm(prev => {
-      const cloud = latestOneRms.bench?.e1rm_kg;
-      if (cloud && (Number(prev) === DEFAULT_ONE_RM.bench || !prev)) return String(cloud);
-      return prev;
-    });
-    setDeadliftOneRm(prev => {
-      const cloud = latestOneRms.deadlift?.e1rm_kg;
-      if (cloud && (Number(prev) === DEFAULT_ONE_RM.deadlift || !prev)) return String(cloud);
-      return prev;
-    });
-    setPressOneRm(prev => {
-      const cloud = latestOneRms.press?.e1rm_kg;
-      if (cloud && (Number(prev) === DEFAULT_ONE_RM.press || !prev)) return String(cloud);
-      return prev;
-    });
+    return () => { cancelled = true; };
   }, [latestOneRms]);
 
   // user_programs 记录 ID
@@ -334,7 +339,6 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
       }
 
       // 从 exercise_config 或默认值加载主项配置（T1/T2 分开，向后兼容旧单值 initial_weight）
-      const getWeight = (ex) => ec[ex]?.initial_weight ?? defaultWeights[ex] ?? 40;
       const getT1Weight = (ex) => ec[ex]?.initial_weight_t1 ?? ec[ex]?.initial_weight ?? defaultWeights[ex] ?? 60;
       const getT2Weight = (ex) => ec[ex]?.initial_weight_t2 ?? (ec[ex]?.initial_weight ? parseFloat(ec[ex].initial_weight) * 0.65 : (defaultWeights[ex] ?? 30));
       const getT1Incr = (ex) => ec[ex]?.increment_t1 ?? defaultIncrement.T1 ?? 2.5;
@@ -451,21 +455,26 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
       });
     });
 
-    setT3Exercises(prev => {
-      const currentMap = {};
-      prev.forEach(ex => { currentMap[ex.name] = ex; });
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setT3Exercises(prev => {
+        const currentMap = {};
+        prev.forEach(ex => { currentMap[ex.name] = ex; });
 
-      const result = [];
-      usedT3Names.forEach(name => {
-        if (currentMap[name]) {
-          result.push(currentMap[name]);
-        } else {
-          result.push({ name, targetReps: 25, incrementKg: 2.5, startWeightKg: 10 });
-        }
+        const result = [];
+        usedT3Names.forEach(name => {
+          if (currentMap[name]) {
+            result.push(currentMap[name]);
+          } else {
+            result.push({ name, targetReps: 25, incrementKg: 2.5, startWeightKg: 10 });
+          }
+        });
+
+        return result;
       });
-
-      return result;
     });
+    return () => { cancelled = true; };
   }, [dayTemplate, exercises]);
 
   const handleSave = async () => {
