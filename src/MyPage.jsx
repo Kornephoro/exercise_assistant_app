@@ -2,7 +2,7 @@
 import { Sun, Moon, Settings, BookOpen, RotateCcw, Info, ChevronRight, Dumbbell, Scale, Trash2, Lightbulb, Mail, LogOut, UserPlus, ShieldAlert, AlertTriangle, Loader2, CheckCircle } from 'lucide-react';
 import { DEFAULT_GYM_EQUIPMENT_CONFIG } from './unitUtils';
 import { saveUserProfile } from './services/profileService';
-import { getAuthState, signUpWithEmail, signInWithEmail, signOut, upgradeAnonymousWithEmail } from './services/authService';
+import { signUpWithEmail, signInWithEmail, signOut, upgradeAnonymousWithEmail } from './services/authService';
 
 function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymEquipmentConfig = null, setGymEquipmentConfig = null, onRefreshProfile = null, onAuthChange = null, currentUserId = null, currentEmail = null, currentIsAnonymous = true }) {
   const [nickname] = useState(() => localStorage.getItem('user_nickname') || '');
@@ -37,11 +37,6 @@ function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymE
     setAuthState({ userId: currentUserId, email: currentEmail, isAnonymous: currentIsAnonymous });
   }, [currentUserId, currentEmail, currentIsAnonymous]);
 
-  const refreshAuthState = async () => {
-    const state = await getAuthState();
-    setAuthState(state);
-  };
-
   const handleAuthAction = async () => {
     setAuthError(null);
     setAuthSuccess(null);
@@ -57,26 +52,20 @@ function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymE
     try {
       if (authModalMode === 'upgrade') {
         await upgradeAnonymousWithEmail(authEmail, authPassword);
-        setAuthSuccess('账号升级成功！您的所有数据已保留。');
       } else if (authModalMode === 'register') {
         await signUpWithEmail(authEmail, authPassword);
-        setAuthSuccess('注册成功！请查收邮箱验证邮件。');
       } else if (authModalMode === 'login') {
         await signInWithEmail(authEmail, authPassword);
-        setAuthSuccess('登录成功！');
       }
-      await refreshAuthState();
+      // 成功后立即关弹窗，清理状态，触发全局数据重载
+      setAuthModalOpen(false);
       setAuthEmail('');
       setAuthPassword('');
-      setTimeout(() => {
-        setAuthModalOpen(false);
-        setAuthSuccess(null);
-        setAuthError(null);
-        if (onAuthChange) onAuthChange();
-      }, authModalMode === 'register' ? 2000 : 800);
+      setAuthLoading(false);
+      setAuthError(null);
+      if (onAuthChange) onAuthChange();
     } catch (err) {
       setAuthError(err.message || '操作失败，请重试');
-    } finally {
       setAuthLoading(false);
     }
   };
