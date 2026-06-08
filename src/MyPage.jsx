@@ -1,9 +1,10 @@
-﻿import { useState } from 'react';
-import { Sun, Moon, Settings, BookOpen, RotateCcw, Info, ChevronRight, Dumbbell, Scale, Trash2, Lightbulb } from 'lucide-react';
+﻿import { useState, useEffect } from 'react';
+import { Sun, Moon, Settings, BookOpen, RotateCcw, Info, ChevronRight, Dumbbell, Scale, Trash2, Lightbulb, Mail, LogOut, UserPlus, ShieldAlert, AlertTriangle, Loader2, CheckCircle } from 'lucide-react';
 import { DEFAULT_GYM_EQUIPMENT_CONFIG } from './unitUtils';
 import { saveUserProfile } from './services/profileService';
+import { getAuthState, signUpWithEmail, signInWithEmail, signOut, upgradeAnonymousWithEmail } from './services/authService';
 
-function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymEquipmentConfig = null, setGymEquipmentConfig = null, onRefreshProfile = null }) {
+function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymEquipmentConfig = null, setGymEquipmentConfig = null, onRefreshProfile = null, onAuthChange = null }) {
   const [nickname] = useState(() => localStorage.getItem('user_nickname') || '');
   const [showBarbellModal, setShowBarbellModal] = useState(false);
   const [toastMsg, setToastMsg] = useState(null);
@@ -19,6 +20,100 @@ function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymE
 
   const avatarChar = nickname ? nickname.charAt(0).toUpperCase() : '?';
   const displayName = nickname || '未设置昵称';
+
+  // ==================== 认证状态 ====================
+  const [authState, setAuthState] = useState({ userId: null, email: null, isAnonymous: true });
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState('upgrade'); // 'upgrade' | 'login' | 'register'
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState(null);
+  const [authSuccess, setAuthSuccess] = useState(null);
+
+  useEffect(() => {
+    getAuthState().then(setAuthState);
+  }, []);
+
+  const refreshAuthState = async () => {
+    const state = await getAuthState();
+    setAuthState(state);
+  };
+
+  const handleAuthAction = async () => {
+    setAuthError(null);
+    setAuthSuccess(null);
+    if (!authEmail || !authPassword) {
+      setAuthError('请填写邮箱和密码');
+      return;
+    }
+    if (authPassword.length < 6) {
+      setAuthError('密码至少 6 位');
+      return;
+    }
+    setAuthLoading(true);
+    try {
+      if (authModalMode === 'upgrade') {
+        await upgradeAnonymousWithEmail(authEmail, authPassword);
+        setAuthSuccess('账号升级成功！您的所有数据已保留。');
+      } else if (authModalMode === 'register') {
+        await signUpWithEmail(authEmail, authPassword);
+        setAuthSuccess('注册成功！请查收邮箱验证邮件。');
+      } else if (authModalMode === 'login') {
+        await signInWithEmail(authEmail, authPassword);
+        setAuthSuccess('登录成功！');
+      }
+      await refreshAuthState();
+      setAuthEmail('');
+      setAuthPassword('');
+      setTimeout(() => {
+        setAuthModalOpen(false);
+        setAuthSuccess(null);
+        setAuthError(null);
+        if (onAuthChange) onAuthChange();
+      }, authModalMode === 'register' ? 2000 : 800);
+    } catch (err) {
+      setAuthError(err.message || '操作失败，请重试');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    setAuthLoading(true);
+    try {
+      await signOut();
+      // 离开时设置标记，阻止 App 自动创建匿名用户
+      localStorage.setItem('skip_auto_auth', 'true');
+      if (onAuthChange) onAuthChange();
+    } catch (err) {
+      setAuthError(err.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleContinueAnonymous = async () => {
+    setAuthLoading(true);
+    try {
+      await signOut();
+      // 不设 skip_auto_auth，让 App 自动创建新的匿名用户
+      if (onAuthChange) onAuthChange();
+    } catch (err) {
+      setAuthError(err.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const openAuthModal = (mode) => {
+    setAuthModalMode(mode);
+    setAuthEmail('');
+    setAuthPassword('');
+    setAuthError(null);
+    setAuthSuccess(null);
+    setAuthModalOpen(true);
+  };
 
   return (
     <div className="flex flex-col gap-6 animate-fadeIn">
@@ -43,6 +138,74 @@ function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymE
               : '完成训练画像开启旅程'}
           </span>
         </div>
+      </div>
+
+      {/* 账号认证 */}
+      <div className="card flex flex-col gap-3">
+        <h3 className="card-title-standard">
+          <ShieldAlert size={16} className="text-primary" />账号
+        </h3>
+
+        {authState.isAnonymous ? (
+          <div className="flex flex-col gap-3 p-3 rounded-xl bg-amber-500/5 border border-amber-500/10 dark:bg-amber-500/5 dark:border-amber-500/10">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              <span className="text-sm font-bold text-amber-600 dark:text-amber-400">临时账号</span>
+            </div>
+            <p className="text-xs text-text-secondary dark:text-text-secondary-dark leading-relaxed">
+              当前数据存储在临时账号中。绑定正式账号后可跨设备同步数据，换设备也不丢失训练记录。
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => openAuthModal('upgrade')}
+                className="btn-main w-full text-sm"
+              >
+                <Mail size={16} />绑定邮箱并升级为正式账号
+              </button>
+              <button
+                type="button"
+                onClick={() => openAuthModal('login')}
+                className="btn-sec w-full text-sm"
+              >
+                <UserPlus size={16} />登录已有正式账号
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3 p-3 rounded-xl bg-green-500/5 border border-green-500/10 dark:bg-green-500/5 dark:border-green-500/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-green-500" />
+                <span className="text-sm font-bold text-text-main dark:text-text-main-dark truncate">
+                  {authState.email || '正式账号'}
+                </span>
+              </div>
+            </div>
+            <p className="text-xs text-text-secondary dark:text-text-secondary-dark">
+              {authState.email ? '已绑定邮箱，数据云端同步中' : '正式账号'}
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleSignOut}
+                disabled={authLoading}
+                className="btn-sec w-full text-sm"
+              >
+                {authLoading ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
+                退出登录（停留账号页）
+              </button>
+              <button
+                type="button"
+                onClick={handleContinueAnonymous}
+                disabled={authLoading}
+                className="btn-aux w-full text-sm"
+              >
+                退出并继续匿名使用
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 偏好设置 */}
@@ -167,6 +330,93 @@ function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymE
       <p className="text-xs text-text-secondary dark:text-text-secondary-dark text-center py-2 opacity-60">
         <Dumbbell size={14} className="inline" /> 训练助手 · 让坚持更简单
       </p>
+
+      {/* 认证弹窗 */}
+      {authModalOpen && (
+        <dialog className="modal modal-open">
+          <div className="modal-box max-w-sm bg-bg-card dark:bg-bg-card-dark text-text-main dark:text-text-main-dark border border-border-card dark:border-border-card-dark">
+            <div className="flex items-center justify-between pb-3 border-b border-border-card dark:border-border-card-dark mb-4">
+              <h3 className="font-extrabold text-base flex items-center gap-2">
+                <ShieldAlert size={18} className="text-primary" />
+                {authModalMode === 'upgrade' ? '升级为正式账号' : authModalMode === 'register' ? '注册新账号' : '登录已有账号'}
+              </h3>
+              <button type="button" onClick={() => setAuthModalOpen(false)} className="text-text-secondary hover:text-text-main text-lg font-bold">×</button>
+            </div>
+
+            {authModalMode === 'upgrade' && (
+              <p className="text-xs text-text-secondary dark:text-text-secondary-dark mb-4 bg-primary/5 border border-primary/10 rounded-lg p-2.5 leading-relaxed">
+                绑定邮箱后，您的所有训练数据、计划和记录都将保留。可以在手机和电脑上同步使用。
+              </p>
+            )}
+            {authModalMode === 'login' && (
+              <p className="text-xs text-text-secondary dark:text-text-secondary-dark mb-4 bg-amber-500/5 border border-amber-500/10 rounded-lg p-2.5 leading-relaxed">
+                登录已有正式账号。当前临时账号的数据不会自动合并。
+              </p>
+            )}
+
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="section-subtitle select-none">邮箱</label>
+                <input
+                  type="email"
+                  className="input-standard !font-sans !font-bold"
+                  value={authEmail}
+                  onChange={e => setAuthEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  autoFocus
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="section-subtitle select-none">密码（至少 6 位）</label>
+                <input
+                  type="password"
+                  className="input-standard !font-sans !font-bold"
+                  value={authPassword}
+                  onChange={e => setAuthPassword(e.target.value)}
+                  placeholder="••••••"
+                  onKeyDown={e => { if (e.key === 'Enter') handleAuthAction(); }}
+                />
+              </div>
+
+              {authError && (
+                <div className="p-2.5 rounded-lg bg-alert/10 border border-alert/20 text-alert text-xs flex items-center gap-1.5">
+                  <AlertTriangle size={12} className="shrink-0" />{authError}
+                </div>
+              )}
+              {authSuccess && (
+                <div className="p-2.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 text-xs flex items-center gap-1.5">
+                  <CheckCircle size={12} className="shrink-0" />{authSuccess}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleAuthAction}
+                disabled={authLoading}
+                className="btn-main w-full text-sm mt-1"
+              >
+                {authLoading ? <Loader2 size={16} className="animate-spin" /> : authModalMode === 'upgrade' ? <Mail size={16} /> : <UserPlus size={16} />}
+                {authModalMode === 'upgrade' ? '绑定并升级' : authModalMode === 'register' ? '注册' : '登录'}
+              </button>
+
+              <div className="flex justify-center gap-4 text-xs mt-1">
+                {authModalMode !== 'upgrade' && (
+                  <button type="button" onClick={() => openAuthModal('upgrade')} className="text-primary font-bold hover:underline">绑定临时账号</button>
+                )}
+                {authModalMode !== 'login' && (
+                  <button type="button" onClick={() => openAuthModal('login')} className="text-primary font-bold hover:underline">登录已有账号</button>
+                )}
+                {authModalMode !== 'register' && (
+                  <button type="button" onClick={() => openAuthModal('register')} className="text-primary font-bold hover:underline">注册新账号</button>
+                )}
+              </div>
+            </div>
+          </div>
+          <form method="dialog" className="modal-backdrop">
+            <button onClick={() => setAuthModalOpen(false)}>close</button>
+          </form>
+        </dialog>
+      )}
 
       {showBarbellModal && (
         <GymEquipmentModal

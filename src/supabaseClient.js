@@ -8,6 +8,14 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 let ensureUserPromise = null;
 
 /**
+ * 清除匿名登录缓存，使得下一次 ensureAppUser() 调用重新创建匿名会话。
+ * 用于登出后需要获取新的匿名身份的场景。
+ */
+export function clearEnsureUserCache() {
+  ensureUserPromise = null;
+}
+
+/**
  * 获取当前认证用户的 ID（应用层数据隔离必需）
  * 若未登录则返回 null，由调用方根据场景决定是静默跳过还是提示登录
  * @returns {Promise<string|null>} 当前用户的 UUID，或 null

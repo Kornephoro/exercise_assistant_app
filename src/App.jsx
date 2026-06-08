@@ -16,7 +16,8 @@ import { DEFAULT_GYM_EQUIPMENT_CONFIG } from './unitUtils';
 import { getCNName } from './exerciseNames';
 import { useRestTimer } from './hooks/useRestTimer';
 import { useNavigation } from './hooks/useNavigation';
-import { ensureAppUser } from './supabaseClient';
+import { ensureAppUser, clearEnsureUserCache } from './supabaseClient';
+import { getAuthState } from './services/authService';
 import ErrorBoundary from './components/ErrorBoundary';
 import {
   CheckCircle,
@@ -61,6 +62,26 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
+
+  // 当前认证用户 ID（用于检测用户切换）
+  const [currentUserId, setCurrentUserId] = useState(null);
+
+  // 用户切换时清理 user-scoped localStorage
+  const clearUserLocalStorage = () => {
+    const keysToRemove = [
+      'active_session_state',
+      'active_session_details',
+      'active_today_workout',
+      'onboarding_completed',
+      'onboarding_completed_at',
+      'user_nickname',
+      'training_days',
+      'training_assistant_aerobic_items',
+    ];
+    keysToRemove.forEach(k => {
+      try { localStorage.removeItem(k); } catch (e) { /* noop */ }
+    });
+  };
 
   const [showOnboarding, setShowOnboarding] = useState(() => {
     return localStorage.getItem('onboarding_completed') !== 'true';
@@ -226,7 +247,39 @@ function App() {
     setLoading(true);
     setError(null);
     try {
+      const prevUserId = currentUserId;
+
+      // 支持"退出后停留在账号页"：MyPage signOut 前设置此标记
+      const skipAuth = localStorage.getItem('skip_auto_auth') === 'true';
+      if (skipAuth) {
+        localStorage.removeItem('skip_auto_auth');
+        setLoading(false);
+        return;
+      }
+
       await ensureAppUser();
+      const { userId: newUserId } = await getAuthState();
+
+      // 用户 ID 变化时清理 user-scoped localStorage，避免数据串号
+      if (prevUserId && newUserId && prevUserId !== newUserId) {
+        clearUserLocalStorage();
+        // 重置本地训练状态
+        setSessionState({
+          isActive: false,
+          isMinimized: false,
+          setsData: {},
+          sessionDate: null,
+          startTime: null,
+          elapsedTime: 0,
+          isPaused: false,
+          sessionNotes: ''
+        });
+        setSetDetails({});
+        setTodayWorkout(null);
+        setActiveProgramId(null);
+        setShowOnboarding(true);
+      }
+      setCurrentUserId(newUserId);
 
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
@@ -1006,6 +1059,11 @@ function App() {
               gymEquipmentConfig={gymEquipmentConfig}
               setGymEquipmentConfig={setGymEquipmentConfig}
               onRefreshProfile={loadWorkoutData}
+              onAuthChange={() => {
+                clearEnsureUserCache();
+                setCurrentUserId(null);
+                loadWorkoutData();
+              }}
             />
           </Suspense>
         )}
