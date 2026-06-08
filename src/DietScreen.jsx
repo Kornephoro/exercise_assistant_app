@@ -22,6 +22,7 @@ import {
   Utensils, Save, Loader2, Trash2, ShieldAlert,
   Sparkles, Flame, Calendar, FileText, Eye
 } from 'lucide-react';
+import ConfirmDialog from './components/ConfirmDialog';
 
 function DietScreen({
   userProfile,
@@ -145,13 +146,14 @@ function DietScreen({
 
   const handleAddAerobicItem = () => {
     if (!calcDuration || isNaN(parseFloat(calcDuration)) || parseFloat(calcDuration) <= 0) {
-      alert(calcSubtype === '每走一万步' ? '请填写有效的步数' : '请填写有效的运动时长');
+      setErrorMsg(calcSubtype === '每走一万步' ? '请填写有效的步数' : '请填写有效的运动时长');
       return;
     }
     if (!calcFrequency || isNaN(parseFloat(calcFrequency)) || parseFloat(calcFrequency) <= 0) {
-      alert('请填写有效的每周频次');
+      setErrorMsg('请填写有效的每周频次');
       return;
     }
+    setErrorMsg('');
     const newItem = {
       id: Date.now().toString(),
       category: calcCategory,
@@ -202,6 +204,7 @@ function DietScreen({
 
   const [actualRemarks, setActualRemarks] = useState('');
   const [syncLoading, setSyncLoading] = useState(false);
+  const [pendingDeleteAuditDate, setPendingDeleteAuditDate] = useState(null);
 
   // 7天历史对账单
   const [historyList, setHistoryList] = useState([]);
@@ -419,8 +422,13 @@ function DietScreen({
     }
   };
 
-  const handleDeleteAuditLog = async (targetDate) => {
-    if (!window.confirm(`确定要物理删除 ${targetDate} 的饮食对账记录吗？`)) return;
+  const handleDeleteAuditLog = (targetDate) => {
+    setPendingDeleteAuditDate(targetDate);
+  };
+
+  const handleConfirmDeleteAuditLog = async () => {
+    if (!pendingDeleteAuditDate) return;
+    const targetDate = pendingDeleteAuditDate;
     setSyncLoading(true);
     setErrorMsg('');
     setSuccessMsg('');
@@ -443,6 +451,7 @@ function DietScreen({
     } catch (err) {
       setErrorMsg('删除失败：' + err.message);
     } finally {
+      setPendingDeleteAuditDate(null);
       setSyncLoading(false);
     }
   };
@@ -1850,6 +1859,15 @@ function DietScreen({
           </div>
         )}
       </section>
+      <ConfirmDialog
+        isOpen={!!pendingDeleteAuditDate}
+        title="删除饮食对账"
+        message={`确定要物理删除 ${pendingDeleteAuditDate || ''} 的饮食对账记录吗？删除后不可恢复。`}
+        confirmLabel={syncLoading ? '删除中...' : '确认删除'}
+        variant="error"
+        onConfirm={handleConfirmDeleteAuditLog}
+        onCancel={() => setPendingDeleteAuditDate(null)}
+      />
     </div>
   );
 }

@@ -93,6 +93,7 @@ function PlanScreen({
   const [editorDescription, setEditorDescription] = useState('');
   const [editorBodyParts, setEditorBodyParts] = useState([]);
   const [editorExercises, setEditorExercises] = useState([]);
+  const [templateEditorError, setTemplateEditorError] = useState('');
 
   // 编辑器内部选择动作相关状态
   const [showExerciseSelector, setShowExerciseSelector] = useState(false);
@@ -103,7 +104,7 @@ function PlanScreen({
   const [showTemplateDeleteConfirm, setShowTemplateDeleteConfirm] = useState(false);
   const [pendingDeleteTemplateId, setPendingDeleteTemplateId] = useState(null);
 
-  const loadTemplatesAndExercises = async () => {
+  const loadTemplatesAndExercises = useCallback(async () => {
     setLoadingTemplates(true);
     try {
       const [tplData, exData] = await Promise.all([
@@ -114,10 +115,11 @@ function PlanScreen({
       setAllExercises(exData || []);
     } catch (err) {
       console.error('加载模板与动作库失败:', err);
+      onProgramError?.('加载模板与动作库失败：' + err.message);
     } finally {
       setLoadingTemplates(false);
     }
-  };
+  }, [onProgramError]);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,7 +127,7 @@ function PlanScreen({
       if (!cancelled) loadTemplatesAndExercises();
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [loadTemplatesAndExercises]);
 
   const handleOpenNewTemplate = () => {
     setEditingTemplate(null);
@@ -134,6 +136,7 @@ function PlanScreen({
     setEditorDescription('');
     setEditorBodyParts([]);
     setEditorExercises([]);
+    setTemplateEditorError('');
     setShowTemplateEditor(true);
   };
 
@@ -144,6 +147,7 @@ function PlanScreen({
     setEditorDescription(tpl.description || '');
     setEditorBodyParts(tpl.target_body_parts || []);
     setEditorExercises(tpl.exercises || []);
+    setTemplateEditorError('');
     setShowTemplateEditor(true);
   };
 
@@ -158,7 +162,7 @@ function PlanScreen({
     const defaultDuration = ex.recording_method === 'duration_only' ? 30 : null;
 
     if (editorExercises.some(item => item.exercise === ex.name)) {
-      alert('该动作已添加');
+      setTemplateEditorError('该动作已添加');
       return;
     }
 
@@ -172,6 +176,7 @@ function PlanScreen({
         recording_method: ex.recording_method
       }
     ]);
+    setTemplateEditorError('');
     setShowExerciseSelector(false);
   };
 
@@ -187,11 +192,11 @@ function PlanScreen({
 
   const handleSaveTemplate = async () => {
     if (!editorName.trim()) {
-      alert('请输入模板名称');
+      setTemplateEditorError('请输入模板名称');
       return;
     }
     if (editorExercises.length === 0) {
-      alert('请至少添加一个动作');
+      setTemplateEditorError('请至少添加一个动作');
       return;
     }
 
@@ -213,7 +218,7 @@ function PlanScreen({
       loadTemplatesAndExercises();
     } catch (err) {
       console.error('保存模板失败:', err);
-      alert('保存模板失败: ' + err.message);
+      setTemplateEditorError('保存模板失败：' + err.message);
     }
   };
 
@@ -229,7 +234,7 @@ function PlanScreen({
       loadTemplatesAndExercises();
     } catch (err) {
       console.error('删除模板失败:', err);
-      alert('删除模板失败: ' + err.message);
+      onProgramError?.('删除模板失败：' + err.message);
     }
   };
 
@@ -1013,7 +1018,7 @@ function PlanScreen({
                 <label className="section-subtitle select-none mb-0">模板名称</label>
                 <input type="text" placeholder="例如：下肢拉伸放松"
                   className="input input-bordered w-full bg-bg-main/20 dark:bg-bg-main-dark/20 border-border-card dark:border-border-card-dark focus-within:border-primary text-sm font-semibold h-10 px-3"
-                  value={editorName} onChange={(e) => setEditorName(e.target.value)} />
+                  value={editorName} onChange={(e) => { setEditorName(e.target.value); setTemplateEditorError(''); }} />
               </div>
 
               {/* Type Select */}
@@ -1132,6 +1137,12 @@ function PlanScreen({
                   </div>
                 )}
               </div>
+
+              {templateEditorError && (
+                <div className="rounded-xl border border-alert/30 dark:border-alert-dark/30 bg-bg-alert dark:bg-bg-alert-dark px-3 py-2 text-xs font-bold text-alert dark:text-alert-dark">
+                  {templateEditorError}
+                </div>
+              )}
             </div>
 
             {/* Footer Buttons */}

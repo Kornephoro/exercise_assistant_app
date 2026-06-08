@@ -8,6 +8,7 @@ import {
 } from './services/bodyService';
 import { getBmiInfo, getWhtrInfo } from './healthUtils';
 import { Heart, Loader2, Activity, Zap, Trash2, ShieldAlert, Scale, Ruler, Moon, TrendingUp } from 'lucide-react';
+import ConfirmDialog from './components/ConfirmDialog';
 
 const STORAGE_KEY = 'body_metrics_history';
 
@@ -53,6 +54,7 @@ function BodyMetrics() {
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [saveMsg, setSaveMsg] = useState('');
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
   
   // 图表参数
   const [activeMetric, setActiveMetric] = useState('weight');
@@ -172,10 +174,15 @@ function BodyMetrics() {
   };
 
   // 4. 删除历史记录
-  const handleDelete = async (id) => {
-    if (!window.confirm('确定删除这条身体指标记录吗？')) return;
+  const handleDelete = (id) => {
+    setPendingDeleteId(id);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteId) return;
     try {
-      await deleteBodyMetrics(id);
+      await deleteBodyMetrics(pendingDeleteId);
+      setPendingDeleteId(null);
       await loadData();
     } catch (err) {
       setErrorMsg('删除失败：' + err.message);
@@ -736,6 +743,15 @@ function BodyMetrics() {
           </div>
         )}
       </section>
+      <ConfirmDialog
+        isOpen={!!pendingDeleteId}
+        title="删除身体指标"
+        message="确定删除这条身体指标记录吗？删除后不可恢复。"
+        confirmLabel="确认删除"
+        variant="error"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </div>
   );
 }

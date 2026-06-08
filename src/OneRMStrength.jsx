@@ -3,6 +3,7 @@ import { fetchOneRmHistory, saveOneRmRecord, deleteOneRmRecord } from './service
 import { calcE1RM, FORMULA_LABEL, MAIN_LIFTS, pickLatestByLift } from './oneRmUtils';
 import { getCNName } from './exerciseNames';
 import { Loader2, Trash2, TrendingUp, Sparkles, Lightbulb, ChartColumnIncreasing } from 'lucide-react';
+import ConfirmDialog from './components/ConfirmDialog';
 
 const LIFT_COLORS = {
   squat: { bg: 'bg-blue-500/10', text: 'text-blue-500', border: 'border-blue-500/30' },
@@ -29,6 +30,7 @@ function OneRMStrength({ onLatestChange }) {
   const [records, setRecords] = useState([]);
   const [error, setError] = useState(null);
   const [saveMsg, setSaveMsg] = useState('');
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
 
   const [form, setForm] = useState({
     date: todayISO(),
@@ -110,10 +112,15 @@ function OneRMStrength({ onLatestChange }) {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('确定删除这条 1RM 记录？')) return;
+  const handleDelete = (id) => {
+    setPendingDeleteId(id);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteId) return;
     try {
-      await deleteOneRmRecord(id);
+      await deleteOneRmRecord(pendingDeleteId);
+      setPendingDeleteId(null);
       await load();
     } catch (e) {
       setError('删除失败：' + e.message);
@@ -331,6 +338,15 @@ function OneRMStrength({ onLatestChange }) {
           </div>
         )}
       </section>
+      <ConfirmDialog
+        isOpen={!!pendingDeleteId}
+        title="删除 1RM 记录"
+        message="确定删除这条 1RM 记录吗？删除后不可恢复。"
+        confirmLabel="确认删除"
+        variant="error"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </div>
   );
 }
