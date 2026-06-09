@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { fetchWorkoutsForMonth, fetchWorkoutsForDay } from './services/workoutService';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, AlertCircle } from 'lucide-react';
+import { fetchWorkoutsForMonth, fetchWorkoutsForDay, deleteWorkouts } from './services/workoutService';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
 import WorkoutSessionSummary from './components/WorkoutSessionSummary';
 
 /**
@@ -20,14 +20,51 @@ function CalendarScreen({ getExerciseCNName }) {
   const [loadingMonth, setLoadingMonth] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [error, setError] = useState(null);
-  
+  const [toastMsg, setToastMsg] = useState(null);
+
   // 存当月有训练的日期集 (格式: 'YYYY-MM-DD' 字符串以适配时区匹配)
   const [activeDates, setActiveDates] = useState(new Set());
-  
+
   // 当前选中的日期号数 (例如 15 号)
   const [selectedDate, setSelectedDate] = useState(null);
   // 选中日期的训练详情记录
   const [dayDetail, setDayDetail] = useState([]);
+
+  // 删除训练记录
+  const handleDeleteSession = async (session) => {
+    const workoutIds = (session.exercises || []).map(ex => ex.id).filter(Boolean);
+    if (workoutIds.length === 0) {
+      setToastMsg({ type: 'error', text: '没有可删除的训练记录' });
+      setTimeout(() => setToastMsg(null), 3000);
+      return;
+    }
+    try {
+      await deleteWorkouts(workoutIds);
+      // 刷新当天的详情
+      setDayDetail(prev => prev.filter(w => !workoutIds.includes(w.id)));
+      // 如果当天没有其他记录了，清除选中
+      const remaining = dayDetail.filter(w => !workoutIds.includes(w.id));
+      if (remaining.length === 0) {
+        // 从 activeDates 中移除此日期
+        if (selectedDate) {
+          const mStr = String(currentMonth + 1).padStart(2, '0');
+          const dStr = String(selectedDate).padStart(2, '0');
+          const dateStr = `${currentYear}-${mStr}-${dStr}`;
+          setActiveDates(prev => {
+            const next = new Set(prev);
+            next.delete(dateStr);
+            return next;
+          });
+          setSelectedDate(null);
+        }
+      }
+      setToastMsg({ type: 'success', text: '训练记录已删除' });
+      setTimeout(() => setToastMsg(null), 3000);
+    } catch (err) {
+      setToastMsg({ type: 'error', text: '删除失败：' + err.message });
+      setTimeout(() => setToastMsg(null), 4000);
+    }
+  };
 
   /**
    * 按本地时区范围拉取当前月份包含训练的日期集合
@@ -312,10 +349,20 @@ function CalendarScreen({ getExerciseCNName }) {
             workouts={dayDetail}
             getExerciseCNName={getExerciseCNName}
             title={`${currentYear}年${currentMonth + 1}月${selectedDate}日 训练总结`}
+            onDeleteSession={handleDeleteSession}
           />
         )}
       </div>
-      
+
+      {/* Toast 通知 */}
+      {toastMsg && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-black/80 dark:bg-white/95 text-white dark:text-black text-xs font-bold px-4 py-2.5 rounded-full shadow-lg pointer-events-none animate-fadeIn flex items-center gap-1.5 border border-border-card/25 dark:border-border-card-dark/25">
+          {toastMsg.type === 'success'
+            ? <CheckCircle size={14} className="text-green-400" />
+            : <AlertTriangle size={14} className="text-red-400" />}
+          <span>{toastMsg.text}</span>
+        </div>
+      )}
     </div>
   );
 }

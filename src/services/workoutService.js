@@ -212,6 +212,35 @@ export const saveOneRmRecord = async (record) => {
 };
 
 /**
+ * 删除指定 ID 的训练记录及其关联的训练组数据。
+ * 先删 workout_sets（子记录），再删 workouts（父记录），避免外键约束冲突。
+ * @param {Array<number|string>} workoutIds
+ */
+export const deleteWorkouts = async (workoutIds) => {
+  if (!workoutIds || workoutIds.length === 0) return;
+
+  const userId = await requireCurrentUserId();
+
+  // 先删除关联的训练组
+  const { error: setsError } = await supabase
+    .from('workout_sets')
+    .delete()
+    .eq('user_id', userId)
+    .in('workout_id', workoutIds);
+
+  if (setsError) throw setsError;
+
+  // 再删除训练记录
+  const { error: workoutError } = await supabase
+    .from('workouts')
+    .delete()
+    .eq('user_id', userId)
+    .in('id', workoutIds);
+
+  if (workoutError) throw workoutError;
+};
+
+/**
  * 物理删除一条指定的 1RM 纪录（仅允许删除本人的）
  * @param {number} id
  */

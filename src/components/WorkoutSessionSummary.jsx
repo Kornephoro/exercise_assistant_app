@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Activity, Calendar, ChevronDown, Clock, Dumbbell, ListChecks } from 'lucide-react';
+import { Activity, Calendar, ChevronDown, Clock, Dumbbell, ListChecks, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { buildWorkoutSessions, formatDateTime, formatDuration, formatSetMeta, formatSetResult } from '../utils/workoutSummary';
 
 const TIER_STYLES = {
@@ -130,9 +130,33 @@ function ExerciseOverview({ exercise, getExerciseCNName }) {
   );
 }
 
-function SessionSummaryCard({ session, getExerciseCNName, title, compact = false }) {
+function SessionSummaryCard({ session, getExerciseCNName, title, compact = false, onDelete = null }) {
   const [expanded, setExpanded] = useState(!compact);
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const detailId = `session-detail-${session.key.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+
+  const handleDelete = async (event) => {
+    event.stopPropagation();
+    if (!confirming) {
+      setConfirming(true);
+      return;
+    }
+    // 确认删除
+    setDeleting(true);
+    try {
+      if (onDelete) await onDelete(session);
+    } catch {
+      // 删除失败不关闭确认态，让用户重试
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleCancelDelete = (event) => {
+    event.stopPropagation();
+    setConfirming(false);
+  };
 
   return (
     <div
@@ -168,6 +192,37 @@ function SessionSummaryCard({ session, getExerciseCNName, title, compact = false
                 {expanded ? '收起' : '详情'}
                 <ChevronDown size={15} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
               </span>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className={`btn btn-xs rounded-lg font-bold transition-all ${
+                  confirming
+                    ? 'btn-error text-white'
+                    : 'btn-ghost text-text-secondary hover:text-error hover:bg-error/10'
+                }`}
+                title={confirming ? '确认删除' : '删除此训练记录'}
+              >
+                {deleting ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : confirming ? (
+                  <AlertTriangle size={12} />
+                ) : (
+                  <Trash2 size={12} />
+                )}
+                <span>{confirming ? '确认' : ''}</span>
+              </button>
+            )}
+            {confirming && onDelete && (
+              <button
+                type="button"
+                onClick={handleCancelDelete}
+                className="btn btn-xs btn-ghost rounded-lg text-text-secondary font-bold"
+              >
+                取消
+              </button>
             )}
           </div>
         </div>
@@ -216,7 +271,8 @@ function SessionSummaryCard({ session, getExerciseCNName, title, compact = false
   );
 }
 
-function WorkoutSessionSummary({ workouts, getExerciseCNName, title, latestOnly = false, compact = false }) {
+function WorkoutSessionSummary({ workouts, getExerciseCNName, title, latestOnly = false, compact = false, onDeleteSession = null }) {
+  // onDeleteSession: 可选回调 (session) => Promise<void>，传入后每个会话卡片右上角显示删除按钮
   const sessions = buildWorkoutSessions(workouts);
   const visibleSessions = latestOnly ? sessions.slice(0, 1) : sessions;
 
@@ -230,6 +286,7 @@ function WorkoutSessionSummary({ workouts, getExerciseCNName, title, latestOnly 
           session={session}
           getExerciseCNName={getExerciseCNName}
           compact={compact}
+          onDelete={onDeleteSession}
           title={latestOnly || visibleSessions.length === 1 ? title : `${title || '训练总结'} · 第 ${visibleSessions.length - index} 次`}
         />
       ))}
