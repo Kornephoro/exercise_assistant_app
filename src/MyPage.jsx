@@ -4,8 +4,9 @@ import { DEFAULT_GYM_EQUIPMENT_CONFIG } from './unitUtils';
 import { saveUserProfile } from './services/profileService';
 import { signUpWithEmail, signInWithEmail, signOut, upgradeAnonymousWithEmail } from './services/authService';
 
-function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymEquipmentConfig = null, setGymEquipmentConfig = null, onRefreshProfile = null, onAuthChange = null, currentUserId = null, currentEmail = null, currentIsAnonymous = true, authReady = true }) {
-  const [nickname] = useState(() => localStorage.getItem('user_nickname') || '');
+function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, userProfile = null, gymEquipmentConfig = null, setGymEquipmentConfig = null, onRefreshProfile = null, onAuthChange = null, currentUserId = null, currentEmail = null, currentIsAnonymous = true, authReady = true }) {
+  // 优先从云端画像读取昵称，再回退到 localStorage，确保登录后立即显示正确名称
+  const nickname = userProfile?.nickname || localStorage.getItem('user_nickname') || '';
   const [showBarbellModal, setShowBarbellModal] = useState(false);
   const [toastMsg, setToastMsg] = useState(null);
   const [daysSince] = useState(() => {

@@ -1228,6 +1228,8 @@ function App() {
       {showOnboarding && (
         <Suspense fallback={null}>
           <OnboardingScreen
+            userProfile={userProfile}
+            gymEquipmentConfig={gymEquipmentConfig}
             onComplete={() => {
               markOnboardingCompleted(currentUserId);
               setShowOnboarding(false);

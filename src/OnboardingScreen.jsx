@@ -21,39 +21,47 @@ import {
 /**
  * OnboardingScreen 用户画像引导流程组件
  * 使用 Tailwind CSS + DaisyUI 进行完全重构，适配浅色/深色模式
- * 
+ *
  * @param {Object} props
  * @param {Function} props.onComplete 引导完成后的回调函数，参数为要跳转的 Tab
  * @param {Function} props.onSkip 跳过引导的回调函数
+ * @param {Object|null} props.userProfile 已有的用户画像数据（用于预填充）
+ * @param {Object|null} props.gymEquipmentConfig 已有的器械配置（用于预填充）
  */
-function OnboardingScreen({ onComplete, onSkip }) {
+function OnboardingScreen({ onComplete, onSkip, userProfile = null, gymEquipmentConfig = null }) {
+  // 安全解析 JSON 字段
+  const safeParseJSON = (str, fallback) => {
+    if (!str) return fallback;
+    try { return JSON.parse(str); } catch { return fallback; }
+  };
+
   const [currentStep, setCurrentStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
 
-  // 表单状态定义
+  // 表单状态定义（优先从已有画像数据预填充，未保存时显示已有值）
   // 步骤1：基本信息
-  const [nickname, setNickname] = useState('');
-  const [gender, setGender] = useState('male');
-  const [age, setAge] = useState('');
-  const [height, setHeight] = useState('');
-  const [weight, setWeight] = useState('');
+  const [nickname, setNickname] = useState(() => userProfile?.nickname || localStorage.getItem('user_nickname') || '');
+  const [gender, setGender] = useState(() => userProfile?.gender || 'male');
+  const [age, setAge] = useState(() => userProfile?.age ? String(userProfile.age) : '');
+  const [height, setHeight] = useState(() => userProfile?.height_cm ? String(userProfile.height_cm) : '');
+  const [weight, setWeight] = useState(() => userProfile?.weight_kg ? String(userProfile.weight_kg) : '');
 
   // 步骤2：训练背景
-  const [trainingYears, setTrainingYears] = useState('0-1年');
-  const [trainingLevel, setTrainingLevel] = useState('初学者');
-  const [primaryGoal, setPrimaryGoal] = useState('提高力量');
-  const [trainingDaysPerWeek, setTrainingDaysPerWeek] = useState(3);
-  const [sessionDurationMin, setSessionDurationMin] = useState(60);
+  const [trainingYears, setTrainingYears] = useState(() => userProfile?.training_years || '0-1年');
+  const [trainingLevel, setTrainingLevel] = useState(() => userProfile?.training_level || '初学者');
+  const [primaryGoal, setPrimaryGoal] = useState(() => userProfile?.primary_goal || '提高力量');
+  const [trainingDaysPerWeek, setTrainingDaysPerWeek] = useState(() => userProfile?.training_days_per_week || 3);
+  const [sessionDurationMin, setSessionDurationMin] = useState(() => userProfile?.session_duration_min || 60);
 
   // 步骤3：可用器械
-  const [equipmentList, setEquipmentList] = useState(['barbell', 'dumbbell']);
+  const [equipmentList, setEquipmentList] = useState(() => safeParseJSON(userProfile?.equipment, ['barbell', 'dumbbell']));
 
   // 步骤4：力量基准 (1RM)
-  const [squat1RM, setSquat1RM] = useState('');
-  const [bench1RM, setBench1RM] = useState('');
-  const [deadlift1RM, setDeadlift1RM] = useState('');
-  const [press1RM, setPress1RM] = useState('');
+  const [squat1RM, setSquat1RM] = useState(() => userProfile?.squat_1rm ? String(userProfile.squat_1rm) : '');
+  const [bench1RM, setBench1RM] = useState(() => userProfile?.bench_1rm ? String(userProfile.bench_1rm) : '');
+  const [deadlift1RM, setDeadlift1RM] = useState(() => userProfile?.deadlift_1rm ? String(userProfile.deadlift_1rm) : '');
+  const [press1RM, setPress1RM] = useState(() => userProfile?.press_1rm ? String(userProfile.press_1rm) : '');
 
   // 1RM 估算器状态
   const [showEstimator, setShowEstimator] = useState(false);
@@ -63,7 +71,17 @@ function OnboardingScreen({ onComplete, onSkip }) {
   const [estimatorTarget, setEstimatorTarget] = useState('squat');
 
   // 步骤5：日程设置
-  const [trainingDays, setTrainingDays] = useState(['Monday', 'Wednesday', 'Friday']);
+  const [trainingDays, setTrainingDays] = useState(() => {
+    // 优先从 userProfile.training_days (JSON) 解析
+    const fromProfile = safeParseJSON(userProfile?.training_days, null);
+    if (fromProfile) return fromProfile;
+    // 回退到 localStorage
+    const fromLocal = localStorage.getItem('training_days');
+    if (fromLocal) {
+      try { return JSON.parse(fromLocal); } catch { /* ignore */ }
+    }
+    return ['Monday', 'Wednesday', 'Friday'];
+  });
 
   // 常规星期英文和中文对照
   const WEEKDAYS = [
@@ -166,6 +184,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
 
     try {
       const profileData = {
+        nickname: nickname.trim() || null,
         gender,
         age: age ? parseInt(age, 10) : null,
         height_cm: height ? parseFloat(height) : null,
@@ -187,11 +206,13 @@ function OnboardingScreen({ onComplete, onSkip }) {
 
       await saveUserProfile(profileData);
 
+      // 同步 localStorage 作为离线缓存
       if (nickname.trim()) {
         localStorage.setItem('user_nickname', nickname.trim());
       } else {
         localStorage.removeItem('user_nickname');
       }
+      localStorage.setItem('training_days', JSON.stringify(trainingDays));
 
       localStorage.setItem('onboarding_completed', 'true');
       localStorage.setItem('onboarding_completed_at', new Date().toISOString());
