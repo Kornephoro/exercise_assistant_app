@@ -1,4 +1,4 @@
-import { supabase } from '../supabaseClient';
+import { supabase, getCurrentSessionUser } from '../supabaseClient';
 
 // ==================== 认证状态查询 ====================
 
@@ -7,8 +7,8 @@ import { supabase } from '../supabaseClient';
  * @returns {{ userId: string|null, email: string|null, isAnonymous: boolean, provider: string|null }}
  */
 export async function getAuthState() {
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) {
+  const user = await getCurrentSessionUser();
+  if (!user) {
     return { userId: null, email: null, isAnonymous: true, provider: null };
   }
   return {
@@ -31,7 +31,7 @@ export function onAuthStateChange(callback) {
       callback({
         userId: user?.id || null,
         email: user?.email || null,
-        isAnonymous: user?.is_anonymous || false,
+        isAnonymous: user ? (user.is_anonymous || false) : true,
       });
     }
   );

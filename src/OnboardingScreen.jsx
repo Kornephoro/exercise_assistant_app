@@ -194,6 +194,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
       }
 
       localStorage.setItem('onboarding_completed', 'true');
+      localStorage.setItem('onboarding_completed_at', new Date().toISOString());
       onComplete();
 
     } catch (err) {
@@ -206,6 +207,7 @@ function OnboardingScreen({ onComplete, onSkip }) {
 
   const handleSkipOnboarding = () => {
     localStorage.setItem('onboarding_completed', 'true');
+    localStorage.setItem('onboarding_completed_at', new Date().toISOString());
     onSkip();
   };
 

@@ -1,10 +1,10 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState } from 'react';
 import { Sun, Moon, Settings, BookOpen, RotateCcw, Info, ChevronRight, Dumbbell, Scale, Trash2, Lightbulb, Mail, LogOut, UserPlus, ShieldAlert, AlertTriangle, Loader2, CheckCircle } from 'lucide-react';
 import { DEFAULT_GYM_EQUIPMENT_CONFIG } from './unitUtils';
 import { saveUserProfile } from './services/profileService';
 import { signUpWithEmail, signInWithEmail, signOut, upgradeAnonymousWithEmail } from './services/authService';
 
-function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymEquipmentConfig = null, setGymEquipmentConfig = null, onRefreshProfile = null, onAuthChange = null, currentUserId = null, currentEmail = null, currentIsAnonymous = true }) {
+function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymEquipmentConfig = null, setGymEquipmentConfig = null, onRefreshProfile = null, onAuthChange = null, currentUserId = null, currentEmail = null, currentIsAnonymous = true, authReady = true }) {
   const [nickname] = useState(() => localStorage.getItem('user_nickname') || '');
   const [showBarbellModal, setShowBarbellModal] = useState(false);
   const [toastMsg, setToastMsg] = useState(null);
@@ -23,7 +23,7 @@ function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymE
 
   // ==================== 认证状态 ====================
   // 从 App.jsx 传入，零延迟，不会闪烁
-  const [authState, setAuthState] = useState({ userId: currentUserId, email: currentEmail, isAnonymous: currentIsAnonymous });
+  const authState = { userId: currentUserId, email: currentEmail, isAnonymous: currentIsAnonymous };
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState('upgrade'); // 'upgrade' | 'login' | 'register'
   const [authEmail, setAuthEmail] = useState('');
@@ -31,11 +31,6 @@ function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymE
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState(null);
   const [authSuccess, setAuthSuccess] = useState(null);
-
-  // 同步 App.jsx 传来的认证状态（避免切换 tab 时闪烁）
-  useEffect(() => {
-    setAuthState({ userId: currentUserId, email: currentEmail, isAnonymous: currentIsAnonymous });
-  }, [currentUserId, currentEmail, currentIsAnonymous]);
 
   const handleAuthAction = async () => {
     setAuthError(null);
@@ -137,7 +132,15 @@ function MyPage({ themeMode, onThemeModeChange, onReOnboard, onOpenLibrary, gymE
           <ShieldAlert size={16} className="text-primary" />账号
         </h3>
 
-        {authState.isAnonymous ? (
+        {!authReady ? (
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50">
+            <Loader2 size={16} className="animate-spin text-primary shrink-0" />
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm font-bold text-text-main dark:text-text-main-dark">正在恢复账号状态</span>
+              <span className="text-xs text-text-secondary dark:text-text-secondary-dark">正在读取本机保存的登录会话</span>
+            </div>
+          </div>
+        ) : authState.isAnonymous ? (
           <div className="flex flex-col gap-3 p-3 rounded-xl bg-amber-500/5 border border-amber-500/10 dark:bg-amber-500/5 dark:border-amber-500/10">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />

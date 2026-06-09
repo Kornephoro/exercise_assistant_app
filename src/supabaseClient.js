@@ -3,7 +3,13 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
 
 let ensureUserPromise = null;
 
@@ -16,13 +22,24 @@ export function clearEnsureUserCache() {
 }
 
 /**
+ * 从 Supabase 本地 session 读取当前用户。
+ * 这里不使用 getUser()，避免每次业务查询前都远程校验 auth 用户导致首屏延迟。
+ * 数据安全仍由 Supabase RLS 基于 JWT 执行。
+ */
+export async function getCurrentSessionUser() {
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error) return null;
+  return session?.user || null;
+}
+
+/**
  * 获取当前认证用户的 ID（应用层数据隔离必需）
  * 若未登录则返回 null，由调用方根据场景决定是静默跳过还是提示登录
  * @returns {Promise<string|null>} 当前用户的 UUID，或 null
  */
 export async function getCurrentUserId() {
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return null;
+  const user = await getCurrentSessionUser();
+  if (!user) return null;
   return user.id;
 }
 

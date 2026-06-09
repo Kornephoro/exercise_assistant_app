@@ -45,6 +45,27 @@ const createSessionId = () => {
   });
 };
 
+const LAST_AUTH_USER_ID_KEY = 'last_auth_user_id';
+const ONBOARDING_COMPLETED_KEY = 'onboarding_completed';
+const ONBOARDING_COMPLETED_AT_KEY = 'onboarding_completed_at';
+
+const getScopedOnboardingKey = (userId) => userId ? `${ONBOARDING_COMPLETED_KEY}:${userId}` : ONBOARDING_COMPLETED_KEY;
+const getScopedOnboardingAtKey = (userId) => userId ? `${ONBOARDING_COMPLETED_AT_KEY}:${userId}` : ONBOARDING_COMPLETED_AT_KEY;
+
+const hasCompletedOnboarding = (userId) => {
+  return localStorage.getItem(getScopedOnboardingKey(userId)) === 'true'
+    || localStorage.getItem(ONBOARDING_COMPLETED_KEY) === 'true';
+};
+
+const markOnboardingCompleted = (userId, completedAt = new Date().toISOString()) => {
+  localStorage.setItem(ONBOARDING_COMPLETED_KEY, 'true');
+  localStorage.setItem(getScopedOnboardingKey(userId), 'true');
+
+  const normalizedCompletedAt = completedAt || new Date().toISOString();
+  localStorage.setItem(ONBOARDING_COMPLETED_AT_KEY, normalizedCompletedAt);
+  localStorage.setItem(getScopedOnboardingAtKey(userId), normalizedCompletedAt);
+};
+
 function App() {
   const [activeTab, setActiveTab] = useState('today');
 
@@ -61,6 +82,7 @@ function App() {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserEmail, setCurrentUserEmail] = useState(null);
   const [currentUserIsAnonymous, setCurrentUserIsAnonymous] = useState(true);
+  const [authHydrated, setAuthHydrated] = useState(false);
 
   // 用户切换时清理 user-scoped localStorage
   const clearUserLocalStorage = () => {
@@ -75,13 +97,11 @@ function App() {
       'training_assistant_aerobic_items',
     ];
     keysToRemove.forEach(k => {
-      try { localStorage.removeItem(k); } catch (e) { /* noop */ }
+      try { localStorage.removeItem(k); } catch { /* noop */ }
     });
   };
 
-  const [showOnboarding, setShowOnboarding] = useState(() => {
-    return localStorage.getItem('onboarding_completed') !== 'true';
-  });
+  const [showOnboarding, setShowOnboarding] = useState(false);
   // 新架构：programs + user_programs
   const [programs, setPrograms] = useState([]);
   const [userPrograms, setUserPrograms] = useState([]);
@@ -206,6 +226,33 @@ function App() {
   const hasInitializedRef = useRef(false);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const setAuthUser = (user) => {
+      if (cancelled) return;
+      setCurrentUserId(user?.id || null);
+      setCurrentUserEmail(user?.email || null);
+      setCurrentUserIsAnonymous(user ? (user.is_anonymous || false) : true);
+      setAuthHydrated(true);
+    };
+
+    const hydrateAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setAuthUser(session?.user || null);
+    };
+
+    hydrateAuth();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user || null);
+    });
+
+    return () => {
+      cancelled = true;
+      subscription?.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
     const applyTheme = () => {
       let activeTheme = themeMode;
       if (themeMode === 'system') {
@@ -256,15 +303,20 @@ function App() {
       const newUserId = await ensureAppUser();
       // 获取当前用户的 email 和匿名状态，供 MyPage 直接使用
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
         if (user) {
           setCurrentUserEmail(user.email || null);
           setCurrentUserIsAnonymous(user.is_anonymous || false);
         }
-      } catch (e) { /* 非关键，静默失败 */ }
+      } catch { /* 非关键，静默失败 */ }
+
+      const lastLoadedUserId = localStorage.getItem(LAST_AUTH_USER_ID_KEY);
+      const userChanged = (prevUserId && newUserId && prevUserId !== newUserId)
+        || (lastLoadedUserId && newUserId && lastLoadedUserId !== newUserId);
 
       // 用户 ID 变化时清理 user-scoped localStorage，避免数据串号
-      if (prevUserId && newUserId && prevUserId !== newUserId) {
+      if (userChanged) {
         clearUserLocalStorage();
         // 重置本地训练状态
         setSessionState({
@@ -280,8 +332,8 @@ function App() {
         setSetDetails({});
         setTodayWorkout(null);
         setActiveProgramId(null);
-        setShowOnboarding(true);
       }
+      if (newUserId) localStorage.setItem(LAST_AUTH_USER_ID_KEY, newUserId);
       setCurrentUserId(newUserId);
 
       const todayStart = new Date();
@@ -324,6 +376,12 @@ function App() {
 
       // 解析用户画像
       setUserProfile(profileData || null);
+      if (profileData) {
+        markOnboardingCompleted(newUserId, profileData.created_at || profileData.updated_at);
+        setShowOnboarding(false);
+      } else {
+        setShowOnboarding(!hasCompletedOnboarding(newUserId));
+      }
       if (profileData && profileData.training_days) {
         try { JSON.parse(profileData.training_days); } catch (e) { console.warn('解析训练日程失败:', e); }
       }
@@ -1065,6 +1123,7 @@ function App() {
               currentUserId={currentUserId}
               currentEmail={currentUserEmail}
               currentIsAnonymous={currentUserIsAnonymous}
+              authReady={authHydrated}
               onAuthChange={() => {
                 clearEnsureUserCache();
                 setCurrentUserId(null);
@@ -1170,11 +1229,13 @@ function App() {
         <Suspense fallback={null}>
           <OnboardingScreen
             onComplete={() => {
+              markOnboardingCompleted(currentUserId);
               setShowOnboarding(false);
               setToast({ type: 'success', message: '画像保存成功！请在计划库中选择一个训练计划。' });
               loadWorkoutData();
             }}
             onSkip={() => {
+              markOnboardingCompleted(currentUserId);
               setShowOnboarding(false);
               setToast({ type: 'success', message: '已跳过引导，您可随时在计划库中选择训练计划。' });
               loadWorkoutData();
