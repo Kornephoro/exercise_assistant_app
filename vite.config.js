@@ -9,7 +9,6 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      // 开发环境仅生成 manifest，不注册 SW（避免调试缓存干扰）
       devOptions: {
         enabled: false,
       },
