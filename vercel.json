@@ -7,13 +7,7 @@
       ]
     },
     {
-      "source": "/(favicon\\.svg|launchericon-.*\\.png|icons\\.svg)",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=86400" }
-      ]
-    },
-    {
-      "source": "/sw\\.js",
+      "source": "/sw.js",
       "headers": [
         { "key": "Cache-Control", "value": "no-cache" }
       ]
@@ -25,16 +19,6 @@
         { "key": "X-Frame-Options", "value": "DENY" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
       ]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/(sw\\.js|workbox-[^.]+\.js|registerSW\\.js|manifest\\.webmanifest)",
-      "destination": "/$1"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
     }
   ]
 }
