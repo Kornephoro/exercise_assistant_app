@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>方向 D：专业实验室 (Pro Lab)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg: #0F172A;
+            --surface: #1E293B;
+            --fg: #F8FAFC;
+            --accent: #F97316; /* Orange */
+            --muted: #64748B;
+            --border: #334155;
+            --font-body: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        [data-theme='light'] {
+            --bg: #F8FAFC;
+            --surface: #FFFFFF;
+            --fg: #0F172A;
+            --muted: #94A3B8;
+            --accent: #EA580C;
+            --border: #E2E8F0;
+        }
+
+        body {
+            background-color: #020617;
+            color: var(--fg);
+            font-family: var(--font-body);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+        }
+
+        .phone-frame {
+            width: 390px;
+            height: 844px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 54px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 0 12px #000;
+        }
+
+        .lab-grid {
+            background-image: linear-gradient(var(--border) 0.5px, transparent 0.5px), linear-gradient(90deg, var(--border) 0.5px, transparent 0.5px);
+            background-size: 20px 20px;
+        }
+
+        .lab-card {
+            background: var(--surface);
+            border: 0.5px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .lab-btn {
+            background: var(--accent);
+            color: white;
+            padding: 14px;
+            border-radius: 6px;
+            font-weight: 700;
+            text-align: center;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .mono { font-family: var(--font-mono); }
+
+        .tab-bar {
+            background: var(--surface);
+            border-top: 0.5px solid var(--border);
+            height: 84px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            padding-bottom: 20px;
+        }
+        
+        .tab-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            opacity: 0.3;
+        }
+        .tab-item.active {
+            opacity: 1;
+            color: var(--accent);
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 40px;
+            background: #1e293b;
+            padding: 8px 16px;
+            border-radius: 100px;
+            display: flex;
+            gap: 16px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body data-theme="dark">
+
+    <div class="mb-12 text-center text-white">
+        <h1 class="text-3xl font-bold tracking-tight">Variant D: Pro Lab</h1>
+        <p class="text-slate-500 mt-2 mono text-sm">DESIGN_SYSTEM_MODE: SCIENTIFIC_PRECISION</p>
+    </div>
+
+    <div class="flex gap-10 p-5 overflow-x-auto max-w-full">
+        <!-- 今日页面 -->
+        <div class="phone-frame">
+            <div class="flex-1 p-6 flex flex-col gap-6 lab-grid">
+                <header class="flex justify-between items-center">
+                    <div>
+                        <p class="mono text-[10px] text-slate-500">SESSION_LOG // 2026.06.10</p>
+                        <h2 class="text-xl font-extrabold tracking-tight">DASHBOARD</h2>
+                    </div>
+                    <div class="px-2 py-1 bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/30 rounded text-[10px] mono">
+                        LVL 42
+                    </div>
+                </header>
+
+                <div class="lab-card">
+                    <div class="flex justify-between mb-4">
+                        <span class="text-[10px] font-bold opacity-50 uppercase">Readiness Score</span>
+                        <span class="text-[10px] mono text-[var(--accent)]">HIGH</span>
+                    </div>
+                    <div class="flex items-baseline gap-1">
+                        <span class="text-4xl font-bold">88</span>
+                        <span class="text-xs opacity-50">/ 100</span>
+                    </div>
+                    <div class="mt-4 h-1 bg-slate-700 rounded-full overflow-hidden">
+                        <div class="h-full bg-[var(--accent)] w-[88%]"></div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="lab-card">
+                        <p class="text-[10px] font-bold opacity-50 uppercase mb-2">Strain</p>
+                        <p class="text-xl font-bold mono">14.2</p>
+                    </div>
+                    <div class="lab-card">
+                        <p class="text-[10px] font-bold opacity-50 uppercase mb-2">Recovery</p>
+                        <p class="text-xl font-bold mono">92%</p>
+                    </div>
+                </div>
+
+                <div class="lab-card">
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-xs font-bold uppercase">Scheduled Training</span>
+                        <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                    </div>
+                    <p class="text-sm font-medium">Hypertrophy: Push A</p>
+                    <p class="text-[10px] mono opacity-50 mt-1">E_COUNT: 08 // EST_TIME: 65M</p>
+                </div>
+
+                <div class="mt-auto">
+                    <div class="lab-btn w-full">Initialize Session</div>
+                </div>
+            </div>
+            <div class="tab-bar">
+                <div class="tab-item active">
+                    <div class="w-1 h-1 bg-[var(--accent)] rounded-full mb-1"></div>
+                    HOME
+                </div>
+                <div class="tab-item">TRAIN</div>
+                <div class="tab-item">ANALYTICS</div>
+            </div>
+        </div>
+
+        <!-- 训练页面 -->
+        <div class="phone-frame">
+            <div class="flex-1 p-6 flex flex-col gap-6 lab-grid">
+                <header class="flex justify-between items-center bg-[var(--surface)] -mx-6 px-6 py-4 border-b border-[var(--border)]">
+                    <div class="flex items-center gap-2">
+                        <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+                        <span class="mono text-[10px] font-bold uppercase">Recording Session</span>
+                    </div>
+                    <span class="mono text-xs font-bold">01:04:22</span>
+                </header>
+
+                <div>
+                    <div class="flex justify-between items-end mb-1">
+                        <span class="text-[10px] mono text-[var(--accent)]">EX_ID: 04 // PHASE: PRIMARY</span>
+                        <span class="text-[10px] mono opacity-50">TARGET: CHEST</span>
+                    </div>
+                    <h2 class="text-2xl font-black tracking-tighter uppercase">Incline DB Press</h2>
+                </div>
+
+                <div class="space-y-1">
+                    <div class="grid grid-cols-5 text-[10px] mono opacity-50 p-2 uppercase">
+                        <span>Set</span><span class="col-span-2">Load</span><span>Reps</span><span>Status</span>
+                    </div>
+                    <div class="grid grid-cols-5 p-3 lab-card rounded-none opacity-50">
+                        <span class="mono">01</span><span class="col-span-2 font-bold">30.0 KG</span><span class="font-bold">10</span><span class="text-green-500">DONE</span>
+                    </div>
+                    <div class="grid grid-cols-5 p-4 lab-card rounded-none border-[var(--accent)] border-opacity-50 bg-[var(--accent)]/5">
+                        <span class="mono text-[var(--accent)]">02</span><span class="col-span-2 font-bold text-lg">32.5 KG</span><span class="font-bold text-lg">8</span><span class="text-[var(--accent)] font-bold">LIVE</span>
+                    </div>
+                    <div class="grid grid-cols-5 p-3 lab-card rounded-none opacity-20">
+                        <span class="mono">03</span><span class="col-span-2">32.5 KG</span><span>--</span><span>PEND</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="lab-card p-3">
+                        <p class="text-[8px] font-bold opacity-40 uppercase mb-1">Estimated 1RM</p>
+                        <p class="text-lg font-bold">42.5 <span class="text-[10px] opacity-30">KG</span></p>
+                    </div>
+                    <div class="lab-card p-3">
+                        <p class="text-[8px] font-bold opacity-40 uppercase mb-1">Rest Timer</p>
+                        <p class="text-lg font-bold text-[var(--accent)]">01:12</p>
+                    </div>
+                </div>
+
+                <div class="mt-auto flex gap-2">
+                    <div class="lab-btn flex-1 bg-slate-800 text-slate-400 border border-slate-700">Set Error</div>
+                    <div class="lab-btn flex-[2]">Complete Set</div>
+                </div>
+            </div>
+            <div class="tab-bar">
+                <div class="tab-item">HOME</div>
+                <div class="tab-item active">
+                    <div class="w-1 h-1 bg-[var(--accent)] rounded-full mb-1"></div>
+                    TRAIN
+                </div>
+                <div class="tab-item">ANALYTICS</div>
+            </div>
+        </div>
+
+        <!-- 数据页面 -->
+        <div class="phone-frame">
+            <div class="flex-1 p-6 flex flex-col gap-6 lab-grid">
+                <header>
+                    <p class="mono text-[10px] text-slate-500">ANALYTICS_MODULE_V4.2</p>
+                    <h2 class="text-xl font-extrabold tracking-tight">TRAINING_INSIGHTS</h2>
+                </header>
+
+                <div class="lab-card">
+                    <p class="text-[10px] font-bold opacity-50 uppercase mb-4">Volume Progression (Weekly)</p>
+                    <div class="flex items-end justify-between h-32 gap-1 px-2">
+                        <div class="flex-1 bg-slate-800/50 border-t-2 border-slate-700" style="height: 40%"></div>
+                        <div class="flex-1 bg-slate-800/50 border-t-2 border-slate-700" style="height: 35%"></div>
+                        <div class="flex-1 bg-slate-800/50 border-t-2 border-slate-700" style="height: 55%"></div>
+                        <div class="flex-1 bg-slate-800/50 border-t-2 border-slate-700" style="height: 50%"></div>
+                        <div class="flex-1 bg-slate-800/50 border-t-2 border-slate-700" style="height: 70%"></div>
+                        <div class="flex-1 bg-[var(--accent)]/20 border-t-2 border-[var(--accent)]" style="height: 85%"></div>
+                    </div>
+                    <div class="flex justify-between mt-2 px-1">
+                        <span class="text-[8px] mono opacity-30">W1</span><span class="text-[8px] mono opacity-30">W2</span>
+                        <span class="text-[8px] mono opacity-30">W3</span><span class="text-[8px] mono opacity-30">W4</span>
+                        <span class="text-[8px] mono opacity-30">W5</span><span class="text-[8px] mono font-bold text-[var(--accent)]">W6</span>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div class="lab-card flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded bg-slate-800 flex items-center justify-center text-[10px] mono">#1</div>
+                            <div>
+                                <p class="text-xs font-bold uppercase">Total Volume</p>
+                                <p class="text-[10px] mono opacity-50">6-WEEK_TOTAL</p>
+                            </div>
+                        </div>
+                        <p class="text-lg font-bold mono">842.1T</p>
+                    </div>
+                    <div class="lab-card flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded bg-slate-800 flex items-center justify-center text-[10px] mono">#2</div>
+                            <div>
+                                <p class="text-xs font-bold uppercase">Consistency</p>
+                                <p class="text-[10px] mono opacity-50">AVG_DAYS/WK</p>
+                            </div>
+                        </div>
+                        <p class="text-lg font-bold mono">4.8</p>
+                    </div>
+                </div>
+
+                <div class="lab-card border-dashed">
+                    <p class="text-[10px] mono text-center opacity-40">EXPORTING_RAW_DATA_TO_CSV...</p>
+                </div>
+            </div>
+            <div class="tab-bar">
+                <div class="tab-item">HOME</div>
+                <div class="tab-item">TRAIN</div>
+                <div class="tab-item active">
+                    <div class="w-1 h-1 bg-[var(--accent)] rounded-full mb-1"></div>
+                    ANALYTICS
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button onclick="document.body.dataset.theme='dark'" class="w-6 h-6 rounded-full bg-black border border-white/20"></button>
+        <button onclick="document.body.dataset.theme='light'" class="w-6 h-6 rounded-full bg-white border border-black/20"></button>
+    </div>
+
+</body>
+</html>
