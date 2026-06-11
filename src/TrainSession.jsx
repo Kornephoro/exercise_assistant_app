@@ -39,6 +39,145 @@ const RPE_PERCENTAGE_CHART = {
 // 水平循环滚动对齐选择器 — 已移至共享组件 ./components/InfiniteScrollPicker
 
 
+// ============ DURATION TIMER COMPONENT (for duration_only exercises) ============
+const DurationTimer = ({ timerState, targetSeconds, onStateChange, onDurationFill, disabled }) => {
+  const { mode = 'countdown', status = 'idle', displaySeconds = targetSeconds, prepRemaining = 5 } = timerState || {};
+  const isIdle = status === 'idle';
+  const isPrep = status === 'prep';
+  const isRunning = status === 'running';
+  const isPaused = status === 'paused';
+  const isDone = status === 'done';
+
+  const circumference = 2 * Math.PI * 45;
+  let progressFraction;
+  if (isPrep) {
+    progressFraction = prepRemaining / 5;
+  } else if (isIdle) {
+    progressFraction = mode === 'countdown' ? 1 : 0;
+  } else if (mode === 'countdown') {
+    progressFraction = targetSeconds > 0 ? displaySeconds / targetSeconds : 0;
+  } else {
+    progressFraction = targetSeconds > 0 ? Math.min(displaySeconds / targetSeconds, 1) : 0;
+  }
+  const strokeDashoffset = circumference * (1 - progressFraction);
+
+  let ringColor;
+  if (isPrep) ringColor = 'text-amber-500';
+  else if (isDone) ringColor = 'text-green-500';
+  else if (isIdle) ringColor = 'text-base-content/15';
+  else if (mode === 'countdown') {
+    if (progressFraction > 0.5) ringColor = 'text-green-500';
+    else if (progressFraction > 0.25) ringColor = 'text-yellow-500';
+    else ringColor = 'text-red-500';
+  } else ringColor = 'text-blue-500';
+
+  const displayNum = isPrep ? prepRemaining : isIdle ? (mode === 'countdown' ? targetSeconds : 0) : displaySeconds;
+  const isActive = isRunning || isPaused || isPrep;
+
+  const startPrep = () => {
+    onStateChange({ mode, status: 'prep', displaySeconds: mode === 'countdown' ? targetSeconds : 0, targetSeconds, prepRemaining: 5 });
+  };
+  const pauseTimer = () => onStateChange({ ...timerState, status: 'paused' });
+  const resumeTimer = () => onStateChange({ ...timerState, status: 'running' });
+  const stopAndFill = () => {
+    const elapsed = mode === 'countdown' ? targetSeconds - displaySeconds : displaySeconds;
+    onDurationFill(Math.max(elapsed, 0));
+    onStateChange({ ...timerState, status: 'done' });
+  };
+  const resetTimer = () => onStateChange({ mode, status: 'idle', displaySeconds: mode === 'countdown' ? targetSeconds : 0, targetSeconds, prepRemaining: 5 });
+  const cancelPrep = () => resetTimer();
+  const switchMode = (newMode) => {
+    if (isActive) return;
+    onStateChange({ mode: newMode, status: 'idle', displaySeconds: newMode === 'countdown' ? targetSeconds : 0, targetSeconds, prepRemaining: 5 });
+  };
+
+  return (
+    <div className="flex flex-col items-center gap-2.5">
+      {/* Mode Toggle — only in idle */}
+      {isIdle && !disabled && (
+        <div className="flex bg-base-200 rounded-lg p-0.5 gap-0.5">
+          <button type="button"
+            className={`px-3 py-1 text-xs font-bold rounded-md transition-colors cursor-pointer ${mode === 'countdown' ? 'bg-primary text-primary-content' : 'text-base-content/50 hover:text-base-content'}`}
+            onClick={() => switchMode('countdown')}
+          >⏱ 倒计时</button>
+          <button type="button"
+            className={`px-3 py-1 text-xs font-bold rounded-md transition-colors cursor-pointer ${mode === 'stopwatch' ? 'bg-primary text-primary-content' : 'text-base-content/50 hover:text-base-content'}`}
+            onClick={() => switchMode('stopwatch')}
+          >⏱ 正计时</button>
+        </div>
+      )}
+      {/* Mode indicator when active */}
+      {isActive && (
+        <span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">
+          {mode === 'countdown' ? '倒计时' : '正计时'}
+        </span>
+      )}
+
+      {/* Timer Ring */}
+      <div className="relative flex items-center justify-center" style={{ width: '7rem', height: '7rem' }}>
+        <svg className="absolute inset-0" viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="6" className="text-base-300" />
+          <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="6"
+            strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round"
+            className={`${ringColor} transition-all duration-1000 ease-linear`} />
+        </svg>
+        <div className="flex flex-col items-center z-10">
+          <span className={`text-3xl font-bold font-mono ${isDone ? 'text-green-500' : isPrep ? 'text-amber-500' : 'text-base-content'}`}>
+            {displayNum}
+          </span>
+          <span className="text-xs text-base-content/40">秒</span>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className="flex flex-wrap gap-1.5 w-full justify-center">
+        {isIdle && (
+          <button type="button" className="btn btn-primary btn-sm font-bold gap-1.5 h-9 text-xs" onClick={startPrep} disabled={disabled}>
+            <Play size={13} />
+            开始{mode === 'countdown' ? `倒计时 (${targetSeconds}秒)` : '计时'}
+          </button>
+        )}
+        {isRunning && (
+          <>
+            <button type="button" className="btn btn-ghost btn-outline btn-sm font-bold gap-1.5 h-9 text-xs" onClick={pauseTimer}>
+              <Pause size={13} /> 暂停
+            </button>
+            <button type="button" className="btn btn-error btn-outline btn-sm font-bold gap-1.5 h-9 text-xs" onClick={stopAndFill}>
+              <X size={13} /> 停止
+            </button>
+            <button type="button" className="btn btn-ghost btn-outline btn-sm font-bold gap-1.5 h-9 text-xs" onClick={resetTimer}>
+              <RotateCcw size={13} /> 重置
+            </button>
+          </>
+        )}
+        {isPaused && (
+          <>
+            <button type="button" className="btn btn-primary btn-sm font-bold gap-1.5 h-9 text-xs" onClick={resumeTimer}>
+              <Play size={13} /> 继续
+            </button>
+            <button type="button" className="btn btn-error btn-outline btn-sm font-bold gap-1.5 h-9 text-xs" onClick={stopAndFill}>
+              <X size={13} /> 停止
+            </button>
+            <button type="button" className="btn btn-ghost btn-outline btn-sm font-bold gap-1.5 h-9 text-xs" onClick={resetTimer}>
+              <RotateCcw size={13} /> 重置
+            </button>
+          </>
+        )}
+        {isDone && (
+          <>
+            <div className="flex items-center gap-1 text-xs font-bold text-green-500 w-full justify-center">
+              <Check size={14} /> 已完成 {mode === 'countdown' ? (targetSeconds - displaySeconds) : displaySeconds}秒
+            </div>
+            <button type="button" className="btn btn-ghost btn-outline btn-sm font-bold gap-1.5 h-9 text-xs" onClick={resetTimer}>
+              <RotateCcw size={13} /> 再来一次
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // ============ FIELD INPUT GROUP (hoisted outside) ============
 const FieldInput = ({ kind, value, onChange, placeholder = '' }) => {
   const isInt = kind === 'reps' || kind === 'duration';
@@ -174,6 +313,9 @@ function TrainSession({
 
   const [secondsElapsed, setSecondsElapsed] = useState(0);
 
+  // 仅时长动作计时器状态: { [`${exIdx}_${setIdx}`]: { mode, status, displaySeconds, targetSeconds, prepRemaining } }
+  const [durationTimers, setDurationTimers] = useState({});
+
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [showSessionNotesModal, setShowSessionNotesModal] = useState(false);
   const [showSessionSettingsModal, setShowSessionSettingsModal] = useState(false);
@@ -234,6 +376,51 @@ function TrainSession({
       clearInterval(interval);
     };
   }, [sessionState.isActive, sessionState.startTime, sessionState.elapsedTime, sessionState.isPaused]);
+
+  // 仅时长动作计时器 — 每秒 tick
+  useEffect(() => {
+    const hasActive = Object.values(durationTimers).some(
+      t => t.status === 'running' || t.status === 'prep'
+    );
+    if (!hasActive) return;
+
+    const interval = setInterval(() => {
+      setDurationTimers(prev => {
+        const next = { ...prev };
+        let changed = false;
+        for (const key of Object.keys(next)) {
+          const t = next[key];
+          if (t.status === 'prep') {
+            const newRemaining = t.prepRemaining - 1;
+            if (newRemaining <= 0) {
+              // 准备结束 → 切换到 running
+              next[key] = { ...t, status: 'running', prepRemaining: 0 };
+            } else {
+              next[key] = { ...t, prepRemaining: newRemaining };
+            }
+            changed = true;
+          } else if (t.status === 'running') {
+            if (t.mode === 'countdown') {
+              const newDisplay = t.displaySeconds - 1;
+              if (newDisplay <= 0) {
+                // 倒计时到 0 → done，标记 autoFill 让 set card 自动填入时长
+                next[key] = { ...t, status: 'done', displaySeconds: 0, autoFill: t.targetSeconds };
+              } else {
+                next[key] = { ...t, displaySeconds: newDisplay };
+              }
+            } else {
+              // 正计时：递增
+              next[key] = { ...t, displaySeconds: t.displaySeconds + 1 };
+            }
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [durationTimers]);
 
   const formatTime = (totalSeconds) => {
     const hrs = Math.floor(totalSeconds / 3600);
@@ -325,6 +512,48 @@ function TrainSession({
       return () => { cancelled = true; };
     }
   }, [showSetCard]);
+
+  // 初始化仅时长动作的计时器状态
+  useEffect(() => {
+    if (!showSetCard || !focusedSet) return;
+    const { exerciseIdx, setIdx } = focusedSet;
+    const ex = todayWorkout?.exercises?.[exerciseIdx];
+    if (!ex) return;
+    const method = getRecordingMethod(ex.exercise);
+    if (method !== 'duration_only') return;
+    const dtKey = `${exerciseIdx}_${setIdx}`;
+    setDurationTimers(prev => {
+      if (prev[dtKey]) return prev; // 已有状态，保留（支持后台运行）
+      const target = ex.reps || 30;
+      return {
+        ...prev,
+        [dtKey]: { mode: 'countdown', status: 'idle', displaySeconds: target, targetSeconds: target, prepRemaining: 5 }
+      };
+    });
+  }, [showSetCard, focusedSet, todayWorkout?.exercises]);
+
+  // 仅时长计时器倒计时到 0 时自动填入 duration_seconds
+  useEffect(() => {
+    let applied = false;
+    setDurationTimers(prev => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) {
+        const t = next[key];
+        if (t?.autoFill !== undefined && !applied) {
+          // key format: `${exIdx}_${setIdx}`
+          const [exIdxStr, setIdxStr] = key.split('_');
+          const exIdx = parseInt(exIdxStr, 10);
+          const setIdx = parseInt(setIdxStr, 10);
+          if (!isNaN(exIdx) && !isNaN(setIdx)) {
+            handleDurationChange(exIdx, setIdx, t.autoFill);
+            applied = true;
+          }
+          next[key] = { ...t, autoFill: undefined };
+        }
+      }
+      return applied ? next : prev;
+    });
+  }, [durationTimers]);
 
   const [customRestSeconds, setCustomRestSeconds] = useState(DEFAULT_REST_SECONDS);
 
@@ -496,12 +725,24 @@ function TrainSession({
       };
     });
     handleToggleSet(exerciseIdx, setIdx);
+
+    // 清理仅时长计时器
+    const dtKey = `${exerciseIdx}_${setIdx}`;
+    if (method === 'duration_only') {
+      setDurationTimers(prev => {
+        if (!prev[dtKey]) return prev;
+        const next = { ...prev };
+        delete next[dtKey];
+        return next;
+      });
+    }
+
     closeSetCard();
 
     // 解决异步状态更新滞后问题：提前预测并计算完成状态
     const targetSet = sessionState.setsData[exerciseIdx]?.[setIdx];
     if (!targetSet) return;
-    
+
     const nextSet = getNextSet(exerciseIdx, setIdx, todayWorkout.exercises, sessionState.setsData);
 
     if (nextSet) {
@@ -531,6 +772,14 @@ function TrainSession({
         ...prev,
         setsData: { ...prev.setsData, [exIdx]: nextSets }
       };
+    });
+    // 清理仅时长计时器
+    const dtKey = `${exIdx}_${setIdx}`;
+    setDurationTimers(prev => {
+      if (!prev[dtKey]) return prev;
+      const next = { ...prev };
+      delete next[dtKey];
+      return next;
     });
     closeSetCard();
 
@@ -691,9 +940,38 @@ function TrainSession({
       distance: '距离（米）',
     };
 
+    // 仅时长动作计时器状态与处理器
+    const dtKey = `${exerciseIdx}_${setIdx}`;
+    const dt = durationTimers[dtKey];
+    const targetSeconds = set.planned_reps || 30;
+    const isDurationMethod = method === 'duration_only';
+    const dtPrepActive = dt?.status === 'prep';
+
+    const handleTimerStateChange = (newState) => {
+      setDurationTimers(prev => ({ ...prev, [dtKey]: newState }));
+    };
+    const handleTimerDurationFill = (seconds) => {
+      handleDurationChange(exerciseIdx, setIdx, seconds);
+    };
+
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-3" onClick={closeSetCard}>
-        <div className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <div className={`bg-base-100 rounded-2xl shadow-2xl w-full max-w-md ${(isDurationMethod) ? 'relative overflow-hidden' : ''}`} onClick={(e) => e.stopPropagation()}>
+          {/* Prep Overlay — 覆盖 set card 内容区 */}
+          {dtPrepActive && (
+            <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center bg-base-100/95 backdrop-blur rounded-2xl gap-4">
+              <span className="text-lg font-bold text-base-content/70">🏃 准备！</span>
+              <span className="text-8xl font-black text-primary animate-pulse">{dt.prepRemaining}</span>
+              <span className="text-sm text-base-content/50">秒后开始</span>
+              <button type="button" className="btn btn-ghost btn-sm mt-2"
+                onClick={() => setDurationTimers(prev => {
+                  const next = { ...prev };
+                  if (next[dtKey]) next[dtKey] = { mode: 'countdown', status: 'idle', displaySeconds: targetSeconds, targetSeconds, prepRemaining: 5 };
+                  return next;
+                })}
+              >取消</button>
+            </div>
+          )}
           <div className="p-3.5 flex flex-col gap-2.5">
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -722,17 +1000,27 @@ function TrainSession({
               </div>
             </div>
 
-            {/* Summary Line - Large Typography */}
-            <div className="p-2.5 rounded-xl bg-base-200/50">
-              <div className="text-xl font-bold text-base-content">
-                {config.summary(set, ex)}
+            {/* Summary / Timer Area */}
+            {isDurationMethod ? (
+              <DurationTimer
+                timerState={dt}
+                targetSeconds={targetSeconds}
+                onStateChange={handleTimerStateChange}
+                onDurationFill={handleTimerDurationFill}
+                disabled={isSkipped || isCompleted}
+              />
+            ) : (
+              <div className="p-2.5 rounded-xl bg-base-200/50">
+                <div className="text-xl font-bold text-base-content">
+                  {config.summary(set, ex)}
+                </div>
+                <div className="text-base font-semibold text-base-content/60 mt-0.5">
+                  RPE {set.planned_rpe ?? 7}
+                  {config.showTempo && <> | 节奏 {set.tempo ?? '3110'}</>}
+                  <> | 休息 {customRestSeconds}秒</>
+                </div>
               </div>
-              <div className="text-base font-semibold text-base-content/60 mt-0.5">
-                RPE {set.planned_rpe ?? 7}
-                {config.showTempo && <> | 节奏 {set.tempo ?? '3110'}</>}
-                <> | 休息 {customRestSeconds}秒</>
-              </div>
-            </div>
+            )}
 
             {/* Dynamic Input Area - method-aware */}
             <FieldInputGroup
@@ -981,6 +1269,12 @@ function TrainSession({
                           setsData: { ...prev.setsData, [exerciseIdx]: nextSets }
                         };
                       });
+                      // 重置仅时长计时器
+                      const dtKey = `${exerciseIdx}_${setIdx}`;
+                      if (getRecordingMethod(ex.exercise) === 'duration_only') {
+                        const target = ex.reps || 30;
+                        setDurationTimers(prev => ({ ...prev, [dtKey]: { mode: 'countdown', status: 'idle', displaySeconds: target, targetSeconds: target, prepRemaining: 5 } }));
+                      }
                     }}
                   >
                     <Play size={18} />
@@ -1026,6 +1320,15 @@ function TrainSession({
                           ...prev,
                           setsData: { ...prev.setsData, [exerciseIdx]: nextSets }
                         };
+                      });
+                      // 重置仅时长计时器
+                      const dtKey = `${exerciseIdx}_${setIdx}`;
+                      setDurationTimers(prev => {
+                        if (prev[dtKey]) {
+                          const target = prev[dtKey].targetSeconds || 30;
+                          return { ...prev, [dtKey]: { mode: 'countdown', status: 'idle', displaySeconds: target, targetSeconds: target, prepRemaining: 5 } };
+                        }
+                        return prev;
                       });
                       closeSetCard();
                     }}
@@ -1248,7 +1551,7 @@ function TrainSession({
                             <span className={`text-sm font-bold ${isSkipped ? 'text-base-content/40' : set.completed ? 'text-base-content/30 line-through' : 'text-base-content'}`}>
                               第 {set.set_number} 组
                             </span>
-                            <span className="text-xs font-semibold text-base-content/40">目标: {set.planned_reps}{set.is_amrap ? '+' : ''}次</span>
+                            <span className="text-xs font-semibold text-base-content/40">目标: {set.planned_reps}{set.is_amrap && (() => { const m = getRecordingMethod(ex.exercise); return m !== 'duration_only' && m !== 'distance_only'; })() ? '+' : ''}{(() => { const m = getRecordingMethod(ex.exercise); return m === 'duration_only' ? '秒' : m === 'distance_only' ? '米' : '次'; })()}</span>
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5">
@@ -1267,7 +1570,7 @@ function TrainSession({
                                   }
                                 </span>
                               )}
-                              {set.completed && <span className="text-base font-mono font-black text-green-500">{set.actual_reps ?? set.planned_reps}次</span>}
+                              {set.completed && <span className="text-base font-mono font-black text-green-500">{set.actual_reps ?? set.planned_reps}{(() => { const m = getRecordingMethod(ex.exercise); return m === 'duration_only' ? '秒' : m === 'distance_only' ? '米' : '次'; })()}</span>}
                             </>
                           )}
                         </div>

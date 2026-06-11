@@ -61,8 +61,11 @@ function WorkoutPreviewModal({
             const tempo = ex.tempo || '3110';
             const sets = ex.sets || 0;
             const reps = ex.reps || 0;
+            const recMethod = exercisesMap?.[ex.exercise]?.recording_method || ex.recording_method || 'standard';
+            const repUnit = recMethod === 'duration_only' ? '秒' : recMethod === 'distance_only' ? '米' : '次';
+            const isNonWeight = recMethod === 'duration_only' || recMethod === 'distance_only';
             const displayWeight = unit === 'lbs' ? convertWeight(ex.weight, 'lbs') : ex.weight;
-            const weightText = `${displayWeight?.toFixed?.(1) ?? displayWeight}${unit}`;
+            const weightText = isNonWeight ? '' : `${displayWeight?.toFixed?.(1) ?? displayWeight}${unit}`;
 
             return (
               <div
@@ -83,7 +86,7 @@ function WorkoutPreviewModal({
                         {getExerciseCNName(ex.exercise)}
                       </span>
                       <span className="text-xs text-text-secondary dark:text-text-secondary-dark">
-                        {sets} 组 × {reps} 次 · 节奏 {tempo}
+                        {sets} 组 × {reps} {repUnit}{tempo && !isNonWeight ? ` · 节奏 ${tempo}` : ''}
                       </span>
                     </div>
                   </div>
@@ -103,13 +106,15 @@ function WorkoutPreviewModal({
                         <span className="font-bold text-text-main dark:text-text-main-dark font-mono">{sets}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-text-secondary dark:text-text-secondary-dark">次数</span>
-                        <span className="font-bold text-text-main dark:text-text-main-dark font-mono">{reps}</span>
+                        <span className="text-text-secondary dark:text-text-secondary-dark">{recMethod === 'duration_only' ? '时长' : recMethod === 'distance_only' ? '距离' : '次数'}</span>
+                        <span className="font-bold text-text-main dark:text-text-main-dark font-mono">{reps}{isNonWeight ? repUnit : ''}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-text-secondary dark:text-text-secondary-dark">重量</span>
-                        <span className="font-bold text-text-main dark:text-text-main-dark font-mono">{weightText}</span>
-                      </div>
+                      {!isNonWeight && (
+                        <div className="flex justify-between">
+                          <span className="text-text-secondary dark:text-text-secondary-dark">重量</span>
+                          <span className="font-bold text-text-main dark:text-text-main-dark font-mono">{weightText}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between">
                         <span className="text-text-secondary dark:text-text-secondary-dark">目标 RPE</span>
                         <span className="font-bold text-text-main dark:text-text-main-dark font-mono">{ex.planned_rpe ?? '—'}</span>
@@ -155,6 +160,7 @@ function WorkoutPreviewModal({
                         </div>
                       );
                     })()}
+                    {!isNonWeight && (
                     <div className="mt-1.5 p-2 rounded-lg bg-bg-card dark:bg-bg-card-dark border border-border-card/50 dark:border-border-card-dark/50">
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-semibold text-text-secondary dark:text-text-secondary-dark uppercase tracking-wider">动作节奏 (Tempo)</span>
@@ -171,6 +177,7 @@ function WorkoutPreviewModal({
                         ))}
                       </div>
                     </div>
+                    )}
                   </div>
                 )}
               </div>

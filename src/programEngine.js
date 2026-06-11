@@ -421,14 +421,20 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier, gymEqui
       const threshold = userEx.target_reps ?? scheme.success_threshold ?? 25;
       const result = gzclpGetTierProgression(ex, hist, [scheme], initWeight, incr, threshold, gymEquipmentConfig, exercisesMap[ex], unit);
 
+      const t3RecordingMethod = exercisesMap[ex]?.recording_method || 'standard';
       exercises.push({
         exercise: ex,
         tier: 'T3',
         sets: scheme.sets,
         reps: result.planned_reps,
         weight: result.weight_kg,
-        scheme_text: result.scheme_text,
-        amrap_last: scheme.amrap_last
+        scheme_text: t3RecordingMethod === 'duration_only'
+          ? `${scheme.sets}组 × ${result.planned_reps}秒`
+          : t3RecordingMethod === 'distance_only'
+            ? `${scheme.sets}组 × ${result.planned_reps}米`
+            : result.scheme_text,
+        amrap_last: scheme.amrap_last,
+        recording_method: t3RecordingMethod
       });
     }
   }
