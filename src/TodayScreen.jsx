@@ -58,7 +58,8 @@ function TodayScreen({
   onRefreshBodyMetrics,
   todayDietLog,
   userNutritionConfig,
-  onRefreshDiet
+  onRefreshDiet,
+  onTriggerDeload
 }) {
   const [showProgramSwitcher, setShowProgramSwitcher] = useState(false);
   const [showSkipModal, setShowSkipModal] = useState(false);
@@ -761,16 +762,85 @@ function TodayScreen({
       )}
 
       <div className="flex flex-col gap-6">
+        {/* 下周一开启减载提示条 */}
+        {(() => {
+          if (!activeUserProgram) return null;
+          const gdState = activeUserProgram.program_state?.global_deload || {};
+          const gdConfig = activeUserProgram.exercise_config?._global_deload || {};
+          if (gdConfig.trigger_type !== 'weeks') return null;
+          if (gdState.status !== 'active') return null;
+          if (gdState.postponed_until) return null;
+          if (!gdState.active_start_at) return null;
+          
+          const startDiffDays = Math.floor((new Date() - new Date(gdState.active_start_at)) / (1000 * 60 * 60 * 24));
+          if (startDiffDays > 5) return null;
+
+          return (
+            <div className="alert-box !bg-yellow-500/10 dark:!bg-yellow-500/5 !border-yellow-500/30 !text-amber-600 dark:!text-amber-500 border-l-4 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs select-none">
+              <div className="flex items-start gap-2.5">
+                <RotateCcw className="shrink-0 mt-0.5" size={16} />
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-bold text-sm">计划减载提醒</span>
+                  <span className="text-xs leading-normal opacity-90">
+                    按照计划，本周起已自动开启减载周期。如果您想正常进行本周训练并延迟减载，可选择：
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-xs btn-outline border-amber-600/30 dark:border-amber-500/30 text-amber-600 dark:text-amber-500 font-bold hover:bg-amber-600/10 shrink-0 self-end sm:self-auto cursor-pointer rounded-lg px-2.5 h-7"
+                onClick={() => {
+                  const today = new Date();
+                  const dayOfWeek = today.getDay();
+                  const daysUntilNextMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+                  const nextMonday = new Date(today.getTime() + daysUntilNextMonday * 24 * 60 * 60 * 1000);
+                  nextMonday.setHours(0, 0, 0, 0);
+                  onTriggerDeload('inactive', nextMonday.toISOString(), false);
+                }}
+              >
+                从下周一开启减载
+              </button>
+            </div>
+          );
+        })()}
 
         {/* 已完成 */}
         {isTodayCompleted ? (
-          <WorkoutSessionSummary
-            workouts={todayWorkoutSummary}
-            getExerciseCNName={getExerciseCNName}
-            title="今日训练总结"
-            latestOnly
-            compact
-          />
+          <div className="flex flex-col gap-3">
+            <WorkoutSessionSummary
+              workouts={todayWorkoutSummary}
+              getExerciseCNName={getExerciseCNName}
+              title="今日训练总结"
+              latestOnly
+              compact
+            />
+            {/* 手动减载按钮 (从下次开始) */}
+            {activeUserProgram && !isSessionActive && (
+              <button
+                type="button"
+                className={`w-full h-11 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all border border-dashed select-none cursor-pointer ${
+                  activeUserProgram.program_state?.global_deload?.pending_next_session
+                    ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20'
+                    : 'bg-primary/10 border-primary/20 text-primary hover:bg-primary/20'
+                }`}
+                onClick={() => {
+                  const gdState = activeUserProgram.program_state?.global_deload || {};
+                  if (gdState.pending_next_session) {
+                    onTriggerDeload('inactive', null, false);
+                  } else {
+                    onTriggerDeload('inactive', null, true);
+                  }
+                }}
+              >
+                <RotateCcw size={14} />
+                <span>
+                  {activeUserProgram.program_state?.global_deload?.pending_next_session
+                    ? '取消预设下次减载'
+                    : '从下次开始减载 (下次训练自动减量)'}
+                </span>
+              </button>
+            )}
+          </div>
         ) : daysUntilStart > 0 ? (
           /* 尚未开始 */
           <div className="card !border-primary/20 dark:!border-primary/30">
@@ -822,6 +892,33 @@ function TodayScreen({
               <span className="text-sm font-medium text-text-secondary dark:text-text-secondary-dark">下次训练日程</span>
               <strong className="text-lg font-extrabold text-primary mt-0.5">{nextTrainingDate || '未设定'}</strong>
             </div>
+
+            {/* 手动减载按钮 (从下次开始) */}
+            {activeUserProgram && !isSessionActive && (
+              <button
+                type="button"
+                className={`w-full mt-3 h-11 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all border border-dashed select-none cursor-pointer ${
+                  activeUserProgram.program_state?.global_deload?.pending_next_session
+                    ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20'
+                    : 'bg-primary/10 border-primary/20 text-primary hover:bg-primary/20'
+                }`}
+                onClick={() => {
+                  const gdState = activeUserProgram.program_state?.global_deload || {};
+                  if (gdState.pending_next_session) {
+                    onTriggerDeload('inactive', null, false);
+                  } else {
+                    onTriggerDeload('inactive', null, true);
+                  }
+                }}
+              >
+                <RotateCcw size={14} />
+                <span>
+                  {activeUserProgram.program_state?.global_deload?.pending_next_session
+                    ? '取消预设下次减载'
+                    : '从下次开始减载 (下次训练自动减量)'}
+                </span>
+              </button>
+            )}
           </div>
         ) : todayWorkout && todayWorkout.exercises ? (
           /* 今日训练 */
@@ -881,6 +978,33 @@ function TodayScreen({
                   <SkipForward size={16} />
                   <span>跳过今日训练（自动顺延）</span>
                 </button>
+
+                {/* 手动减载按钮 (从本次开始) */}
+                {activeUserProgram && (
+                  <button
+                    type="button"
+                    className={`w-full h-11 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all border border-dashed select-none cursor-pointer ${
+                      activeUserProgram.program_state?.global_deload?.status === 'active'
+                        ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20'
+                        : 'bg-primary/10 border-primary/20 text-primary hover:bg-primary/20'
+                    }`}
+                    onClick={() => {
+                      const gdState = activeUserProgram.program_state?.global_deload || {};
+                      if (gdState.status === 'active') {
+                        onTriggerDeload('inactive', null, false, true);
+                      } else {
+                        onTriggerDeload('active', null, false);
+                      }
+                    }}
+                  >
+                    <RotateCcw size={14} />
+                    <span>
+                      {activeUserProgram.program_state?.global_deload?.status === 'active'
+                        ? '取消本次减载 (回归常规强度)'
+                        : '从本次开始减载 (今日下发减量强度)'}
+                    </span>
+                  </button>
+                )}
               </div>
             )}
 
@@ -902,6 +1026,29 @@ function TodayScreen({
             </p>
           </div>
         )}
+
+        {/* 过度训练警报 */}
+        {(() => {
+          if (!activeUserProgram) return null;
+          const gdState = activeUserProgram.program_state?.global_deload || {};
+          const lastCompletedStr = gdState.last_deload_completed_at || activeUserProgram.program_state?.start_date || activeUserProgram.created_at;
+          if (!lastCompletedStr) return null;
+          
+          const elapsedDays = Math.floor((new Date() - new Date(lastCompletedStr)) / (1000 * 60 * 60 * 24));
+          if (elapsedDays < 56 || gdState.status === 'active') return null;
+
+          return (
+            <div className="alert-box !bg-bg-alert dark:!bg-bg-alert-dark !border-alert dark:!border-alert-dark !text-alert dark:!text-alert-dark border-l-4 p-4 rounded-xl flex items-start gap-2.5 shadow-xs select-none">
+              <RotateCcw className="shrink-0 mt-0.5" size={16} />
+              <div className="flex flex-col gap-0.5">
+                <span className="font-bold text-sm">过度训练风险预警</span>
+                <span className="text-xs leading-normal opacity-90">
+                  您已连续高强度训练超过 8 周未进行减载。CNS（中枢神经）疲劳与关节累积压力可能会降低训练效果并增加受伤风险，建议手动开启一次减载期以促进恢复。
+                </span>
+              </div>
+            </div>
+          );
+        })()}
 
         {renderBodyCard()}
 

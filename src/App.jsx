@@ -430,7 +430,121 @@ function App() {
 
       // 用引擎计算今日训练
       if (currentActiveId) {
-        const activeUP = activeUps.find(u => u.id === currentActiveId);
+        let activeUP = activeUps.find(u => u.id === currentActiveId);
+
+        // ==================== 全局减载状态自动流转 ====================
+        if (activeUP) {
+          const gdState = activeUP.program_state?.global_deload || {
+            status: 'inactive',
+            last_deload_completed_at: null,
+            last_deload_session_count: 0,
+            postponed_until: null,
+            active_start_at: null,
+            active_end_at: null,
+            pending_next_session: false,
+            transition_week_index: null
+          };
+          let updatedGD = { ...gdState };
+          let gdChanged = false;
+          const now = new Date();
+
+          if (gdState.status === 'active') {
+            if (gdState.active_end_at && now > new Date(gdState.active_end_at)) {
+              updatedGD.status = 'inactive';
+              updatedGD.last_deload_completed_at = gdState.active_end_at;
+              updatedGD.last_deload_session_count = activeUP.program_state?.total_sessions || 0;
+              updatedGD.active_start_at = null;
+              updatedGD.active_end_at = null;
+              updatedGD.postponed_until = null;
+              gdChanged = true;
+            }
+          } else {
+            const isPostponedActive = gdState.postponed_until && now < new Date(gdState.postponed_until);
+            if (gdState.postponed_until && now >= new Date(gdState.postponed_until)) {
+              updatedGD.status = 'active';
+              const gdConfig = activeUP.exercise_config?._global_deload || {};
+              const durationStr = gdConfig.duration || '1week';
+              let durationDays = 7;
+              if (durationStr === '4days') durationDays = 4;
+              else if (durationStr === '2weeks') durationDays = 14;
+
+              const start = new Date();
+              const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
+              end.setHours(23, 59, 59, 999);
+
+              updatedGD.active_start_at = start.toISOString();
+              updatedGD.active_end_at = end.toISOString();
+              updatedGD.postponed_until = null;
+              gdChanged = true;
+            } else if (!isPostponedActive) {
+              const gdConfig = activeUP.exercise_config?._global_deload || {};
+              if (gdConfig.trigger_type === 'weeks') {
+                const lastCompletedStr = gdState.last_deload_completed_at || activeUP.program_state?.start_date || activeUP.created_at;
+                const elapsedDays = lastCompletedStr ? Math.floor((now - new Date(lastCompletedStr)) / (1000 * 60 * 60 * 24)) : 0;
+                const triggerWeeks = gdConfig.trigger_value || 8;
+                if (elapsedDays >= triggerWeeks * 7) {
+                  updatedGD.status = 'active';
+                  const durationStr = gdConfig.duration || '1week';
+                  let durationDays = 7;
+                  if (durationStr === '4days') durationDays = 4;
+                  else if (durationStr === '2weeks') durationDays = 14;
+
+                  const start = new Date();
+                  const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
+                  end.setHours(23, 59, 59, 999);
+
+                  updatedGD.active_start_at = start.toISOString();
+                  updatedGD.active_end_at = end.toISOString();
+                  updatedGD.postponed_until = null;
+                  gdChanged = true;
+                }
+              } else if (gdConfig.trigger_type === 'sessions') {
+                const completedSinceLast = (activeUP.program_state?.total_sessions || 0) - (gdState.last_deload_session_count || 0);
+                const triggerSessions = gdConfig.trigger_value || 24;
+                if (completedSinceLast >= triggerSessions) {
+                  updatedGD.status = 'active';
+                  const durationStr = gdConfig.duration || '1week';
+                  let durationDays = 7;
+                  if (durationStr === '4days') durationDays = 4;
+                  else if (durationStr === '2weeks') durationDays = 14;
+
+                  const start = new Date();
+                  const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
+                  end.setHours(23, 59, 59, 999);
+
+                  updatedGD.active_start_at = start.toISOString();
+                  updatedGD.active_end_at = end.toISOString();
+                  updatedGD.postponed_until = null;
+                  gdChanged = true;
+                }
+              }
+            }
+          }
+
+          if (gdChanged) {
+            const newProgState = {
+              ...activeUP.program_state,
+              global_deload: updatedGD
+            };
+            await saveUserProgram(activeUP.id, null, { program_state: newProgState, updated_at: new Date().toISOString() });
+            
+            activeUP = {
+              ...activeUP,
+              program_state: newProgState
+            };
+            const idx = allUserPrograms.findIndex(u => u.id === activeUP.id);
+            if (idx !== -1) {
+              allUserPrograms[idx] = activeUP;
+            }
+            const activeIdx = activeUps.findIndex(u => u.id === activeUP.id);
+            if (activeIdx !== -1) {
+              activeUps[activeIdx] = activeUP;
+            }
+            setUserPrograms([...allUserPrograms]);
+          }
+        }
+        // ==================== 全局减载状态自动流转结束 ====================
+
         const activeProgram = allPrograms.find(p => p.id === activeUP.program_id);
         if (activeProgram) {
           // 获取该计划所有相关动作的历史 (添加 gte 隔离不同计划订阅周期的数据)
@@ -625,10 +739,35 @@ function App() {
     const schedule = activeUP.schedule || {};
     const nextDay = getNextDay(activeProgram, todayWorkout.dayLabel, schedule, activeUP.program_state?.last_training_date, activeUP.program_state?.start_date);
     
+    // ==================== 全局减载状态更新 (跳过训练日) ====================
+    const gdState = activeUP.program_state?.global_deload || {
+      status: 'inactive',
+      last_deload_completed_at: null,
+      last_deload_session_count: 0,
+      postponed_until: null,
+      active_start_at: null,
+      active_end_at: null,
+      pending_next_session: false,
+      transition_week_index: null
+    };
+    let updatedGD = { ...gdState };
+
+    if (gdState.status === 'active') {
+      if (gdState.active_end_at && new Date() > new Date(gdState.active_end_at)) {
+        updatedGD.status = 'inactive';
+        updatedGD.last_deload_completed_at = new Date().toISOString();
+        updatedGD.last_deload_session_count = activeUP.program_state?.total_sessions || 0;
+        updatedGD.active_start_at = null;
+        updatedGD.active_end_at = null;
+        updatedGD.postponed_until = null;
+      }
+    }
+
     const newState = {
       ...activeUP.program_state,
       current_day: nextDay,
       last_training_date: new Date().toISOString(),
+      global_deload: updatedGD,
       skipped_dates: [...(activeUP.program_state?.skipped_dates || []), {
         date: new Date().toISOString(),
         day_label: todayWorkout.dayLabel,
@@ -659,6 +798,62 @@ function App() {
     // 不直接推进 current_day，而是启动训练会话让用户正常打卡
     setToast({ type: 'info', message: '加练模式已启动，完成打卡后训练进度将正常更新。' });
     startTrainSession();
+  };
+
+  // 手动/推迟触发全局减载
+  const handleTriggerGlobalDeload = async (targetStatus, postponeUntilDate = null, pendingNext = false, cancelDeload = false) => {
+    const activeUP = userPrograms.find(u => u.id === activeProgramId);
+    if (!activeUP) return;
+
+    const currentGD = activeUP.program_state?.global_deload || {
+      status: 'inactive',
+      last_deload_completed_at: null,
+      last_deload_session_count: 0,
+      postponed_until: null,
+      active_start_at: null,
+      active_end_at: null,
+      pending_next_session: false,
+      transition_week_index: null
+    };
+
+    let updatedGD = { ...currentGD };
+    
+    if (cancelDeload) {
+      updatedGD.status = 'inactive';
+      updatedGD.active_start_at = null;
+      updatedGD.active_end_at = null;
+      updatedGD.pending_next_session = false;
+      updatedGD.transition_week_index = null;
+    } else {
+      updatedGD.status = targetStatus;
+      updatedGD.postponed_until = postponeUntilDate;
+      updatedGD.pending_next_session = pendingNext;
+
+      if (targetStatus === 'active') {
+        const gdConfig = activeUP.exercise_config?._global_deload || {};
+        const durationStr = gdConfig.duration || '1week';
+        let durationDays = 7;
+        if (durationStr === '4days') durationDays = 4;
+        else if (durationStr === '2weeks') durationDays = 14;
+
+        const start = new Date();
+        const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
+        end.setHours(23, 59, 59, 999);
+
+        updatedGD.active_start_at = start.toISOString();
+        updatedGD.active_end_at = end.toISOString();
+        updatedGD.postponed_until = null;
+      }
+    }
+
+    const newState = {
+      ...activeUP.program_state,
+      global_deload: updatedGD
+    };
+
+    await saveUserProgram(activeUP.id, null, { program_state: newState, updated_at: new Date().toISOString() });
+    setToast({ type: 'success', message: cancelDeload ? '已取消本次减载，恢复常规强度。' : postponeUntilDate ? '已将减载推迟至下周一。' : pendingNext ? '已预设下一次训练开始减载。' : '减载周期已立刻开启！' });
+    await loadWorkoutData();
   };
 
   // 保存训练记录
@@ -870,10 +1065,91 @@ function App() {
 
       const schedule = activeUP.schedule || {};
       const nextDay = getNextDay(activeProgram, todayWorkout.dayLabel, schedule, activeUP.program_state?.last_training_date, activeUP.program_state?.start_date);
+      
+      // ==================== 全局减载状态更新 ====================
+      const totalSessions = (activeUP.program_state?.total_sessions || 0) + 1;
+      const gdState = activeUP.program_state?.global_deload || {
+        status: 'inactive',
+        last_deload_completed_at: null,
+        last_deload_session_count: 0,
+        postponed_until: null,
+        active_start_at: null,
+        active_end_at: null,
+        pending_next_session: false,
+        transition_week_index: null
+      };
+      let updatedGD = { ...gdState };
+
+      if (gdState.status === 'active') {
+        if (gdState.active_end_at && new Date() > new Date(gdState.active_end_at)) {
+          updatedGD.status = 'inactive';
+          updatedGD.last_deload_completed_at = new Date().toISOString();
+          updatedGD.last_deload_session_count = totalSessions;
+          updatedGD.active_start_at = null;
+          updatedGD.active_end_at = null;
+          updatedGD.postponed_until = null;
+        }
+      } else {
+        if (gdState.pending_next_session) {
+          updatedGD.status = 'active';
+          updatedGD.pending_next_session = false;
+          const gdConfig = activeUP.exercise_config?._global_deload || {};
+          const durationStr = gdConfig.duration || '1week';
+          let durationDays = 7;
+          if (durationStr === '4days') durationDays = 4;
+          else if (durationStr === '2weeks') durationDays = 14;
+          const start = new Date();
+          const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
+          end.setHours(23, 59, 59, 999);
+          updatedGD.active_start_at = start.toISOString();
+          updatedGD.active_end_at = end.toISOString();
+          updatedGD.postponed_until = null;
+        } else {
+          const gdConfig = activeUP.exercise_config?._global_deload || {};
+          if (gdConfig.trigger_type === 'weeks') {
+            const lastCompletedStr = gdState.last_deload_completed_at || activeUP.program_state?.start_date || activeUP.created_at;
+            const elapsedDays = lastCompletedStr ? Math.floor((new Date() - new Date(lastCompletedStr)) / (1000 * 60 * 60 * 24)) : 0;
+            const triggerWeeks = gdConfig.trigger_value || 8;
+            const isPostponed = gdState.postponed_until && new Date() < new Date(gdState.postponed_until);
+            if (elapsedDays >= triggerWeeks * 7 && !isPostponed) {
+              updatedGD.status = 'active';
+              const durationStr = gdConfig.duration || '1week';
+              let durationDays = 7;
+              if (durationStr === '4days') durationDays = 4;
+              else if (durationStr === '2weeks') durationDays = 14;
+              const start = new Date();
+              const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
+              end.setHours(23, 59, 59, 999);
+              updatedGD.active_start_at = start.toISOString();
+              updatedGD.active_end_at = end.toISOString();
+              updatedGD.postponed_until = null;
+            }
+          } else if (gdConfig.trigger_type === 'sessions') {
+            const completedSinceLast = totalSessions - (gdState.last_deload_session_count || 0);
+            const triggerSessions = gdConfig.trigger_value || 24;
+            if (completedSinceLast >= triggerSessions) {
+              updatedGD.status = 'active';
+              const durationStr = gdConfig.duration || '1week';
+              let durationDays = 7;
+              if (durationStr === '4days') durationDays = 4;
+              else if (durationStr === '2weeks') durationDays = 14;
+              const start = new Date();
+              const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
+              end.setHours(23, 59, 59, 999);
+              updatedGD.active_start_at = start.toISOString();
+              updatedGD.active_end_at = end.toISOString();
+              updatedGD.postponed_until = null;
+            }
+          }
+        }
+      }
+
       const newState = {
         ...activeUP.program_state,
         current_day: nextDay,
-        last_training_date: new Date().toISOString()
+        last_training_date: new Date().toISOString(),
+        total_sessions: totalSessions,
+        global_deload: updatedGD
       };
       const updatedAt = new Date().toISOString();
 
@@ -1040,6 +1316,7 @@ function App() {
                 todayDietLog={todayDietLog}
                 onRefreshDiet={loadWorkoutData}
                 isRestDayValue={isRestDayValue}
+                onTriggerDeload={handleTriggerGlobalDeload}
               />
             </Suspense>
           )

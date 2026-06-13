@@ -284,6 +284,100 @@ function gzclpGetTierProgression(exercise, history, schemes, initialWeight, incr
   };
 }
 
+export function applyGlobalDeloadToExercise(exObj, userProgram, exerciseInfo, gymEquipmentConfig, unit) {
+  if (!exObj) return null;
+
+  const gdState = userProgram?.program_state?.global_deload || {};
+  const gdConfig = userProgram?.exercise_config?._global_deload || {};
+
+  const isDeloadActive = gdState.status === 'active';
+  let transitionScale = 1.0;
+  if (gdConfig.transition_policy === 'step_up' && gdState.last_deload_completed_at) {
+    const completedTime = new Date(gdState.last_deload_completed_at);
+    const diffMs = new Date() - completedTime;
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    if (diffDays < 7) {
+      transitionScale = 0.9;
+    }
+  }
+
+  if (!isDeloadActive && transitionScale === 1.0) {
+    return exObj;
+  }
+
+  let finalWeight = exObj.weight;
+  let finalSets = exObj.sets;
+  let finalReps = exObj.reps;
+  let finalAmrap = exObj.amrap_last;
+
+  // 1. Calculate weight reduction
+  if (isDeloadActive) {
+    const intensityPct = gdConfig.intensity_pct ?? 20;
+    const scale = (100 - intensityPct) / 100;
+    finalWeight = finalWeight * scale;
+  } else if (transitionScale === 0.9) {
+    finalWeight = finalWeight * 0.9;
+  }
+
+  // Round weight
+  if (gymEquipmentConfig && exerciseInfo) {
+    finalWeight = roundExerciseWeight(finalWeight, exerciseInfo, gymEquipmentConfig, unit);
+  } else {
+    finalWeight = roundWeight(finalWeight);
+  }
+
+  // 2. Calculate volume reduction (only during active deload)
+  const isAlreadyDeloaded = exObj.scheme_text?.includes('(减量)') || exObj.scheme_text?.includes('减量');
+  
+  if (isDeloadActive && !isAlreadyDeloaded) {
+    const volType = gdConfig.volume_type || 'subtract_sets';
+    const volValue = gdConfig.volume_value ?? 2;
+
+    if (volType === 'subtract_sets') {
+      finalSets = Math.max(2, finalSets - volValue);
+      finalAmrap = false;
+    } else if (volType === 'scale_sets_pct') {
+      finalSets = Math.max(2, Math.round(finalSets * volValue / 100));
+      finalAmrap = false;
+    } else if (volType === 'scale_reps_pct') {
+      finalReps = Math.max(1, Math.round(finalReps * 0.5));
+      finalAmrap = false;
+    } else if (volType === 'none') {
+      finalAmrap = false;
+    }
+  } else if (isDeloadActive && isAlreadyDeloaded) {
+    finalAmrap = false;
+  }
+
+  const recMethod = exerciseInfo?.recording_method || exObj.recording_method || 'reps_only';
+  const unitLabel = recMethod === 'duration_only' ? '秒' : recMethod === 'distance_only' ? '米' : '次';
+
+  let suffix = '';
+  if (isDeloadActive) {
+    suffix = ' (减量)';
+  } else if (transitionScale === 0.9) {
+    suffix = ' (过渡周)';
+  }
+
+  let finalSchemeText = '';
+  if (recMethod === 'duration_only') {
+    finalSchemeText = `${finalSets}组 × ${finalReps}秒${suffix}`;
+  } else if (recMethod === 'distance_only') {
+    finalSchemeText = `${finalSets}组 × ${finalReps}米${suffix}`;
+  } else {
+    finalSchemeText = `${finalSets}组 × ${finalReps}${unitLabel}${suffix}`;
+  }
+
+  return {
+    ...exObj,
+    weight: finalWeight,
+    sets: finalSets,
+    reps: finalReps,
+    amrap_last: finalAmrap,
+    scheme_text: finalSchemeText
+  };
+}
+
 export function calculateDoubleProgression(exercise, history, userEx, initialWeight, increment, gymEquipmentConfig, exerciseInfo, unit, userProgram = null) {
   const minReps = Number(userEx.min_reps) || 12;
   const maxReps = Number(userEx.max_reps) || 15;
@@ -303,7 +397,10 @@ export function calculateDoubleProgression(exercise, history, userEx, initialWei
   const defaultWeight = getRoundedWeight(initialWeight ?? 10);
 
   if (!history || history.length === 0) {
-    const isProgramDeload = userProgram?.program_state?.is_deload || userProgram?.program_state?.deload_active || false;
+    const isProgramDeload = userProgram?.program_state?.is_deload ||
+                            userProgram?.program_state?.deload_active ||
+                            (userProgram?.program_state?.global_deload?.status === 'active') ||
+                            false;
     if (deloadMode === 'follow_program' && isProgramDeload) {
       return {
         weight_kg: defaultWeight,
@@ -360,7 +457,10 @@ export function calculateDoubleProgression(exercise, history, userEx, initialWei
   const nextWeight = lastWeight;
 
   // 1. Check if overall program is in deload
-  const isProgramDeload = userProgram?.program_state?.is_deload || userProgram?.program_state?.deload_active || false;
+  const isProgramDeload = userProgram?.program_state?.is_deload ||
+                          userProgram?.program_state?.deload_active ||
+                          (userProgram?.program_state?.global_deload?.status === 'active') ||
+                          false;
   if (deloadMode === 'follow_program' && isProgramDeload) {
     return {
       weight_kg: nextWeight,
@@ -556,14 +656,16 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier, gymEqui
 
   // T1
   if (dayConfig.T1) {
-    exercises.push(processTierExercise('T1', dayConfig.T1, historyByExerciseTier, exConfig, config,
-      gymEquipmentConfig, exercisesMap, unit, getWarmupSets, gzclpGetTierProgression));
+    const exObj = processTierExercise('T1', dayConfig.T1, historyByExerciseTier, exConfig, config,
+      gymEquipmentConfig, exercisesMap, unit, getWarmupSets, gzclpGetTierProgression);
+    exercises.push(applyGlobalDeloadToExercise(exObj, userProgram, exercisesMap[dayConfig.T1], gymEquipmentConfig, unit));
   }
 
   // T2
   if (dayConfig.T2) {
-    exercises.push(processTierExercise('T2', dayConfig.T2, historyByExerciseTier, exConfig, config,
-      gymEquipmentConfig, exercisesMap, unit, getWarmupSets, gzclpGetTierProgression));
+    const exObj = processTierExercise('T2', dayConfig.T2, historyByExerciseTier, exConfig, config,
+      gymEquipmentConfig, exercisesMap, unit, getWarmupSets, gzclpGetTierProgression);
+    exercises.push(applyGlobalDeloadToExercise(exObj, userProgram, exercisesMap[dayConfig.T2], gymEquipmentConfig, unit));
   }
 
   // T3
@@ -593,7 +695,7 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier, gymEqui
       }
 
       const t3RecordingMethod = exercisesMap[ex]?.recording_method || 'standard';
-      exercises.push({
+      const exObj = {
         exercise: ex,
         tier: 'T3',
         sets: targetSets,
@@ -606,7 +708,8 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier, gymEqui
             : result.scheme_text,
         amrap_last: amrapLast,
         recording_method: t3RecordingMethod
-      });
+      };
+      exercises.push(applyGlobalDeloadToExercise(exObj, userProgram, exercisesMap[ex], gymEquipmentConfig, unit));
     }
   }
 

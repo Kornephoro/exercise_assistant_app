@@ -229,6 +229,18 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
     return today.toISOString().split('T')[0];
   });
 
+  // 原始 program_state 用于保存时保留进度
+  const [existingProgramState, setExistingProgramState] = useState(null);
+
+  // 全局减载周期配置
+  const [deloadTriggerType, setDeloadTriggerType] = useState('none');
+  const [deloadTriggerValue, setDeloadTriggerValue] = useState(8);
+  const [deloadDuration, setDeloadDuration] = useState('1week');
+  const [deloadIntensityPct, setDeloadIntensityPct] = useState(20);
+  const [deloadVolumeType, setDeloadVolumeType] = useState('subtract_sets');
+  const [deloadVolumeValue, setDeloadVolumeValue] = useState(2);
+  const [deloadTransitionPolicy, setDeloadTransitionPolicy] = useState('direct_return');
+
   const muscleCategories = [
     { label: '全部', value: '' },
     { label: '胸部', value: '胸' },
@@ -302,8 +314,10 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
 
       if (isExistingActive && existingUP?.id) {
         setUserProgramId(existingUP.id);
+        setExistingProgramState(existingUP.program_state || null);
       } else {
         setUserProgramId(null); // 这是一轮全新的训练周期
+        setExistingProgramState(null);
       }
 
       // 加载动作库
@@ -440,6 +454,16 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
       if (schedule?.training_days && Array.isArray(schedule.training_days)) {
         setTrainingDays(schedule.training_days);
       }
+
+      // 从 exercise_config 加载全局计划减载配置
+      const gd = ec._global_deload || {};
+      setDeloadTriggerType(gd.trigger_type || 'none');
+      setDeloadTriggerValue(gd.trigger_value ?? 8);
+      setDeloadDuration(gd.duration || '1week');
+      setDeloadIntensityPct(gd.intensity_pct ?? 20);
+      setDeloadVolumeType(gd.volume_type || 'subtract_sets');
+      setDeloadVolumeValue(gd.volume_value ?? 2);
+      setDeloadTransitionPolicy(gd.transition_policy || 'direct_return');
     } catch (err) {
       setError('加载配置失败：' + err.message);
     } finally {
@@ -588,6 +612,15 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
       };
       const exerciseConfig = {
         _unit: weightUnit, // 全局默认单位
+        _global_deload: {
+          trigger_type: deloadTriggerType,
+          trigger_value: deloadTriggerValue,
+          duration: deloadDuration,
+          intensity_pct: deloadIntensityPct,
+          volume_type: deloadVolumeType,
+          volume_value: deloadVolumeValue,
+          transition_policy: deloadTransitionPolicy,
+        },
         squat: {
           initial_weight_t1: toKg(squatT1W, 'squat'),
           initial_weight_t2: toKg(squatT2W, 'squat'),
@@ -685,10 +718,22 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
         is_active: true,
         ended_at: null, // 激活计划时确保结束时间清空
         program_state: {
-          current_day: dayKeys[0] || 'Day1',
-          scheme_index: {},
-          start_date: startDate,
-          last_training_date: startDate
+          ...(existingProgramState || {
+            current_day: dayKeys[0] || 'Day1',
+            scheme_index: {},
+            start_date: startDate,
+            last_training_date: startDate
+          }),
+          global_deload: existingProgramState?.global_deload || {
+            status: 'inactive',
+            last_deload_completed_at: null,
+            last_deload_session_count: 0,
+            postponed_until: null,
+            active_start_at: null,
+            active_end_at: null,
+            pending_next_session: false,
+            transition_week_index: null
+          }
         },
         exercise_config: exerciseConfig,
         schedule,
@@ -1079,7 +1124,9 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
         2️⃣ <b>第二步：</b> 搭配每个训练日的 T1/T2 主项。标准 GZCLP 采用四天轮转，T1 大重量低次数，T2 次极限容量组。<br />
         3️⃣ <b>第三步：</b> 填入您的各主项 1RM，系统将以此计算合理的起步重量。如果您不知道 1RM，可以直接跳到第四步。<br />
         4️⃣ <b>第四步：</b> 确认首训的起始重量。如果您在第三步中点击了一键应用，此处将自动填充。<br />
-        5️⃣ <b>第五步：</b> 挑选并配置 T3 辅助动作和热身拉伸，以补充主项训练。
+        5️⃣ <b>第五步：</b> 配置「全局减载周期」控制系统何时及如何进行计划减载。<br />
+        6️⃣ <b>第六步：</b> 挑选并配置 T3 辅助动作，设定它们的起始重量和加重步长。<br />
+        7️⃣ <b>第七步：</b> 为各训练日配置练前热身与练后拉伸动作。
       </div>
 
       {error && (
@@ -1653,10 +1700,143 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
         </div>
       </div>
 
-      {/* 第五步：T3 辅助动作配置 */}
+      {/* 第五步：全局计划减载周期配置 */}
       <div className="card flex flex-col gap-4">
         <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
-          <Dumbbell size={16} className="text-primary" /><span>第五步：T3 辅助动作配置</span>
+          <RotateCcw size={16} className="text-primary" /><span>第五步：全局计划减载（Deload）周期配置</span>
+        </h3>
+        <p className="text-xs text-text-secondary dark:text-text-secondary-dark leading-relaxed">
+          适当的减载能够清除神经疲劳、恢复关节损伤，是长期进步的关键。系统将自动或者按您的设置定时下发降低强度的恢复性训练。
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* 触发方式 */}
+          <div className="flex flex-col gap-1.5">
+            <label className="section-subtitle select-none">减载触发方式</label>
+            <select
+              className="select-standard"
+              value={deloadTriggerType}
+              onChange={(e) => setDeloadTriggerType(e.target.value)}
+            >
+              <option value="none">不减载</option>
+              <option value="manual_only">仅手动减载</option>
+              <option value="weeks">按周自动减载</option>
+              <option value="sessions">按打卡次数自动减载</option>
+            </select>
+          </div>
+
+          {/* 自动阈值数值输入 (当选择按周或按次时) */}
+          {(deloadTriggerType === 'weeks' || deloadTriggerType === 'sessions') && (
+            <div className="flex flex-col gap-1.5">
+              <label className="section-subtitle select-none">
+                {deloadTriggerType === 'weeks' ? '触发周期 (周)' : '触发周期 (次训练)'}
+              </label>
+              <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-3 h-11 transition-colors">
+                <input
+                  type="number"
+                  step="1"
+                  min="1"
+                  className="w-full bg-transparent font-mono font-semibold text-sm text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                  value={deloadTriggerValue}
+                  onChange={(e) => setDeloadTriggerValue(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                />
+                <span className="text-xs text-text-secondary/50 select-none ml-1">
+                  {deloadTriggerType === 'weeks' ? '周' : '次'}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* 减载时长 */}
+          <div className="flex flex-col gap-1.5">
+            <label className="section-subtitle select-none">减载持续时长</label>
+            <select
+              className="select-standard"
+              value={deloadDuration}
+              onChange={(e) => setDeloadDuration(e.target.value)}
+            >
+              <option value="4days">4 天</option>
+              <option value="1week">1 周</option>
+              <option value="2weeks">2 周</option>
+            </select>
+          </div>
+
+          {/* 强度降重 */}
+          <div className="flex flex-col gap-1.5">
+            <label className="section-subtitle select-none">强度降低幅度 (重量削减 %)</label>
+            <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-3 h-11 transition-colors">
+              <input
+                type="number"
+                step="1"
+                min="0"
+                max="100"
+                className="w-full bg-transparent font-mono font-semibold text-sm text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                value={deloadIntensityPct}
+                onChange={(e) => setDeloadIntensityPct(Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)))}
+              />
+              <span className="text-xs text-text-secondary/50 select-none ml-1">%</span>
+            </div>
+            <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark mt-0.5 leading-normal">
+              减量期间所有重量将降低至原计划的 {100 - deloadIntensityPct}%
+            </span>
+          </div>
+
+          {/* 容量削减 */}
+          <div className="flex flex-col gap-1.5">
+            <label className="section-subtitle select-none">容量削减方案</label>
+            <select
+              className="select-standard"
+              value={deloadVolumeType}
+              onChange={(e) => setDeloadVolumeType(e.target.value)}
+            >
+              <option value="none">容量不变 (只降重)</option>
+              <option value="subtract_sets">方案 A：固定减少组数</option>
+              <option value="scale_sets_pct">方案 B：百分比减少组数</option>
+              <option value="scale_reps_pct">方案 C：组数不变次数砍半</option>
+            </select>
+          </div>
+
+          {/* 容量扣除设定值 (方案A和方案B显示) */}
+          {(deloadVolumeType === 'subtract_sets' || deloadVolumeType === 'scale_sets_pct') && (
+            <div className="flex flex-col gap-1.5">
+              <label className="section-subtitle select-none">
+                {deloadVolumeType === 'subtract_sets' ? '扣减组数 (组)' : '保留比例 (%)'}
+              </label>
+              <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-3 h-11 transition-colors">
+                <input
+                  type="number"
+                  step="1"
+                  min="1"
+                  className="w-full bg-transparent font-mono font-semibold text-sm text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                  value={deloadVolumeValue}
+                  onChange={(e) => setDeloadVolumeValue(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                />
+                <span className="text-xs text-text-secondary/50 select-none ml-1">
+                  {deloadVolumeType === 'subtract_sets' ? '组' : '%'}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* 过渡策略 */}
+          <div className="flex flex-col gap-1.5">
+            <label className="section-subtitle select-none">结束后回归策略</label>
+            <select
+              className="select-standard"
+              value={deloadTransitionPolicy}
+              onChange={(e) => setDeloadTransitionPolicy(e.target.value)}
+            >
+              <option value="direct_return">策略一：直接回归原有进度 (100%)</option>
+              <option value="step_up">策略二：梯度式恢复 (第一周 90%，第二周恢复)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* 第六步：T3 辅助动作配置 */}
+      <div className="card flex flex-col gap-4">
+        <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
+          <Dumbbell size={16} className="text-primary" /><span>第六步：T3 辅助动作配置</span>
         </h3>
         <p className="text-xs text-text-secondary dark:text-text-secondary-dark leading-relaxed">
           GZCLP 推荐使用 T3 辅助动作（高次数、小重量、接近力竭）来针对性增强弱项肌肉并提升耐力。请为每一天选择 1-2 个辅助动作，并设定它们的起始重量和加重步长。
@@ -1760,7 +1940,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
 
                   {/* 进阶逻辑模式下拉框 */}
                   <div className="flex flex-col gap-1 mt-0.5">
-                    <label className="text-[10px] font-bold text-text-secondary select-none">进阶逻辑模式</label>
+                    <label className="text-[10px] font-bold text-text-secondary dark:text-text-secondary-dark select-none">进阶逻辑模式</label>
                     <select
                       className="select select-bordered select-xs bg-bg-card dark:bg-bg-card-dark border-border-card text-text-main dark:text-text-main-dark h-8 min-h-0 text-xs rounded-lg font-bold w-full"
                       value={ex.progressionType || 'gzclp_default'}
@@ -1822,7 +2002,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                                     setT3Exercises(newT3);
                                   }}
                                 />
-                                <span className="text-xs text-text-secondary/50">{unitLabel}</span>
+                                <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50">{unitLabel}</span>
                               </div>
                             </div>
                             {/* 步长 */}
@@ -1840,7 +2020,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                                     setT3Exercises(newT3);
                                   }}
                                 />
-                                <span className="text-xs text-text-secondary/50">{unitLabel}</span>
+                                <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50">{unitLabel}</span>
                               </div>
                             </div>
                             {/* 计划组数 */}
@@ -1857,7 +2037,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                                     setT3Exercises(newT3);
                                   }}
                                 />
-                                <span className="text-xs text-text-secondary/50">组</span>
+                                <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50">组</span>
                               </div>
                             </div>
                           </div>
@@ -1877,7 +2057,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                                     setT3Exercises(newT3);
                                   }}
                                 />
-                                <span className="text-xs text-text-secondary/50">{unitLabel}</span>
+                                <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50">{unitLabel}</span>
                               </div>
                             </div>
                             {/* 区间上限 */}
@@ -1894,7 +2074,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                                     setT3Exercises(newT3);
                                   }}
                                 />
-                                <span className="text-xs text-text-secondary/50">{unitLabel}</span>
+                                <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50">{unitLabel}</span>
                               </div>
                             </div>
                             {/* 减载模式 */}
@@ -1964,7 +2144,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                                   setT3Exercises(newT3);
                                 }}
                               />
-                              <span className="text-xs text-text-secondary/50">秒</span>
+                              <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50">秒</span>
                             </div>
                           </div>
                           <div className="flex flex-col gap-1">
@@ -1980,7 +2160,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                                   setT3Exercises(newT3);
                                 }}
                               />
-                              <span className="text-xs text-text-secondary/50">秒</span>
+                              <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50">秒</span>
                             </div>
                           </div>
                           <div className="flex flex-col gap-1">
@@ -1995,7 +2175,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                                   setT3Exercises(newT3);
                                 }}
                               />
-                              <span className="text-xs text-text-secondary/50">秒</span>
+                              <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50">秒</span>
                             </div>
                           </div>
                         </div>
@@ -2019,7 +2199,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                                   setT3Exercises(newT3);
                                 }}
                               />
-                              <span className="text-xs text-text-secondary/50">米</span>
+                              <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50">米</span>
                             </div>
                           </div>
                           <div className="flex flex-col gap-1">
@@ -2035,7 +2215,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                                   setT3Exercises(newT3);
                                 }}
                               />
-                              <span className="text-xs text-text-secondary/50">米</span>
+                              <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50">米</span>
                             </div>
                           </div>
                           <div className="flex flex-col gap-1">
@@ -2050,7 +2230,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                                   setT3Exercises(newT3);
                                 }}
                               />
-                              <span className="text-xs text-text-secondary/50">米</span>
+                              <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50">米</span>
                             </div>
                           </div>
                         </div>
@@ -2074,7 +2254,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                                 setT3Exercises(newT3);
                               }}
                             />
-                            <span className="text-xs text-text-secondary/50">{exUnit}</span>
+                            <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50">{exUnit}</span>
                           </div>
                         </div>
                         <div className="flex flex-col gap-1">
@@ -2091,7 +2271,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                                 setT3Exercises(newT3);
                               }}
                             />
-                            <span className="text-xs text-text-secondary/50">{exUnit}</span>
+                            <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50">{exUnit}</span>
                           </div>
                         </div>
                         <div className="flex flex-col gap-1">
@@ -2106,7 +2286,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                                 setT3Exercises(newT3);
                               }}
                             />
-                            <span className="text-xs text-text-secondary/50">次</span>
+                            <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50">次</span>
                           </div>
                         </div>
                       </div>
@@ -2123,7 +2303,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
       {/* 4. 练前热身与练后拉伸 */}
       <div className="card flex flex-col gap-4">
         <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
-          <Sparkles size={16} className="text-primary" /><span>第五步：练前热身与练后拉伸</span>
+          <Sparkles size={16} className="text-primary" /><span>第七步：练前热身与练后拉伸</span>
         </h3>
         <p className="text-xs text-text-secondary dark:text-text-secondary-dark leading-relaxed">
           合理的练前热身与练后拉伸可以显著改善关节活动度、提高训练表现并加速恢复。您可以为每个训练日独立配置动作，或直接从模板库导入常用组合。
