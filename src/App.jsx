@@ -77,6 +77,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
+  const [historyByExerciseTier, setHistoryByExerciseTier] = useState({});
 
   // 当前认证用户 ID（用于检测用户切换）
   const [currentUserId, setCurrentUserId] = useState(null);
@@ -445,6 +446,7 @@ function App() {
             if (!histByExTier[row.exercise][row.tier]) histByExTier[row.exercise][row.tier] = [];
             histByExTier[row.exercise][row.tier].push(row);
           });
+          setHistoryByExerciseTier(histByExTier);
 
           const savedWorkout = localStorage.getItem('active_today_workout');
           if (sessionState.isActive && savedWorkout) {
@@ -472,6 +474,7 @@ function App() {
         setTodayWorkout(null);
         setIsRestDayValue(false);
         setNextTrainingDateValue('');
+        setHistoryByExerciseTier({});
       }
 
       // 数据成功解析后，进行首次 URL Hash 路由解析
@@ -1207,6 +1210,8 @@ function App() {
               unit={getActiveUserProgram()?.exercise_config?._unit || 'kg'}
               restTimer={restTimer}
               setRestTimer={setRestTimer}
+              historyByExerciseTier={historyByExerciseTier}
+              exerciseConfig={getActiveUserProgram()?.exercise_config || {}}
             />
           </Suspense>
         </div>

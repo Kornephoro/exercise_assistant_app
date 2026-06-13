@@ -284,7 +284,9 @@ function TrainSession({
   gymEquipmentConfig = null,
   unit = 'kg',
   restTimer,
-  setRestTimer
+  setRestTimer,
+  historyByExerciseTier = {},
+  exerciseConfig = {}
 }) {
   const getRecordingMethod = (exerciseKey) => exercisesMap?.[exerciseKey]?.recording_method || 'standard';
 
@@ -1022,6 +1024,35 @@ function TrainSession({
               </div>
             )}
 
+            {/* 双进阶组级提示 */}
+            {(() => {
+              const exConfig = exerciseConfig?.[ex.exercise];
+              const isDoubleProg = exConfig?.progression_type === 'double_progression';
+              if (!isDoubleProg) return null;
+
+              const maxR = exConfig.max_reps ?? 15;
+              const unitLabel = method === 'duration_only' ? '秒' : method === 'distance_only' ? '米' : '次';
+              const hist = historyByExerciseTier?.[ex.exercise]?.[ex.tier || 'T3'] || [];
+              const lastWorkout = hist.length > 0 ? hist[hist.length - 1] : null;
+              
+              // 获取上一次训练相同序号的组
+              const lastWorkoutSets = lastWorkout?.sets?.filter(s => !s.is_warmup) || [];
+              const lastSetForIdx = lastWorkoutSets[setIdx];
+              let lastValText = '无记录';
+              if (lastSetForIdx) {
+                if (method === 'duration_only') lastValText = `${lastSetForIdx.duration_seconds || lastSetForIdx.planned_reps}秒`;
+                else if (method === 'distance_only' || method === 'loaded_carry') lastValText = `${lastSetForIdx.distance_meters || lastSetForIdx.planned_reps}米`;
+                else lastValText = `${lastSetForIdx.actual_reps ?? lastSetForIdx.planned_reps}次`;
+              }
+
+              return (
+                <div className="p-2.5 rounded-xl bg-accent/10 border border-accent/20 text-xs text-accent font-bold flex items-center justify-between">
+                  <span>🎯 双进阶本组指引</span>
+                  <span>目标：{maxR}{unitLabel} | 上次：{lastValText}</span>
+                </div>
+              );
+            })()}
+
             {/* Dynamic Input Area - method-aware */}
             <FieldInputGroup
               fields={config.fields}
@@ -1479,6 +1510,44 @@ function TrainSession({
                     </button>
                   </div>
                 </div>
+
+                {/* 双进阶模式额外信息提示 */}
+                {(() => {
+                  const exConfig = exerciseConfig?.[ex.exercise];
+                  const isDoubleProg = exConfig?.progression_type === 'double_progression';
+                  if (!isDoubleProg) return null;
+
+                  const minR = exConfig.min_reps ?? 12;
+                  const maxR = exConfig.max_reps ?? 15;
+                  const recMethod = exercisesMap?.[ex.exercise]?.recording_method || ex.recording_method || 'standard';
+                  const unitLabel = recMethod === 'duration_only' ? '秒' : recMethod === 'distance_only' ? '米' : '次';
+
+                  // 获取历史记录
+                  const hist = historyByExerciseTier?.[ex.exercise]?.[tier] || [];
+                  const lastWorkout = hist.length > 0 ? hist[hist.length - 1] : null;
+                  const lastWorkSets = lastWorkout?.sets?.filter(s => !s.is_warmup) || [];
+                  const lastRepsText = lastWorkSets.length > 0 
+                    ? lastWorkSets.map(s => {
+                        if (recMethod === 'duration_only') return s.duration_seconds || s.planned_reps;
+                        if (recMethod === 'distance_only' || recMethod === 'loaded_carry') return s.distance_meters || s.planned_reps;
+                        return s.actual_reps ?? s.planned_reps;
+                      }).join(', ') + ' ' + unitLabel
+                    : '无历史记录';
+
+                  return (
+                    <div className="flex flex-col gap-1 mx-3 px-2.5 py-2 rounded-xl bg-accent/5 dark:bg-accent/10 border border-accent/10 text-xs text-accent">
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <span className="badge badge-accent badge-outline scale-90 px-1.5 text-[9px] font-extrabold">双进阶</span>
+                        <span>目标：每组达到 {maxR} {unitLabel} 以加重（区间：{minR}~{maxR} {unitLabel}）</span>
+                      </div>
+                      <div className="text-base-content/60 font-semibold flex items-center gap-1">
+                        <span>📈 上次表现：</span>
+                        <span className="font-mono text-base-content">{lastRepsText}</span>
+                        <span className="text-[10px] text-base-content/40 ml-1">（本次请尽力超越上次）</span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {(() => {
                   const exInfo = exercisesMap?.[ex.exercise];

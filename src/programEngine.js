@@ -284,6 +284,165 @@ function gzclpGetTierProgression(exercise, history, schemes, initialWeight, incr
   };
 }
 
+export function calculateDoubleProgression(exercise, history, userEx, initialWeight, increment, gymEquipmentConfig, exerciseInfo, unit, userProgram = null) {
+  const minReps = Number(userEx.min_reps) || 12;
+  const maxReps = Number(userEx.max_reps) || 15;
+  const targetSets = Number(userEx.sets) || 3;
+  const deloadMode = userEx.deload_mode || (Number(userEx.deload_frequency) > 0 ? 'sessions' : 'none');
+  const deloadValue = Number(userEx.deload_value ?? userEx.deload_frequency) || 4;
+  const recMethod = exerciseInfo?.recording_method || 'standard';
+  const unitLabel = recMethod === 'duration_only' ? '秒' : recMethod === 'distance_only' ? '米' : '次';
+
+  const getRoundedWeight = (w) => {
+    if (gymEquipmentConfig && exerciseInfo) {
+      return roundExerciseWeight(w, exerciseInfo, gymEquipmentConfig, unit);
+    }
+    return roundWeight(w);
+  };
+
+  const defaultWeight = getRoundedWeight(initialWeight ?? 10);
+
+  if (!history || history.length === 0) {
+    const isProgramDeload = userProgram?.program_state?.is_deload || userProgram?.program_state?.deload_active || false;
+    if (deloadMode === 'follow_program' && isProgramDeload) {
+      return {
+        weight_kg: defaultWeight,
+        planned_reps: minReps,
+        sets: 2,
+        scheme_text: `2组 × ${minReps}${unitLabel} (减量)`,
+        amrap_last: false,
+        stalled: false
+      };
+    }
+    return {
+      weight_kg: defaultWeight,
+      planned_reps: maxReps,
+      sets: targetSets,
+      scheme_text: `${targetSets}组 × ${minReps}~${maxReps}${unitLabel}`,
+      amrap_last: false,
+      stalled: false
+    };
+  }
+
+  const last = history[history.length - 1];
+  const lastWeight = Number(last.weight_kg);
+  const lastPlannedReps = Number(last.planned_reps);
+
+  // Extract actual values for worksets
+  const lastWorkSets = last.sets?.filter(s => !s.is_warmup) || [];
+  let lastActual;
+  if (lastWorkSets.length > 0) {
+    lastActual = Math.min(...lastWorkSets.map(s => {
+      if (recMethod === 'duration_only') return Number(s.duration_seconds) || 0;
+      if (recMethod === 'distance_only' || recMethod === 'loaded_carry') return Number(s.distance_meters) || 0;
+      return Number(s.actual_reps ?? s.planned_reps) || 0;
+    }));
+  } else {
+    lastActual = Number(last.actual_last_set_reps) || 0;
+  }
+
+  // A regular session has planned_reps === maxReps
+  const wasLastRegular = lastPlannedReps === maxReps;
+  const isSuccess = wasLastRegular && lastActual >= maxReps;
+
+  if (isSuccess) {
+    const nextWeight = getRoundedWeight(lastWeight + increment);
+    return {
+      weight_kg: nextWeight,
+      planned_reps: maxReps,
+      sets: targetSets,
+      scheme_text: `${targetSets}组 × ${minReps}~${maxReps}${unitLabel}`,
+      amrap_last: false,
+      stalled: false
+    };
+  }
+
+  const nextWeight = lastWeight;
+
+  // 1. Check if overall program is in deload
+  const isProgramDeload = userProgram?.program_state?.is_deload || userProgram?.program_state?.deload_active || false;
+  if (deloadMode === 'follow_program' && isProgramDeload) {
+    return {
+      weight_kg: nextWeight,
+      planned_reps: minReps,
+      sets: 2,
+      scheme_text: `2组 × ${minReps}${unitLabel} (减量)`,
+      amrap_last: false,
+      stalled: false
+    };
+  }
+
+  // 2. If the last session was a deload, return to regular workouts
+  if (lastPlannedReps === minReps) {
+    return {
+      weight_kg: nextWeight,
+      planned_reps: maxReps,
+      sets: targetSets,
+      scheme_text: `${targetSets}组 × ${minReps}~${maxReps}${unitLabel}`,
+      amrap_last: false,
+      stalled: false
+    };
+  }
+
+  // 3. Deload mode checks
+  if (deloadMode === 'sessions') {
+    const weightHist = history.filter(h => Number(h.weight_kg) === nextWeight);
+    let lastDeloadIdx = -1;
+    for (let i = weightHist.length - 1; i >= 0; i--) {
+      if (Number(weightHist[i].planned_reps) === minReps) {
+        lastDeloadIdx = i;
+        break;
+      }
+    }
+    const sessionsSinceLastDeload = weightHist.length - (lastDeloadIdx + 1);
+    if (sessionsSinceLastDeload >= (deloadValue - 1)) {
+      return {
+        weight_kg: nextWeight,
+        planned_reps: minReps,
+        sets: 2,
+        scheme_text: `2组 × ${minReps}${unitLabel} (减量)`,
+        amrap_last: false,
+        stalled: false
+      };
+    }
+  } else if (deloadMode === 'weeks') {
+    const weightHist = history.filter(h => Number(h.weight_kg) === nextWeight);
+    let lastDeloadIdx = -1;
+    for (let i = weightHist.length - 1; i >= 0; i--) {
+      if (Number(weightHist[i].planned_reps) === minReps) {
+        lastDeloadIdx = i;
+        break;
+      }
+    }
+    const startSession = weightHist[lastDeloadIdx + 1];
+    if (startSession && startSession.created_at) {
+      const startDate = new Date(startSession.created_at);
+      const now = new Date();
+      const diffDays = (now - startDate) / (1000 * 60 * 60 * 24);
+      // Tolerance of 0.5 days to avoid hourly edge cases
+      if (diffDays >= (deloadValue * 7 - 0.5)) {
+        return {
+          weight_kg: nextWeight,
+          planned_reps: minReps,
+          sets: 2,
+          scheme_text: `2组 × ${minReps}${unitLabel} (减量)`,
+          amrap_last: false,
+          stalled: false
+        };
+      }
+    }
+  }
+
+  return {
+    weight_kg: nextWeight,
+    planned_reps: maxReps,
+    sets: targetSets,
+    scheme_text: `${targetSets}组 × ${minReps}~${maxReps}${unitLabel}`,
+    amrap_last: false,
+    stalled: false
+  };
+}
+
 /**
  * 把用户的 chain 配置 (来自 exercise_config.{lift}.{tier}_chain)
  * 转换为 engine 用的 schemes 数组
@@ -416,24 +575,36 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier, gymEqui
       const hist = (historyByExerciseTier[ex] && historyByExerciseTier[ex]['T3']) || [];
       const userEx = exConfig[ex] || {};
       // T3 起始重量（暂无 T1/T2 区分，沿用 initial_weight）
-  const initWeight = userEx.initial_weight ?? config.default_weights?.[ex] ?? 10;
+      const initWeight = userEx.initial_weight ?? config.default_weights?.[ex] ?? 10;
       const incr = userEx.increment_t3 ?? config.default_increment?.['T3'] ?? 2.5;
-      const threshold = userEx.target_reps ?? scheme.success_threshold ?? 25;
-      const result = gzclpGetTierProgression(ex, hist, [scheme], initWeight, incr, threshold, gymEquipmentConfig, exercisesMap[ex], unit);
+
+      const isDoubleProg = userEx.progression_type === 'double_progression';
+      let result;
+      let targetSets = scheme.sets;
+      let amrapLast = scheme.amrap_last;
+
+      if (isDoubleProg) {
+        result = calculateDoubleProgression(ex, hist, userEx, initWeight, incr, gymEquipmentConfig, exercisesMap[ex], unit, userProgram);
+        targetSets = result.sets;
+        amrapLast = result.amrap_last;
+      } else {
+        const threshold = userEx.target_reps ?? scheme.success_threshold ?? 25;
+        result = gzclpGetTierProgression(ex, hist, [scheme], initWeight, incr, threshold, gymEquipmentConfig, exercisesMap[ex], unit);
+      }
 
       const t3RecordingMethod = exercisesMap[ex]?.recording_method || 'standard';
       exercises.push({
         exercise: ex,
         tier: 'T3',
-        sets: scheme.sets,
+        sets: targetSets,
         reps: result.planned_reps,
         weight: result.weight_kg,
-        scheme_text: t3RecordingMethod === 'duration_only'
-          ? `${scheme.sets}组 × ${result.planned_reps}秒`
-          : t3RecordingMethod === 'distance_only'
-            ? `${scheme.sets}组 × ${result.planned_reps}米`
+        scheme_text: t3RecordingMethod === 'duration_only' && !isDoubleProg
+          ? `${targetSets}组 × ${result.planned_reps}秒`
+          : t3RecordingMethod === 'distance_only' && !isDoubleProg
+            ? `${targetSets}组 × ${result.planned_reps}米`
             : result.scheme_text,
-        amrap_last: scheme.amrap_last,
+        amrap_last: amrapLast,
         recording_method: t3RecordingMethod
       });
     }

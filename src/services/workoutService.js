@@ -43,7 +43,7 @@ export const fetchProgramWorkoutsHistory = async (programId, sinceDate) => {
     .order('created_at', { ascending: true });
 
   if (error) throw error;
-  return data || [];
+  return attachWorkoutSets(data || [], userId);
 };
 
 /**

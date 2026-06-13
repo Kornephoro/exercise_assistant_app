@@ -315,12 +315,22 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
       const t3Names = Object.keys(ec).filter(key =>
         !MAIN_LIFT_KEYS.includes(key) && ec[key]?.increment_t3
       );
-      const loadedT3Exercises = t3Names.map(name => ({
-        name,
-        targetReps: ec[name]?.target_reps ?? 25,
-        incrementKg: ec[name]?.increment_t3 ?? 2.5,
-        startWeightKg: ec[name]?.initial_weight ?? 10
-      }));
+      const loadedT3Exercises = t3Names.map(name => {
+        const deloadMode = ec[name]?.deload_mode || (ec[name]?.deload_frequency && ec[name]?.deload_frequency > 0 ? 'sessions' : 'none');
+        const deloadValue = ec[name]?.deload_value ?? ec[name]?.deload_frequency ?? 4;
+        return {
+          name,
+          targetReps: ec[name]?.target_reps ?? 25,
+          incrementKg: ec[name]?.increment_t3 ?? 2.5,
+          startWeightKg: ec[name]?.initial_weight ?? 10,
+          progressionType: ec[name]?.progression_type ?? 'gzclp_default',
+          minReps: ec[name]?.min_reps ?? 12,
+          maxReps: ec[name]?.max_reps ?? 15,
+          sets: ec[name]?.sets ?? 3,
+          deloadMode,
+          deloadValue
+        };
+      });
       setT3Exercises(loadedT3Exercises);
 
       // 优先使用用户已保存的 day_map，兜底用程序默认 day_map
@@ -467,7 +477,18 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
           if (currentMap[name]) {
             result.push(currentMap[name]);
           } else {
-            result.push({ name, targetReps: 25, incrementKg: 2.5, startWeightKg: 10 });
+            result.push({ 
+              name, 
+              targetReps: 25, 
+              incrementKg: 2.5, 
+              startWeightKg: 10,
+              progressionType: 'gzclp_default',
+              minReps: 12,
+              maxReps: 15,
+              sets: 3,
+              deloadMode: 'sessions',
+              deloadValue: 4
+            });
           }
         });
 
@@ -627,7 +648,14 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
               initial_weight: unit === 'lbs' ? toStorageWeight(ex.startWeightKg ?? 10, 'lbs') : (ex.startWeightKg ?? 10),
               increment_t3: unit === 'lbs' ? toStorageWeight(ex.incrementKg, 'lbs') : ex.incrementKg,
               target_reps: ex.targetReps,
-              unit
+              unit,
+              progression_type: ex.progressionType || 'gzclp_default',
+              min_reps: ex.minReps ?? 12,
+              max_reps: ex.maxReps ?? 15,
+              sets: ex.sets ?? 3,
+              deload_mode: ex.deloadMode || 'sessions',
+              deload_value: Number(ex.deloadValue) || 4,
+              deload_frequency: ex.deloadMode === 'sessions' ? (Number(ex.deloadValue) || 4) : 0
             }
           ];
         }))
@@ -1669,8 +1697,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
               </div>
                <div className="flex flex-col gap-2">
                  {day.t3.map((exName, exIdx) => {
-                   const exInfo = exerciseNameMap[exName];
-                   const displayName = exInfo?.name_cn || exName;
+                   const displayName = getCNName(exName, exerciseNameMap);
                    return (
                      <button key={exIdx} type="button"
                        className="btn btn-sm btn-outline border-border-card dark:border-border-card-dark text-left justify-start cursor-pointer"
@@ -1710,7 +1737,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                    <div className="flex items-center justify-between">
                      <div className="flex items-center gap-2">
                        <span className="badge bg-tier-t3/10 text-tier-t3 dark:text-tier-t3-dark border-tier-t3/20 dark:border-tier-t3-dark/20 font-extrabold text-xs">T3</span>
-                       <span className="text-sm font-bold text-text-main dark:text-text-main-dark">{exerciseNameMap[ex.name]?.name_cn || ex.name}</span>
+                       <span className="text-sm font-bold text-text-main dark:text-text-main-dark">{getCNName(ex.name, exerciseNameMap)}</span>
                      </div>
                      {(() => {
                        const recMethod = exerciseNameMap[ex.name]?.recording_method || 'standard';
@@ -1730,156 +1757,343 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                        );
                      })()}
                   </div>
-                   {(() => {
-                     const recMethod = exerciseNameMap[ex.name]?.recording_method || 'standard';
 
-                     if (recMethod === 'duration_only') {
-                       // 仅时长动作：显示秒数配置
-                       return (
-                         <div className="grid grid-cols-3 gap-2">
-                           <div className="flex flex-col gap-1">
-                             <label className="section-subtitle select-none">起始时长</label>
-                             <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
-                               <input type="number" step="5" min="5"
-                                 className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
-                                 value={ex.startWeightKg ?? 30}
-                                 onChange={(e) => {
-                                   const val = parseFloat(e.target.value) || 5;
-                                   const newT3 = [...t3Exercises];
-                                   newT3[exIdx] = { ...newT3[exIdx], startWeightKg: val };
-                                   setT3Exercises(newT3);
-                                 }}
-                               />
-                               <span className="text-xs text-text-secondary/50">秒</span>
-                             </div>
-                           </div>
-                           <div className="flex flex-col gap-1">
-                             <label className="section-subtitle select-none">增量</label>
-                             <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
-                               <input type="number" step="1" min="1"
-                                 className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
-                                 value={ex.incrementKg ?? 5}
-                                 onChange={(e) => {
-                                   const val = parseFloat(e.target.value) || 1;
-                                   const newT3 = [...t3Exercises];
-                                   newT3[exIdx] = { ...newT3[exIdx], incrementKg: val };
-                                   setT3Exercises(newT3);
-                                 }}
-                               />
-                               <span className="text-xs text-text-secondary/50">秒</span>
-                             </div>
-                           </div>
-                           <div className="flex flex-col gap-1">
-                             <label className="section-subtitle select-none">达标门槛</label>
-                             <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
-                               <input type="number" step="5" min="5"
-                                 className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
-                                 value={ex.targetReps ?? 25}
-                                 onChange={(e) => {
-                                   const newT3 = [...t3Exercises];
-                                   newT3[exIdx] = { ...newT3[exIdx], targetReps: parseInt(e.target.value) || 5 };
-                                   setT3Exercises(newT3);
-                                 }}
-                               />
-                               <span className="text-xs text-text-secondary/50">秒</span>
-                             </div>
-                           </div>
-                         </div>
-                       );
-                     }
+                  {/* 进阶逻辑模式下拉框 */}
+                  <div className="flex flex-col gap-1 mt-0.5">
+                    <label className="text-[10px] font-bold text-text-secondary select-none">进阶逻辑模式</label>
+                    <select
+                      className="select select-bordered select-xs bg-bg-card dark:bg-bg-card-dark border-border-card text-text-main dark:text-text-main-dark h-8 min-h-0 text-xs rounded-lg font-bold w-full"
+                      value={ex.progressionType || 'gzclp_default'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const newT3 = [...t3Exercises];
+                        newT3[exIdx] = { ...newT3[exIdx], progressionType: val };
+                        setT3Exercises(newT3);
+                      }}
+                    >
+                      <option value="gzclp_default">GZCLP 默认 (AMRAP 末组达标)</option>
+                      <option value="double_progression">双进阶 (次数与重量交替进阶)</option>
+                    </select>
+                  </div>
 
-                     if (recMethod === 'distance_only') {
-                       // 仅距离动作：显示米数配置
-                       return (
-                         <div className="grid grid-cols-3 gap-2">
-                           <div className="flex flex-col gap-1">
-                             <label className="section-subtitle select-none">起始距离</label>
-                             <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
-                               <input type="number" step="10" min="10"
-                                 className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
-                                 value={ex.startWeightKg ?? 100}
-                                 onChange={(e) => {
-                                   const val = parseFloat(e.target.value) || 10;
-                                   const newT3 = [...t3Exercises];
-                                   newT3[exIdx] = { ...newT3[exIdx], startWeightKg: val };
-                                   setT3Exercises(newT3);
-                                 }}
-                               />
-                               <span className="text-xs text-text-secondary/50">米</span>
-                             </div>
-                           </div>
-                           <div className="flex flex-col gap-1">
-                             <label className="section-subtitle select-none">增量</label>
-                             <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
-                               <input type="number" step="10" min="5"
-                                 className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
-                                 value={ex.incrementKg ?? 10}
-                                 onChange={(e) => {
-                                   const val = parseFloat(e.target.value) || 10;
-                                   const newT3 = [...t3Exercises];
-                                   newT3[exIdx] = { ...newT3[exIdx], incrementKg: val };
-                                   setT3Exercises(newT3);
-                                 }}
-                               />
-                               <span className="text-xs text-text-secondary/50">米</span>
-                             </div>
-                           </div>
-                           <div className="flex flex-col gap-1">
-                             <label className="section-subtitle select-none">达标门槛</label>
-                             <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
-                               <input type="number" step="10" min="10"
-                                 className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
-                                 value={ex.targetReps ?? 100}
-                                 onChange={(e) => {
-                                   const newT3 = [...t3Exercises];
-                                   newT3[exIdx] = { ...newT3[exIdx], targetReps: parseInt(e.target.value) || 10 };
-                                   setT3Exercises(newT3);
-                                 }}
-                               />
-                               <span className="text-xs text-text-secondary/50">米</span>
-                             </div>
-                           </div>
-                         </div>
-                       );
-                     }
+                  {(() => {
+                    const recMethod = exerciseNameMap[ex.name]?.recording_method || 'standard';
+                    const isDoubleProg = ex.progressionType === 'double_progression';
 
-                     // 默认：力量训练动作，保持原有重量/次数配置
-                     return (
-                       <div className="grid grid-cols-3 gap-2">
-                         <div className="flex flex-col gap-1">
-                           <label className="section-subtitle select-none">起始重量</label>
-                           <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
-                             <input type="number" step="0.5" min="0"
-                               className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
-                               value={exUnit === 'lbs' ? convertWeight(ex.startWeightKg ?? 10, 'lbs') : (ex.startWeightKg ?? 10)}
-                               onChange={(e) => {
-                                 const val = parseFloat(e.target.value) || 0;
-                                 const kgVal = exUnit === 'lbs' ? toStorageWeight(val, 'lbs') : val;
-                                 const newT3 = [...t3Exercises];
-                                 newT3[exIdx] = { ...newT3[exIdx], startWeightKg: kgVal };
-                                 setT3Exercises(newT3);
-                               }}
-                             />
-                             <span className="text-xs text-text-secondary/50">{exUnit}</span>
-                           </div>
-                         </div>
-                         <div className="flex flex-col gap-1">
-                           <label className="section-subtitle select-none">加重步长</label>
-                           <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
-                             <input type="number" step="0.5" min="0.5"
-                               className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
-                               value={exUnit === 'lbs' ? convertWeight(ex.incrementKg, 'lbs') : ex.incrementKg}
-                               onChange={(e) => {
-                                 const val = parseFloat(e.target.value) || 0.5;
-                                 const kgVal = exUnit === 'lbs' ? toStorageWeight(val, 'lbs') : val;
-                                 const newT3 = [...t3Exercises];
-                                 newT3[exIdx] = { ...newT3[exIdx], incrementKg: kgVal };
-                                 setT3Exercises(newT3);
-                               }}
-                             />
-                             <span className="text-xs text-text-secondary/50">{exUnit}</span>
-                           </div>
-                         </div>
+                    if (isDoubleProg) {
+                      let startLabel = '起始重量';
+                      let incrLabel = '加重步长';
+                      let rangeLabel = '次数区间';
+                      let unitLabel = exUnit;
+                      let stepVal = '0.5';
+                      let minVal = '0';
+
+                      if (recMethod === 'duration_only') {
+                        startLabel = '起始时长';
+                        incrLabel = '增量';
+                        rangeLabel = '时长区间';
+                        unitLabel = '秒';
+                        stepVal = '5';
+                        minVal = '5';
+                      } else if (recMethod === 'distance_only') {
+                        startLabel = '起始距离';
+                        incrLabel = '增量';
+                        rangeLabel = '距离区间';
+                        unitLabel = '米';
+                        stepVal = '10';
+                        minVal = '10';
+                      }
+
+                      return (
+                        <div className="flex flex-col gap-2 mt-1">
+                          <div className="grid grid-cols-3 gap-2">
+                            {/* 起始值 */}
+                            <div className="flex flex-col gap-1">
+                              <label className="section-subtitle select-none">{startLabel}</label>
+                              <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
+                                <input type="number" step={stepVal} min={minVal}
+                                  className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                                  value={recMethod === 'standard' && exUnit === 'lbs' ? convertWeight(ex.startWeightKg ?? 10, 'lbs') : (ex.startWeightKg ?? 10)}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    const kgVal = recMethod === 'standard' && exUnit === 'lbs' ? toStorageWeight(val, 'lbs') : val;
+                                    const newT3 = [...t3Exercises];
+                                    newT3[exIdx] = { ...newT3[exIdx], startWeightKg: kgVal };
+                                    setT3Exercises(newT3);
+                                  }}
+                                />
+                                <span className="text-xs text-text-secondary/50">{unitLabel}</span>
+                              </div>
+                            </div>
+                            {/* 步长 */}
+                            <div className="flex flex-col gap-1">
+                              <label className="section-subtitle select-none">{incrLabel}</label>
+                              <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
+                                <input type="number" step={stepVal} min="0.5"
+                                  className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                                  value={recMethod === 'standard' && exUnit === 'lbs' ? convertWeight(ex.incrementKg, 'lbs') : ex.incrementKg}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0.5;
+                                    const kgVal = recMethod === 'standard' && exUnit === 'lbs' ? toStorageWeight(val, 'lbs') : val;
+                                    const newT3 = [...t3Exercises];
+                                    newT3[exIdx] = { ...newT3[exIdx], incrementKg: kgVal };
+                                    setT3Exercises(newT3);
+                                  }}
+                                />
+                                <span className="text-xs text-text-secondary/50">{unitLabel}</span>
+                              </div>
+                            </div>
+                            {/* 计划组数 */}
+                            <div className="flex flex-col gap-1">
+                              <label className="section-subtitle select-none">计划组数</label>
+                              <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
+                                <input type="number" step="1" min="1" max="10"
+                                  className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                                  value={ex.sets ?? 3}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value, 10) || 3;
+                                    const newT3 = [...t3Exercises];
+                                    newT3[exIdx] = { ...newT3[exIdx], sets: val };
+                                    setT3Exercises(newT3);
+                                  }}
+                                />
+                                <span className="text-xs text-text-secondary/50">组</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-3 gap-2">
+                            {/* 区间下限 */}
+                            <div className="flex flex-col gap-1">
+                              <label className="section-subtitle select-none">区间下限</label>
+                              <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
+                                <input type="number" step="1" min="1"
+                                  className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                                  value={ex.minReps ?? 12}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value, 10) || 1;
+                                    const newT3 = [...t3Exercises];
+                                    newT3[exIdx] = { ...newT3[exIdx], minReps: val };
+                                    setT3Exercises(newT3);
+                                  }}
+                                />
+                                <span className="text-xs text-text-secondary/50">{unitLabel}</span>
+                              </div>
+                            </div>
+                            {/* 区间上限 */}
+                            <div className="flex flex-col gap-1">
+                              <label className="section-subtitle select-none">区间上限</label>
+                              <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
+                                <input type="number" step="1" min="1"
+                                  className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                                  value={ex.maxReps ?? 15}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value, 10) || 1;
+                                    const newT3 = [...t3Exercises];
+                                    newT3[exIdx] = { ...newT3[exIdx], maxReps: val };
+                                    setT3Exercises(newT3);
+                                  }}
+                                />
+                                <span className="text-xs text-text-secondary/50">{unitLabel}</span>
+                              </div>
+                            </div>
+                            {/* 减载模式 */}
+                            <div className="flex flex-col gap-1">
+                              <label className="section-subtitle select-none">减载模式</label>
+                              <select
+                                className="select select-bordered select-xs bg-bg-card dark:bg-bg-card-dark border-border-card text-text-main dark:text-text-main-dark h-8 min-h-0 text-[10px] rounded-lg font-bold w-full"
+                                value={ex.deloadMode ?? 'sessions'}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const newT3 = [...t3Exercises];
+                                  newT3[exIdx] = { ...newT3[exIdx], deloadMode: val };
+                                  setT3Exercises(newT3);
+                                }}
+                              >
+                                <option value="none">不减载</option>
+                                <option value="sessions">几次后减</option>
+                                <option value="weeks">几周后减</option>
+                                <option value="follow_program">跟随计划</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {(ex.deloadMode === 'sessions' || ex.deloadMode === 'weeks') && (
+                            <div className="flex items-center gap-1.5 mt-1 justify-end">
+                              <span className="text-[10px] font-bold text-text-secondary dark:text-text-secondary-dark select-none">
+                                {ex.deloadMode === 'sessions' ? '每完成' : '每经过'}
+                              </span>
+                              <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8 w-18">
+                                <input type="number" step="1" min="1"
+                                  className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                                  value={ex.deloadValue ?? 4}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value, 10) || 1;
+                                    const newT3 = [...t3Exercises];
+                                    newT3[exIdx] = { ...newT3[exIdx], deloadValue: val };
+                                    setT3Exercises(newT3);
+                                  }}
+                                />
+                                <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50 ml-0.5 font-bold">
+                                  {ex.deloadMode === 'sessions' ? '次' : '周'}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-bold text-text-secondary dark:text-text-secondary-dark select-none">
+                                训练后减载一次
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    if (recMethod === 'duration_only') {
+                      // 仅时长动作：显示秒数配置
+                      return (
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="flex flex-col gap-1">
+                            <label className="section-subtitle select-none">起始时长</label>
+                            <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
+                              <input type="number" step="5" min="5"
+                                className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                                value={ex.startWeightKg ?? 30}
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value) || 5;
+                                  const newT3 = [...t3Exercises];
+                                  newT3[exIdx] = { ...newT3[exIdx], startWeightKg: val };
+                                  setT3Exercises(newT3);
+                                }}
+                              />
+                              <span className="text-xs text-text-secondary/50">秒</span>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="section-subtitle select-none">增量</label>
+                            <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
+                              <input type="number" step="1" min="1"
+                                className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                                value={ex.incrementKg ?? 5}
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value) || 1;
+                                  const newT3 = [...t3Exercises];
+                                  newT3[exIdx] = { ...newT3[exIdx], incrementKg: val };
+                                  setT3Exercises(newT3);
+                                }}
+                              />
+                              <span className="text-xs text-text-secondary/50">秒</span>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="section-subtitle select-none">达标门槛</label>
+                            <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
+                              <input type="number" step="5" min="5"
+                                className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                                value={ex.targetReps ?? 25}
+                                onChange={(e) => {
+                                  const newT3 = [...t3Exercises];
+                                  newT3[exIdx] = { ...newT3[exIdx], targetReps: parseInt(e.target.value) || 5 };
+                                  setT3Exercises(newT3);
+                                }}
+                              />
+                              <span className="text-xs text-text-secondary/50">秒</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (recMethod === 'distance_only') {
+                      // 仅距离动作：显示米数配置
+                      return (
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="flex flex-col gap-1">
+                            <label className="section-subtitle select-none">起始距离</label>
+                            <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
+                              <input type="number" step="10" min="10"
+                                className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                                value={ex.startWeightKg ?? 100}
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value) || 10;
+                                  const newT3 = [...t3Exercises];
+                                  newT3[exIdx] = { ...newT3[exIdx], startWeightKg: val };
+                                  setT3Exercises(newT3);
+                                }}
+                              />
+                              <span className="text-xs text-text-secondary/50">米</span>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="section-subtitle select-none">增量</label>
+                            <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
+                              <input type="number" step="10" min="5"
+                                className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                                value={ex.incrementKg ?? 10}
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value) || 10;
+                                  const newT3 = [...t3Exercises];
+                                  newT3[exIdx] = { ...newT3[exIdx], incrementKg: val };
+                                  setT3Exercises(newT3);
+                                }}
+                              />
+                              <span className="text-xs text-text-secondary/50">米</span>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="section-subtitle select-none">达标门槛</label>
+                            <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
+                              <input type="number" step="10" min="10"
+                                className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                                value={ex.targetReps ?? 100}
+                                onChange={(e) => {
+                                  const newT3 = [...t3Exercises];
+                                  newT3[exIdx] = { ...newT3[exIdx], targetReps: parseInt(e.target.value) || 10 };
+                                  setT3Exercises(newT3);
+                                }}
+                              />
+                              <span className="text-xs text-text-secondary/50">米</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // 默认：力量训练动作，保持原有重量/次数配置
+                    return (
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="flex flex-col gap-1">
+                          <label className="section-subtitle select-none">起始重量</label>
+                          <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
+                            <input type="number" step="0.5" min="0"
+                              className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                              value={exUnit === 'lbs' ? convertWeight(ex.startWeightKg ?? 10, 'lbs') : (ex.startWeightKg ?? 10)}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                const kgVal = exUnit === 'lbs' ? toStorageWeight(val, 'lbs') : val;
+                                const newT3 = [...t3Exercises];
+                                newT3[exIdx] = { ...newT3[exIdx], startWeightKg: kgVal };
+                                setT3Exercises(newT3);
+                              }}
+                            />
+                            <span className="text-xs text-text-secondary/50">{exUnit}</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="section-subtitle select-none">加重步长</label>
+                          <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
+                            <input type="number" step="0.5" min="0.5"
+                              className="w-full bg-transparent font-mono font-semibold text-xs text-text-main dark:text-text-main-dark focus:outline-none text-right"
+                              value={exUnit === 'lbs' ? convertWeight(ex.incrementKg, 'lbs') : ex.incrementKg}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0.5;
+                                const kgVal = exUnit === 'lbs' ? toStorageWeight(val, 'lbs') : val;
+                                const newT3 = [...t3Exercises];
+                                newT3[exIdx] = { ...newT3[exIdx], incrementKg: kgVal };
+                                setT3Exercises(newT3);
+                              }}
+                            />
+                            <span className="text-xs text-text-secondary/50">{exUnit}</span>
+                          </div>
+                        </div>
                         <div className="flex flex-col gap-1">
                           <label className="section-subtitle select-none">达标门槛</label>
                           <div className="input input-bordered input-sm flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-8">
@@ -1896,8 +2110,8 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                           </div>
                         </div>
                       </div>
-                     );
-                   })()}
+                    );
+                  })()}
                 </div>
               );
             })}
@@ -1940,8 +2154,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                 
                 <div className="flex flex-col gap-2">
                   {(day.warmup || []).map((item, idx) => {
-                    const exInfo = exerciseNameMap[item.exercise];
-                    const displayName = exInfo?.name_cn || item.exercise;
+                    const displayName = getCNName(item.exercise, exerciseNameMap);
                     const suffix = item.recording_method === 'duration_only' ? '秒' : '次';
                     return (
                       <div key={idx} className="flex items-center gap-1.5 bg-bg-card dark:bg-bg-card-dark p-1.5 rounded-lg border border-border-card/40 dark:border-border-card-dark/40">
@@ -2047,8 +2260,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
 
                 <div className="flex flex-col gap-2">
                   {(day.stretching || []).map((item, idx) => {
-                    const exInfo = exerciseNameMap[item.exercise];
-                    const displayName = exInfo?.name_cn || item.exercise;
+                    const displayName = getCNName(item.exercise, exerciseNameMap);
                     const suffix = item.recording_method === 'duration_only' ? '秒' : '次';
                     return (
                       <div key={idx} className="flex items-center gap-1.5 bg-bg-card dark:bg-bg-card-dark p-1.5 rounded-lg border border-border-card/40 dark:border-border-card-dark/40">
