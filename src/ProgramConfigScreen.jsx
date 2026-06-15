@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   fetchActiveUserProgram,
   fetchLastEndedUserProgram,
@@ -15,6 +15,30 @@ import ExercisePickerModal from './components/ExercisePickerModal';
 import InfiniteScrollPicker from './components/InfiniteScrollPicker';
 import WarmupSetsEditor from './components/WarmupSetsEditor';
 import ProgressionChainEditor from './components/ProgressionChainEditor';
+
+// 根据 1RM 和杠铃片情况计算默认加重步长（1RM 的 5% 并进行杠铃片就近圆整）
+function calculateDefaultIncrement(oneRmStr, liftKey, exerciseUnits = {}, weightUnit = 'kg', gymEquipmentConfig = null) {
+  const rm = parseFloat(oneRmStr);
+  if (isNaN(rm) || rm <= 0) return '2.5';
+
+  const rawIncr = rm * 0.05;
+  const exUnit = exerciseUnits[liftKey] || weightUnit || 'kg';
+
+  const config = gymEquipmentConfig;
+  const barWeight = config?.[exUnit]?.barbell?.bar_weight ?? (exUnit === 'kg' ? 20 : 45);
+  const enabledPlates = config?.[exUnit]?.barbell?.enabled_plates || (exUnit === 'kg' ? [25, 20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]);
+  const plateLimits = config?.[exUnit]?.barbell?.plate_limits || {};
+
+  const roundedIncr = roundToClosestLoadable(rawIncr + barWeight, barWeight, enabledPlates, plateLimits) - barWeight;
+
+  if (roundedIncr <= 0) {
+    const sortedPlates = [...enabledPlates].map(p => parseFloat(p)).sort((a, b) => a - b);
+    const minPlatesIncrement = sortedPlates.length > 0 ? sortedPlates[0] * 2 : (exUnit === 'kg' ? 2.5 : 5);
+    return minPlatesIncrement.toString();
+  }
+
+  return roundedIncr.toString();
+}
 
 // ==================== 1RM 同步钩子 ====================
 // 拉取每个主项最新 1RM，供「一键应用」使用
@@ -84,7 +108,6 @@ const RPE_PERCENTAGE_CHART = {
 
 function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentConfig = null }) {
   const defaultWeights = program.config?.default_weights || {};
-  const defaultIncrement = program.config?.default_increment || {};
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -150,37 +173,6 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
   const [calcWeight, setCalcWeight] = useState('');
   const [calcReps, setCalcReps] = useState(5); // 1 to 12 in RPE, or string in formula
   const [calcRpe, setCalcRpe] = useState(8); // 6 to 10
-
-  // 同步云端 1RM → state (仅在 fetch 完成后, 如果本地初始 80/60/100/40 还没被用户改过)
-  // 策略: 加载时如果云端有, 用云端的 (因为这是真实测试)
-  useEffect(() => {
-    if (Object.keys(latestOneRms).length === 0) return;
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (cancelled) return;
-      setSquatOneRm(prev => {
-        const cloud = latestOneRms.squat?.e1rm_kg;
-        if (cloud && (Number(prev) === DEFAULT_ONE_RM.squat || !prev)) return String(cloud);
-        return prev;
-      });
-      setBenchOneRm(prev => {
-        const cloud = latestOneRms.bench?.e1rm_kg;
-        if (cloud && (Number(prev) === DEFAULT_ONE_RM.bench || !prev)) return String(cloud);
-        return prev;
-      });
-      setDeadliftOneRm(prev => {
-        const cloud = latestOneRms.deadlift?.e1rm_kg;
-        if (cloud && (Number(prev) === DEFAULT_ONE_RM.deadlift || !prev)) return String(cloud);
-        return prev;
-      });
-      setPressOneRm(prev => {
-        const cloud = latestOneRms.press?.e1rm_kg;
-        if (cloud && (Number(prev) === DEFAULT_ONE_RM.press || !prev)) return String(cloud);
-        return prev;
-      });
-    });
-    return () => { cancelled = true; };
-  }, [latestOneRms]);
 
   // user_programs 记录 ID
   const [userProgramId, setUserProgramId] = useState(null);
@@ -365,8 +357,6 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
       // 从 exercise_config 或默认值加载主项配置（T1/T2 分开，向后兼容旧单值 initial_weight）
       const getT1Weight = (ex) => ec[ex]?.initial_weight_t1 ?? ec[ex]?.initial_weight ?? defaultWeights[ex] ?? 60;
       const getT2Weight = (ex) => ec[ex]?.initial_weight_t2 ?? (ec[ex]?.initial_weight ? parseFloat(ec[ex].initial_weight) * 0.65 : (defaultWeights[ex] ?? 30));
-      const getT1Incr = (ex) => ec[ex]?.increment_t1 ?? defaultIncrement.T1 ?? 2.5;
-      const getT2Incr = (ex) => ec[ex]?.increment_t2 ?? defaultIncrement.T2 ?? 2.5;
       const getOneRm = (ex) => ec[ex]?.one_rm ?? null;
       const getT1Chain = (ex) => ec[ex]?.t1_chain;
       const getT2Chain = (ex) => ec[ex]?.t2_chain;
@@ -379,6 +369,27 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
         if (ec[ex]?.unit) savedExerciseUnits[ex] = ec[ex].unit;
       });
       setExerciseUnits(savedExerciseUnits);
+
+      const getT1Incr = (ex) => {
+        if (ec[ex]?.increment_t1 !== undefined && ec[ex]?.increment_t1 !== null) {
+          return ec[ex].increment_t1;
+        }
+        const unit = savedExerciseUnits[ex] || savedUnit;
+        const rmKg = getOneRm(ex) || DEFAULT_ONE_RM[ex];
+        const rmInUnit = unit === 'lbs' ? convertWeight(rmKg, 'lbs') : rmKg;
+        const stepInUnit = parseFloat(calculateDefaultIncrement(rmInUnit.toString(), ex, savedExerciseUnits, savedUnit, gymEquipmentConfig));
+        return unit === 'lbs' ? parseFloat((stepInUnit / 2.20462).toFixed(4)) : stepInUnit;
+      };
+      const getT2Incr = (ex) => {
+        if (ec[ex]?.increment_t2 !== undefined && ec[ex]?.increment_t2 !== null) {
+          return ec[ex].increment_t2;
+        }
+        const unit = savedExerciseUnits[ex] || savedUnit;
+        const rmKg = getOneRm(ex) || DEFAULT_ONE_RM[ex];
+        const rmInUnit = unit === 'lbs' ? convertWeight(rmKg, 'lbs') : rmKg;
+        const stepInUnit = parseFloat(calculateDefaultIncrement(rmInUnit.toString(), ex, savedExerciseUnits, savedUnit, gymEquipmentConfig));
+        return unit === 'lbs' ? parseFloat((stepInUnit / 2.20462).toFixed(4)) : stepInUnit;
+      };
 
       // 转换显示重量（数据库存 kg，根据单位显示）
       const displayTWeight = (ex, tier) => {
@@ -470,6 +481,59 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
       setLoading(false);
     }
   };
+
+  const cloudSyncDone = useRef(false);
+
+  // 同步云端 1RM → state (仅在 fetch 完成后, 如果本地初始 80/60/100/40 还没被用户改过)
+  // 策略: 加载时如果云端有, 用云端的 (因为这是真实测试)
+  useEffect(() => {
+    if (Object.keys(latestOneRms).length === 0 || cloudSyncDone.current) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      cloudSyncDone.current = true;
+
+      const updateStep = (lift, cloudVal) => {
+        const cloudStr = String(cloudVal);
+        const newStep = calculateDefaultIncrement(cloudStr, lift, exerciseUnits, weightUnit, gymEquipmentConfig);
+        if (lift === 'squat') {
+          setSquatOneRm(cloudStr);
+          setSquatT1Step(newStep);
+          setSquatT2Step(newStep);
+        } else if (lift === 'bench') {
+          setBenchOneRm(cloudStr);
+          setBenchT1Step(newStep);
+          setBenchT2Step(newStep);
+        } else if (lift === 'deadlift') {
+          setDeadliftOneRm(cloudStr);
+          setDeadliftT1Step(newStep);
+          setDeadliftT2Step(newStep);
+        } else if (lift === 'press') {
+          setPressOneRm(cloudStr);
+          setPressT1Step(newStep);
+          setPressT2Step(newStep);
+        }
+      };
+
+      const sqCloud = latestOneRms.squat?.e1rm_kg;
+      if (sqCloud && (Number(squatOneRm) === DEFAULT_ONE_RM.squat || !squatOneRm)) {
+        updateStep('squat', sqCloud);
+      }
+      const beCloud = latestOneRms.bench?.e1rm_kg;
+      if (beCloud && (Number(benchOneRm) === DEFAULT_ONE_RM.bench || !benchOneRm)) {
+        updateStep('bench', beCloud);
+      }
+      const deCloud = latestOneRms.deadlift?.e1rm_kg;
+      if (deCloud && (Number(deadliftOneRm) === DEFAULT_ONE_RM.deadlift || !deadliftOneRm)) {
+        updateStep('deadlift', deCloud);
+      }
+      const prCloud = latestOneRms.press?.e1rm_kg;
+      if (prCloud && (Number(pressOneRm) === DEFAULT_ONE_RM.press || !pressOneRm)) {
+        updateStep('press', prCloud);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [latestOneRms, squatOneRm, benchOneRm, deadliftOneRm, pressOneRm, exerciseUnits, weightUnit, gymEquipmentConfig]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -861,7 +925,19 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
       };
       const setter = setterMap[calcLift];
       if (setter && val > 0) {
-        setter(String(val));
+        const valStr = String(val);
+        setter(valStr);
+        const newStep = calculateDefaultIncrement(valStr, calcLift, exerciseUnits, weightUnit, gymEquipmentConfig);
+        const t1Setter = calcLift === 'squat' ? setSquatT1Step
+          : calcLift === 'bench' ? setBenchT1Step
+          : calcLift === 'deadlift' ? setDeadliftT1Step
+          : setPressT1Step;
+        const t2Setter = calcLift === 'squat' ? setSquatT2Step
+          : calcLift === 'bench' ? setBenchT2Step
+          : calcLift === 'deadlift' ? setDeadliftT2Step
+          : setPressT2Step;
+        t1Setter(newStep);
+        t2Setter(newStep);
       }
       setCalcLift(null);
     };
@@ -1580,7 +1656,13 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                           step="0.5"
                           min="0"
                           value={L.oneRm}
-                          onChange={(e) => L.setOneRm(e.target.value)}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            L.setOneRm(val);
+                            const newStep = calculateDefaultIncrement(val, L.key, exerciseUnits, weightUnit, gymEquipmentConfig);
+                            L.setT1(newStep);
+                            L.setT2(newStep);
+                          }}
                           className={inputClass}
                         />
                         <span className="text-sm font-medium text-text-secondary/50 select-none">{exUnit}</span>
@@ -1588,7 +1670,9 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                     </div>
                     <div className="flex flex-col gap-1.5">
                       <div className="flex items-center h-6">
-                        <label className="section-subtitle select-none mb-0">T1 加重</label>
+                        <label className="section-subtitle select-none mb-0">
+                          T1 加重 <span className="text-[10px] font-normal text-text-secondary/70">(初始为5% 1RM)</span>
+                        </label>
                       </div>
                       <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
                         <input
@@ -1604,7 +1688,9 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                     </div>
                     <div className="flex flex-col gap-1.5">
                       <div className="flex items-center h-6">
-                        <label className="section-subtitle select-none mb-0">T2 加重</label>
+                        <label className="section-subtitle select-none mb-0">
+                          T2 加重 <span className="text-[10px] font-normal text-text-secondary/70">(初始为5% 1RM)</span>
+                        </label>
                       </div>
                       <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
                         <input
@@ -1621,11 +1707,17 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                   </div>
 
                   {rm > 0 && (
-                    <p className="text-sm text-text-secondary dark:text-text-secondary-dark font-mono bg-bg-main/40 dark:bg-bg-main-dark/40 border border-border-card/50 dark:border-border-card-dark/50 rounded-lg p-2">
-                      <Lightbulb size={14} className="inline shrink-0" /> 1RM 推导：T1 起始 <span className="font-bold text-primary">{t1Start}{exUnit}</span>
-                      <span className="mx-1 opacity-50">·</span>
-                      T2 起始 <span className="font-bold text-primary">{t2Start}{exUnit}</span>
-                    </p>
+                    <div className="text-xs text-text-secondary dark:text-text-secondary-dark font-mono bg-bg-main/40 dark:bg-bg-main-dark/40 border border-border-card/50 dark:border-border-card-dark/50 rounded-lg p-2 flex flex-col gap-1">
+                      <div>
+                        <Lightbulb size={14} className="inline shrink-0 mr-1 text-primary" />
+                        1RM 推导：T1 起始 <span className="font-bold text-primary">{t1Start}{exUnit}</span>
+                        <span className="mx-1 opacity-50">·</span>
+                        T2 起始 <span className="font-bold text-primary">{t2Start}{exUnit}</span>
+                      </div>
+                      <div className="text-[10px] text-text-secondary/80 pl-4">
+                        💡 T1/T2 初始加重默认为该动作 1RM 的 5% 并根据杠铃片就近取值
+                      </div>
+                    </div>
                   )}
 
                   <div className="flex flex-col gap-2">
