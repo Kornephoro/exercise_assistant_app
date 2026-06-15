@@ -7,6 +7,11 @@
 @source "./**/*.{js,ts,jsx,tsx}";
 @source "../index.html";
 
+/*
+ * DEPRECATED LEGACY THEME
+ * These DaisyUI orange tokens remain temporarily for existing screens only.
+ * New FITCORE components must use src/design-system tokens and ThemeProvider.
+ */
 @plugin "daisyui/theme" {
   name: "light";
   default: true;
@@ -77,6 +82,11 @@
   --noise: 0;
 }
 
+/*
+ * DEPRECATED LEGACY TAILWIND COLOR ALIASES
+ * Keep until each existing screen is migrated in small, verified steps.
+ * Do not use these aliases in src/design-system.
+ */
 @theme {
   --color-primary: #FF6B35;
   --color-alert: #E53935;
@@ -262,4 +272,3 @@
 .bottom-sheet-container {
   @apply fixed bottom-0 left-0 right-0 z-[80] bg-bg-card dark:bg-bg-card-dark rounded-t-[24px] border-t border-border-card dark:border-border-card-dark max-w-[480px] mx-auto p-4 shadow-[0_-8px_30px_rgb(0,0,0,0.15)];
 }
-

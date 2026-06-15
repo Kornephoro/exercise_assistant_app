@@ -1,0 +1,3844 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light dark" />
+  <title>FITCORE 今日页交互原型</title>
+  <style>
+    :root {
+      --brand-lime-50: #F4FFD2;
+      --brand-lime-100: #E9FF9A;
+      --brand-lime-300: #D6F653;
+      --brand-lime-500: #B8E81E;
+      --brand-lime-600: #9FD116;
+      --brand-lime-700: #7DAA10;
+
+      --color-success: #75D64B;
+      --color-warning: #F5A623;
+      --color-danger: #FF6B4A;
+      --color-info: #5AA7FF;
+      --color-protein: #63D36B;
+      --color-carb: #F0C84B;
+      --color-fat: #FF7A45;
+
+      --space-2: 2px;
+      --space-4: 4px;
+      --space-6: 6px;
+      --space-8: 8px;
+      --space-10: 10px;
+      --space-12: 12px;
+      --space-14: 14px;
+      --space-16: 16px;
+      --space-20: 20px;
+      --space-24: 24px;
+      --space-32: 32px;
+
+      --radius-xs: 6px;
+      --radius-sm: 10px;
+      --radius-md: 14px;
+      --radius-lg: 18px;
+      --radius-xl: 24px;
+      --radius-pill: 999px;
+
+      --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+      --font-numeric: "SF Pro Display", "DIN Alternate", "PingFang SC", sans-serif;
+      --duration-instant: 100ms;
+      --duration-fast: 180ms;
+      --duration-normal: 240ms;
+      --duration-slow: 350ms;
+      --duration-progress: 500ms;
+      --ease-enter: cubic-bezier(.2, .8, .2, 1);
+    }
+
+    [data-theme="light"] {
+      --color-primary: #B8E81E;
+      --color-primary-hover: #9FD116;
+      --color-primary-pressed: #7DAA10;
+      --color-on-primary: #11140A;
+      --color-primary-subtle: #F4FFD2;
+      --color-bg-page: #FAF9F6;
+      --color-bg-surface: #FFFFFF;
+      --color-bg-card: #F4F6EF;
+      --color-bg-subtle: #F4F6EF;
+      --color-bg-tint: #F1F9D8;
+      --color-bg-elevated: #FFFFFF;
+      --color-text-primary: #1B1D1F;
+      --color-text-secondary: #5F6468;
+      --color-text-tertiary: #9AA0A6;
+      --color-text-disabled: #B8BDC2;
+      --color-border: #E6E9DF;
+      --color-border-strong: #D6DEC9;
+      --color-overlay: rgba(15, 20, 22, .52);
+      --color-success-fg: #3F8E25;
+      --color-success-bg: #EFFAE8;
+      --color-success-border: #BDE9A8;
+      --color-warning-fg: #A76508;
+      --color-warning-bg: #FFF6E5;
+      --color-warning-border: #F4D59C;
+      --color-danger-fg: #C7432C;
+      --color-danger-bg: #FFF0EC;
+      --color-danger-border: #F4B9AC;
+      --color-info-fg: #2877CE;
+      --color-info-bg: #EDF6FF;
+      --color-info-border: #B8D9FB;
+      --shadow-card: 0 4px 14px rgba(20, 28, 20, .06);
+      --shadow-elevated: 0 12px 30px rgba(20, 28, 20, .08);
+      --shadow-glow: 0 0 18px rgba(184, 232, 30, .22);
+      --desktop-canvas: #E8EAE3;
+    }
+
+    [data-theme="dark"] {
+      --color-primary: #A9D91D;
+      --color-primary-hover: #B8E81E;
+      --color-primary-pressed: #9FD116;
+      --color-on-primary: #11140A;
+      --color-primary-subtle: #273315;
+      --color-bg-page: #0F1416;
+      --color-bg-surface: #151B1E;
+      --color-bg-card: #1B2225;
+      --color-bg-subtle: #273034;
+      --color-bg-tint: #222B16;
+      --color-bg-elevated: #20282C;
+      --color-text-primary: #F5F7F8;
+      --color-text-secondary: #B6BEC4;
+      --color-text-tertiary: #7E878D;
+      --color-text-disabled: #555F66;
+      --color-border: #2B3438;
+      --color-border-strong: #3A464B;
+      --color-overlay: rgba(4, 7, 8, .72);
+      --color-success-fg: #8EE36A;
+      --color-success-bg: #1D3320;
+      --color-success-border: #355E38;
+      --color-warning-fg: #F7B94F;
+      --color-warning-bg: #352A18;
+      --color-warning-border: #5D4823;
+      --color-danger-fg: #FF8063;
+      --color-danger-bg: #3A211D;
+      --color-danger-border: #65362C;
+      --color-info-fg: #79B8FF;
+      --color-info-bg: #1B2C3D;
+      --color-info-border: #31506D;
+      --shadow-card: 0 8px 20px rgba(0, 0, 0, .28);
+      --shadow-elevated: 0 16px 34px rgba(0, 0, 0, .36);
+      --shadow-glow: 0 0 18px rgba(184, 232, 30, .22);
+      --desktop-canvas: #090D0E;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      min-height: 100%;
+      background: var(--desktop-canvas);
+      transition: background var(--duration-normal) ease;
+    }
+
+    body {
+      min-height: 100%;
+      margin: 0;
+      color: var(--color-text-primary);
+      background: var(--desktop-canvas);
+      font-family: var(--font-sans);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      transition: color var(--duration-normal) ease, background var(--duration-normal) ease;
+    }
+
+    button, input { font: inherit; }
+    button { color: inherit; }
+    button, [role="button"] { touch-action: manipulation; }
+
+    button:focus-visible,
+    input:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--color-primary) 42%, transparent);
+      outline-offset: 2px;
+    }
+
+    .icon {
+      width: 20px;
+      height: 20px;
+      flex: 0 0 auto;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.9;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .phone-shell {
+      width: min(100%, 390px);
+      min-height: 100svh;
+      margin: 0 auto;
+      position: relative;
+      overflow-x: hidden;
+      background: var(--color-bg-page);
+      border-inline: 1px solid var(--color-border);
+      box-shadow: var(--shadow-elevated);
+      transition: background var(--duration-normal) ease, border-color var(--duration-normal) ease;
+    }
+
+    .app-content {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-16);
+      padding: max(22px, env(safe-area-inset-top)) var(--space-20) 112px;
+    }
+
+    .app-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-12);
+      padding-top: var(--space-4);
+    }
+
+    .eyebrow {
+      margin: 0 0 var(--space-4);
+      color: var(--color-text-secondary);
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 34px;
+      font-weight: 700;
+      letter-spacing: -.03em;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-8);
+    }
+
+    .icon-button {
+      width: 44px;
+      height: 44px;
+      display: inline-grid;
+      place-items: center;
+      padding: 0;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      color: var(--color-text-primary);
+      background: var(--color-bg-surface);
+      box-shadow: var(--shadow-card);
+      cursor: pointer;
+      transition: transform var(--duration-instant) ease, background var(--duration-normal) ease;
+    }
+
+    .icon-button:active { transform: scale(.96); }
+
+    .plan-picker-wrap { position: relative; }
+
+    .plan-picker {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-6);
+      margin-top: var(--space-10);
+      padding: var(--space-6) var(--space-12);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-pill);
+      color: var(--color-text-primary);
+      background: var(--color-bg-surface);
+      font-size: 12px;
+      line-height: 18px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .plan-menu {
+      width: 205px;
+      display: none;
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      z-index: 30;
+      padding: var(--space-6);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg-elevated);
+      box-shadow: var(--shadow-elevated);
+    }
+
+    .plan-menu.is-open { display: grid; }
+
+    .plan-option {
+      min-height: 44px;
+      padding: var(--space-8) var(--space-10);
+      border: 0;
+      border-radius: var(--radius-sm);
+      text-align: left;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .plan-option:hover { background: var(--color-bg-subtle); }
+    .plan-option.is-active { color: var(--color-primary-pressed); background: var(--color-primary-subtle); font-weight: 700; }
+
+    .section-card,
+    .prototype-panel {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-bg-surface);
+      box-shadow: var(--shadow-card);
+      transition: background var(--duration-normal) ease, border-color var(--duration-normal) ease, box-shadow var(--duration-normal) ease;
+    }
+
+    .prototype-panel {
+      padding: var(--space-12);
+      background: var(--color-bg-card);
+      box-shadow: none;
+    }
+
+    .prototype-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-8);
+      margin-bottom: var(--space-8);
+      color: var(--color-text-secondary);
+      font-size: 11px;
+      line-height: 16px;
+    }
+
+    .prototype-label strong { color: var(--color-text-primary); font-size: 12px; }
+    .control-stack { display: grid; gap: var(--space-8); }
+
+    .segmented {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      width: 100%;
+      padding: var(--space-4);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg-subtle);
+    }
+
+    .segmented button {
+      min-width: 0;
+      min-height: 44px;
+      flex: 1;
+      padding: var(--space-6) var(--space-8);
+      border: 0;
+      border-radius: var(--radius-sm);
+      color: var(--color-text-secondary);
+      background: transparent;
+      font-size: 12px;
+      line-height: 18px;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: color var(--duration-fast) ease, background var(--duration-fast) ease, transform var(--duration-instant) ease;
+    }
+
+    .segmented button:active { transform: scale(.98); }
+    .segmented button.is-active {
+      color: var(--color-on-primary);
+      background: var(--color-primary);
+      box-shadow: var(--shadow-card);
+    }
+
+    .notices { display: grid; gap: var(--space-10); }
+
+    .notice {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-10);
+      padding: var(--space-14, 14px) var(--space-12);
+      border: 1px solid;
+      border-left-width: 4px;
+      border-radius: var(--radius-md);
+      animation: riseIn var(--duration-fast) var(--ease-enter);
+    }
+
+    .notice[data-tone="primary"] {
+      color: var(--color-primary-pressed);
+      background: var(--color-primary-subtle);
+      border-color: var(--color-primary);
+    }
+
+    .notice[data-tone="warning"] {
+      color: var(--color-warning-fg);
+      background: var(--color-warning-bg);
+      border-color: var(--color-warning-border);
+    }
+
+    .notice-copy { min-width: 0; flex: 1; }
+    .notice-title { margin: 0; font-size: 13px; line-height: 19px; font-weight: 700; }
+    .notice-text { margin: 2px 0 0; color: var(--color-text-secondary); font-size: 12px; line-height: 18px; }
+
+    .notice-action {
+      min-height: 44px;
+      align-self: center;
+      padding: var(--space-6) var(--space-10);
+      border: 1px solid currentColor;
+      border-radius: var(--radius-sm);
+      color: inherit;
+      background: transparent;
+      font-size: 11px;
+      line-height: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .section-card { padding: var(--space-16); }
+    .section-card--hero { overflow: hidden; padding: 0; }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-12);
+      margin-bottom: var(--space-12);
+    }
+
+    .section-head h2 {
+      display: flex;
+      align-items: center;
+      gap: var(--space-8);
+      margin: 0;
+      font-size: 17px;
+      line-height: 24px;
+      font-weight: 700;
+    }
+
+    .section-head p { margin: 2px 0 0; color: var(--color-text-secondary); font-size: 11px; line-height: 16px; }
+
+    .text-button {
+      min-height: 44px;
+      padding: var(--space-8) var(--space-10);
+      border: 0;
+      border-radius: var(--radius-sm);
+      color: var(--color-primary-pressed);
+      background: transparent;
+      font-size: 12px;
+      line-height: 18px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .training-visual {
+      min-height: 188px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: var(--space-20) var(--space-16);
+      color: #F7FAF2;
+      background:
+        radial-gradient(circle at 82% 22%, rgba(184, 232, 30, .33), transparent 25%),
+        linear-gradient(145deg, #263229 0%, #192123 48%, #0F1416 100%);
+    }
+
+    .training-visual::before,
+    .training-visual::after {
+      content: "";
+      position: absolute;
+      border: 1px solid rgba(214, 246, 83, .18);
+      border-radius: 50%;
+    }
+
+    .training-visual::before { width: 160px; height: 160px; right: -52px; top: -64px; }
+    .training-visual::after { width: 96px; height: 96px; right: -10px; top: -18px; }
+
+    .training-mark {
+      position: absolute;
+      top: var(--space-16);
+      right: var(--space-16);
+      color: var(--color-primary);
+      opacity: .9;
+    }
+
+    .training-mark .icon { width: 54px; height: 54px; stroke-width: 1.35; }
+
+    .badge-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-6); }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-4);
+      min-height: 24px;
+      padding: var(--space-2) var(--space-8);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-pill);
+      color: var(--color-text-secondary);
+      background: var(--color-bg-subtle);
+      font-size: 11px;
+      line-height: 16px;
+      font-weight: 600;
+    }
+
+    .training-visual .badge {
+      color: #EAF0E9;
+      border-color: rgba(255, 255, 255, .18);
+      background: rgba(255, 255, 255, .08);
+      backdrop-filter: blur(8px);
+    }
+
+    .badge--primary {
+      color: var(--color-primary-pressed);
+      border-color: var(--color-primary);
+      background: var(--color-primary-subtle);
+    }
+
+    .badge--success {
+      color: var(--color-success-fg);
+      border-color: var(--color-success-border);
+      background: var(--color-success-bg);
+    }
+
+    .training-title {
+      position: relative;
+      z-index: 1;
+      margin: var(--space-10) 0 var(--space-4);
+      font-size: 25px;
+      line-height: 31px;
+      letter-spacing: -.025em;
+    }
+
+    .training-subtitle { position: relative; z-index: 1; margin: 0; color: #BFC8C1; font-size: 13px; line-height: 19px; }
+
+    .training-body { display: grid; gap: var(--space-12); padding: var(--space-16); }
+
+    .summary-grid,
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-8);
+    }
+
+    .summary-item,
+    .metric-tile {
+      min-width: 0;
+      padding: var(--space-12);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg-card);
+    }
+
+    .summary-label,
+    .metric-label { color: var(--color-text-secondary); font-size: 11px; line-height: 16px; }
+
+    .summary-value,
+    .metric-value {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-4);
+      margin-top: var(--space-4);
+      font-family: var(--font-numeric);
+      font-size: 20px;
+      line-height: 26px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .summary-value small,
+    .metric-value small { color: var(--color-text-tertiary); font-family: var(--font-sans); font-size: 11px; line-height: 16px; font-weight: 400; }
+
+    .metric-status { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-top: var(--space-4); color: var(--color-text-secondary); font-size: 10px; line-height: 15px; }
+    .metric-status strong { color: var(--color-success-fg); }
+
+    .btn {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-8);
+      padding: var(--space-10) var(--space-16);
+      border: 1px solid transparent;
+      border-radius: var(--radius-md);
+      font-size: 15px;
+      line-height: 22px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform var(--duration-instant) ease, opacity var(--duration-fast) ease, background var(--duration-fast) ease;
+    }
+
+    .btn:active { transform: scale(.98); }
+    .btn:disabled { cursor: not-allowed; opacity: .52; }
+    .btn--full { width: 100%; }
+    .btn--primary { min-height: 48px; color: var(--color-on-primary); background: var(--color-primary); border-color: var(--color-primary); box-shadow: var(--shadow-glow); }
+    .btn--primary:hover { background: var(--color-primary-hover); }
+    .btn--secondary { color: var(--color-text-primary); background: var(--color-bg-surface); border-color: var(--color-border); }
+    .btn--ghost { color: var(--color-text-secondary); background: transparent; border-color: transparent; }
+    .btn--danger { color: #FFF7F4; background: var(--color-danger-fg); border-color: var(--color-danger-fg); }
+    .btn--compact { min-height: 44px; padding: var(--space-8) var(--space-12); font-size: 12px; line-height: 18px; }
+
+    .spinner {
+      width: 17px;
+      height: 17px;
+      border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+
+    .switch-row {
+      min-height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-12);
+      padding: var(--space-8) var(--space-10);
+      border: 1px dashed var(--color-border-strong);
+      border-radius: var(--radius-md);
+      background: var(--color-bg-card);
+      cursor: pointer;
+    }
+
+    .switch-copy strong { display: block; font-size: 12px; line-height: 18px; }
+    .switch-copy span { display: block; color: var(--color-text-secondary); font-size: 10px; line-height: 15px; }
+
+    .switch {
+      width: 46px;
+      height: 44px;
+      flex: 0 0 auto;
+      position: relative;
+      border: 0;
+      border-radius: var(--radius-pill);
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .switch::before {
+      content: "";
+      width: 46px;
+      height: 26px;
+      position: absolute;
+      top: 9px;
+      left: 0;
+      border-radius: var(--radius-pill);
+      background: var(--color-border-strong);
+      transition: background var(--duration-fast) ease;
+    }
+
+    .switch::after {
+      content: "";
+      width: 20px;
+      height: 20px;
+      position: absolute;
+      top: 12px;
+      left: 3px;
+      border-radius: 50%;
+      background: var(--color-bg-elevated);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, .18);
+      transition: transform var(--duration-fast) var(--ease-enter);
+    }
+
+    .switch.is-on::before { background: var(--color-primary); }
+    .switch.is-on::after { transform: translateX(20px); }
+
+    .rest-hero,
+    .complete-hero {
+      display: grid;
+      place-items: center;
+      gap: var(--space-8);
+      min-height: 148px;
+      padding: var(--space-20);
+      border-radius: var(--radius-lg);
+      text-align: center;
+    }
+
+    .rest-hero { color: var(--color-info-fg); background: var(--color-info-bg); }
+    .complete-hero { color: var(--color-success-fg); background: var(--color-success-bg); }
+    .hero-icon { width: 58px; height: 58px; }
+    .rest-hero h3, .complete-hero h3 { margin: 0; color: var(--color-text-primary); font-size: 20px; line-height: 28px; }
+    .rest-hero p, .complete-hero p { max-width: 280px; margin: 0; color: var(--color-text-secondary); font-size: 13px; line-height: 20px; }
+
+    .next-session {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-12);
+      padding: var(--space-12);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg-card);
+    }
+
+    .next-session span { color: var(--color-text-secondary); font-size: 11px; }
+    .next-session strong { display: block; margin-top: 2px; font-size: 14px; }
+
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-12); }
+    .field { display: grid; gap: var(--space-6); min-width: 0; }
+    .field--full { grid-column: 1 / -1; }
+    .field label { color: var(--color-text-secondary); font-size: 12px; line-height: 18px; font-weight: 600; }
+
+    .input-wrap { position: relative; }
+    .input-wrap input {
+      width: 100%;
+      height: 44px;
+      padding: 0 44px 0 var(--space-12);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      color: var(--color-text-primary);
+      background: var(--color-bg-card);
+      font-family: var(--font-numeric);
+      font-size: 15px;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      transition: border-color var(--duration-fast) ease, background var(--duration-normal) ease;
+    }
+
+    .input-wrap input:focus { border-color: var(--color-primary); outline: 0; }
+    .input-unit { position: absolute; top: 50%; right: var(--space-12); transform: translateY(-50%); color: var(--color-text-tertiary); font-size: 11px; pointer-events: none; }
+
+    .range-wrap { padding: var(--space-10) var(--space-4) 0; }
+    input[type="range"] { width: 100%; accent-color: var(--color-primary); cursor: pointer; }
+    .range-scale { display: flex; align-items: center; justify-content: space-between; margin-top: var(--space-4); color: var(--color-text-tertiary); font-size: 10px; }
+    .range-value { color: var(--color-primary-pressed); font-weight: 700; }
+
+    .nutrition-summary {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      gap: var(--space-12);
+      padding: var(--space-14, 14px);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg-card);
+    }
+
+    .calorie-value { font-family: var(--font-numeric); font-size: 28px; line-height: 34px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .calorie-value small { color: var(--color-text-tertiary); font-family: var(--font-sans); font-size: 11px; font-weight: 400; }
+    .budget-diff { text-align: right; color: var(--color-success-fg); font-size: 12px; line-height: 18px; font-weight: 700; }
+    .budget-diff.is-over { color: var(--color-warning-fg); }
+
+    .progress-list { display: grid; gap: var(--space-12); }
+    .progress-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); margin-bottom: var(--space-6); color: var(--color-text-secondary); font-size: 11px; line-height: 16px; }
+    .progress-head strong { color: var(--color-text-primary); font-family: var(--font-numeric); font-variant-numeric: tabular-nums; }
+    .progress-track { height: 6px; overflow: hidden; border-radius: var(--radius-pill); background: var(--color-bg-subtle); }
+    .progress-fill { height: 100%; width: 0; border-radius: inherit; transition: width var(--duration-progress) var(--ease-enter); }
+    .progress-fill[data-tone="primary"] { background: var(--color-primary); }
+    .progress-fill[data-tone="protein"] { background: var(--color-protein); }
+    .progress-fill[data-tone="carb"] { background: var(--color-carb); }
+    .progress-fill[data-tone="fat"] { background: var(--color-fat); }
+
+    .saved-total {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: var(--space-12);
+      align-items: center;
+      padding: var(--space-16);
+      border-radius: var(--radius-md);
+      background: var(--color-bg-tint);
+    }
+
+    .saved-total .calorie-value { color: var(--color-text-primary); }
+    .saved-total p { margin: 2px 0 0; color: var(--color-text-secondary); font-size: 11px; line-height: 16px; }
+
+    .bottom-nav {
+      width: min(100%, 390px);
+      min-height: 76px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      position: fixed;
+      left: 50%;
+      bottom: 0;
+      z-index: 40;
+      transform: translateX(-50%);
+      padding: var(--space-6) var(--space-8) max(var(--space-8), env(safe-area-inset-bottom));
+      border-top: 1px solid var(--color-border);
+      background: color-mix(in srgb, var(--color-bg-surface) 92%, transparent);
+      box-shadow: 0 -8px 24px rgba(0, 0, 0, .08);
+      backdrop-filter: blur(16px);
+    }
+
+    .nav-item {
+      min-width: 0;
+      min-height: 56px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      padding: 0;
+      border: 0;
+      border-radius: var(--radius-md);
+      color: var(--color-text-tertiary);
+      background: transparent;
+      font-size: 10px;
+      line-height: 14px;
+      cursor: pointer;
+    }
+
+    .nav-item.is-active { color: var(--color-primary-pressed); font-weight: 700; }
+    [data-theme="dark"] .nav-item.is-active { color: var(--color-primary); }
+    .nav-item.is-active .icon { filter: drop-shadow(0 0 7px rgba(184, 232, 30, .25)); }
+
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-20);
+      background: var(--color-overlay);
+      backdrop-filter: blur(5px);
+    }
+
+    .overlay.is-open { display: flex; animation: fadeIn var(--duration-fast) ease; }
+
+    .dialog {
+      width: min(100%, 350px);
+      padding: var(--space-20);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-xl);
+      background: var(--color-bg-elevated);
+      box-shadow: var(--shadow-elevated);
+      animation: dialogIn var(--duration-normal) var(--ease-enter);
+    }
+
+    .dialog-icon {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      margin-bottom: var(--space-12);
+      border-radius: 50%;
+      color: var(--color-warning-fg);
+      background: var(--color-warning-bg);
+    }
+
+    .dialog h2 { margin: 0; font-size: 20px; line-height: 28px; }
+    .dialog p { margin: var(--space-6) 0 0; color: var(--color-text-secondary); font-size: 13px; line-height: 20px; }
+    .dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-8); margin-top: var(--space-20); }
+
+    .sheet-overlay { align-items: flex-end; padding: 0; }
+    .bottom-sheet {
+      width: min(100%, 390px);
+      padding: var(--space-12) var(--space-20) max(var(--space-24), env(safe-area-inset-bottom));
+      border: 1px solid var(--color-border);
+      border-bottom: 0;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      background: var(--color-bg-elevated);
+      box-shadow: var(--shadow-elevated);
+      animation: sheetIn var(--duration-slow) var(--ease-enter);
+    }
+
+    .sheet-handle { width: 42px; height: 4px; margin: 0 auto var(--space-16); border-radius: var(--radius-pill); background: var(--color-border-strong); }
+    .sheet-title { display: flex; align-items: center; gap: var(--space-10); }
+    .sheet-title h2 { margin: 0; font-size: 20px; line-height: 28px; }
+    .sheet-title p { margin: 2px 0 0; color: var(--color-text-secondary); font-size: 12px; line-height: 18px; }
+    .recovery-list { display: grid; gap: var(--space-8); margin: var(--space-16) 0; }
+    .recovery-item { display: flex; align-items: center; gap: var(--space-10); padding: var(--space-10); border-radius: var(--radius-md); background: var(--color-bg-card); color: var(--color-text-secondary); font-size: 12px; line-height: 18px; }
+    .sheet-actions { display: grid; gap: var(--space-8); }
+
+    .toast {
+      max-width: calc(100% - 40px);
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-8);
+      position: fixed;
+      top: max(18px, env(safe-area-inset-top));
+      left: 50%;
+      z-index: 150;
+      transform: translate(-50%, -140%);
+      padding: var(--space-10) var(--space-14, 14px);
+      border: 1px solid var(--color-success-border);
+      border-radius: var(--radius-pill);
+      color: var(--color-success-fg);
+      background: var(--color-success-bg);
+      box-shadow: var(--shadow-elevated);
+      font-size: 12px;
+      line-height: 18px;
+      font-weight: 700;
+      transition: transform var(--duration-normal) var(--ease-enter);
+    }
+
+    .toast.is-visible { transform: translate(-50%, 0); }
+
+    .hidden { display: none !important; }
+
+    /* High-fidelity mobile shell refinement. */
+    .phone-shell::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 106% 8%, color-mix(in srgb, var(--color-primary) 10%, transparent) 0 92px, transparent 93px),
+        radial-gradient(circle at -18% 45%, color-mix(in srgb, var(--color-primary) 6%, transparent) 0 104px, transparent 105px);
+      opacity: .75;
+    }
+
+    .app-content,
+    .bottom-nav { position: relative; z-index: 1; }
+
+    .app-content {
+      gap: var(--space-20);
+      padding: max(8px, env(safe-area-inset-top)) var(--space-16) 112px;
+    }
+
+    .status-bar {
+      min-height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 var(--space-4);
+      color: var(--color-text-primary);
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 700;
+      letter-spacing: .01em;
+    }
+
+    .status-icons { display: flex; align-items: center; gap: var(--space-6); }
+    .status-signal { display: flex; align-items: flex-end; gap: 2px; height: 11px; }
+    .status-signal i { width: 2px; border-radius: 2px; background: currentColor; }
+    .status-signal i:nth-child(1) { height: 4px; }
+    .status-signal i:nth-child(2) { height: 6px; }
+    .status-signal i:nth-child(3) { height: 8px; }
+    .status-signal i:nth-child(4) { height: 10px; }
+    .status-wifi { width: 14px; height: 10px; position: relative; overflow: hidden; }
+    .status-wifi::before,
+    .status-wifi::after { content: ""; position: absolute; left: 50%; border: 1.5px solid currentColor; border-color: currentColor transparent transparent; border-radius: 50%; transform: translateX(-50%); }
+    .status-wifi::before { width: 14px; height: 14px; top: 1px; }
+    .status-wifi::after { width: 7px; height: 7px; top: 5px; }
+    .status-battery { width: 21px; height: 10px; padding: 1px; position: relative; border: 1px solid currentColor; border-radius: 3px; }
+    .status-battery::before { content: ""; display: block; width: 82%; height: 100%; border-radius: 1px; background: currentColor; }
+    .status-battery::after { content: ""; width: 2px; height: 5px; position: absolute; top: 2px; right: -4px; border-radius: 0 2px 2px 0; background: currentColor; opacity: .55; }
+
+    .app-header { align-items: center; padding-top: 0; }
+    h1 { font-size: 24px; line-height: 30px; letter-spacing: -.025em; }
+    .eyebrow { margin-bottom: var(--space-2); }
+    .plan-picker { min-height: 44px; margin-top: var(--space-8); }
+    .icon-button { border-radius: var(--radius-md); box-shadow: 0 3px 12px rgba(20, 28, 20, .045); }
+
+    .date-strip {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: var(--space-4);
+      padding: var(--space-6);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: color-mix(in srgb, var(--color-bg-surface) 88%, transparent);
+      box-shadow: var(--shadow-card);
+      backdrop-filter: blur(12px);
+    }
+
+    .date-item {
+      min-width: 0;
+      min-height: 52px;
+      display: grid;
+      place-items: center;
+      align-content: center;
+      gap: 2px;
+      border-radius: var(--radius-md);
+      color: var(--color-text-tertiary);
+      font-size: 10px;
+      line-height: 14px;
+    }
+
+    .date-item strong { color: var(--color-text-secondary); font-family: var(--font-numeric); font-size: 14px; line-height: 18px; }
+    .date-item.is-today { color: var(--color-on-primary); background: var(--color-primary); box-shadow: var(--shadow-glow); }
+    .date-item.is-today strong { color: inherit; }
+
+    .prototype-panel { display: none; padding: var(--space-12); border-radius: var(--radius-lg); background: var(--color-bg-elevated); box-shadow: var(--shadow-elevated); }
+    .prototype-panel.is-open { display: block; animation: riseIn var(--duration-fast) var(--ease-enter); }
+    .prototype-toggle.is-active { color: var(--color-on-primary); border-color: var(--color-primary); background: var(--color-primary); }
+
+    .section-card,
+    .prototype-panel { border-radius: 22px; }
+    .section-card { padding: var(--space-20); }
+    .section-card--hero { padding: 0; }
+
+    .notices { gap: var(--space-8); }
+    .notice {
+      align-items: center;
+      gap: var(--space-10);
+      padding: var(--space-12);
+      border-width: 1px;
+      border-radius: var(--radius-lg);
+      box-shadow: none;
+    }
+    .notice > .icon { width: 22px; height: 22px; }
+    .notice[data-tone="primary"] { border-color: color-mix(in srgb, var(--color-primary) 28%, var(--color-border)); }
+    .notice-title { font-size: 13px; line-height: 18px; }
+    .notice-text { margin-top: var(--space-2); font-size: 11px; line-height: 17px; }
+    .notice-action { min-height: 44px; padding-inline: var(--space-8); border-color: color-mix(in srgb, currentColor 45%, transparent); border-radius: var(--radius-sm); }
+
+    .workout-card {
+      overflow: hidden;
+      border-color: color-mix(in srgb, var(--color-border-strong) 72%, transparent);
+      border-radius: var(--radius-xl);
+      box-shadow: 0 12px 32px rgba(20, 28, 20, .11);
+    }
+
+    [data-theme="dark"] .workout-card {
+      border-color: rgba(184, 232, 30, .13);
+      box-shadow: 0 16px 38px rgba(0, 0, 0, .42), 0 0 22px rgba(184, 232, 30, .055);
+    }
+
+    .workout-image-card {
+      min-height: 278px;
+      position: relative;
+      overflow: hidden;
+      color: #F8FAF4;
+      background:
+        radial-gradient(circle at 78% 34%, rgba(184, 232, 30, .2), transparent 24%),
+        linear-gradient(135deg, #27322C 0%, #171E1E 48%, #0B1011 100%);
+      isolation: isolate;
+    }
+
+    .workout-cover {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      inset: 0;
+      z-index: -3;
+      object-fit: cover;
+      object-position: 58% center;
+      transform: scale(1.015);
+    }
+
+    .workout-image-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: -2;
+      background:
+        linear-gradient(180deg, rgba(6, 10, 10, .42) 0%, rgba(6, 10, 10, .08) 34%, rgba(6, 10, 10, .76) 72%, rgba(5, 8, 8, .94) 100%),
+        linear-gradient(90deg, rgba(4, 7, 7, .55) 0%, transparent 68%);
+    }
+
+    .workout-image-card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06);
+    }
+
+    .workout-image-content {
+      min-height: 278px;
+      display: flex;
+      flex-direction: column;
+      padding: var(--space-16);
+    }
+
+    .workout-topline { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
+    .workout-image-card .badge {
+      min-height: 26px;
+      color: #F4F7F1;
+      border-color: rgba(255, 255, 255, .2);
+      background: rgba(14, 19, 18, .42);
+      box-shadow: 0 4px 18px rgba(0, 0, 0, .15);
+      backdrop-filter: blur(12px);
+    }
+    .workout-image-card .badge--intensity { color: #E9FBAA; border-color: rgba(214, 246, 83, .32); background: rgba(40, 54, 25, .56); }
+    .workout-copy { margin-top: auto; }
+    .training-title { margin: 0 0 var(--space-4); font-size: 27px; line-height: 32px; font-weight: 700; letter-spacing: -.03em; text-shadow: 0 2px 12px rgba(0, 0, 0, .42); }
+    .training-subtitle { max-width: 300px; color: rgba(244, 247, 241, .78); font-size: 13px; line-height: 19px; }
+    .workout-meta { display: flex; flex-wrap: wrap; gap: var(--space-6); margin-top: var(--space-12); }
+    .workout-meta .badge { min-height: 24px; padding-inline: var(--space-8); color: rgba(255, 255, 255, .86); font-weight: 500; }
+    .workout-meta .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--color-primary); }
+
+    .training-body { gap: var(--space-10); padding: var(--space-16); background: var(--color-bg-surface); }
+    .training-body .btn--primary { min-height: 52px; }
+    .training-body .btn--secondary { min-height: 48px; }
+    .switch-row { margin-top: var(--space-2); border-style: solid; background: var(--color-bg-card); }
+
+    .section-head { margin-bottom: var(--space-16); }
+    .section-head h2 { font-size: 17px; line-height: 24px; font-weight: 650; }
+    .section-head p { font-size: 12px; line-height: 18px; }
+    .summary-item,
+    .metric-tile { padding: var(--space-14, 14px); border-radius: var(--radius-lg); }
+    .summary-value,
+    .metric-value { font-size: 23px; line-height: 28px; font-weight: 700; }
+    .metric-status { font-size: 11px; line-height: 16px; }
+    .rest-hero,
+    .complete-hero { min-height: 164px; border-radius: var(--radius-lg); }
+    .hero-icon { width: 48px; height: 48px; opacity: .86; }
+    .nutrition-summary,
+    .saved-total { border-radius: var(--radius-lg); }
+    .progress-track { height: 5px; }
+
+    .bottom-nav { min-height: 78px; }
+    .nav-item.is-active { background: color-mix(in srgb, var(--color-primary-subtle) 82%, transparent); }
+    [data-theme="dark"] .nav-item.is-active { background: rgba(184, 232, 30, .09); }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes riseIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes dialogIn { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    @keyframes sheetIn { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+    @media (max-width: 350px) {
+      .app-content { padding-inline: var(--space-16); }
+      .notice { flex-wrap: wrap; }
+      .notice-action { width: 100%; }
+      .segmented button { padding-inline: var(--space-4); font-size: 11px; }
+    }
+
+    @media (min-width: 600px) {
+      body { padding-block: var(--space-24); }
+      .phone-shell { min-height: 844px; border-radius: 30px; }
+      .bottom-nav { bottom: var(--space-24); border-radius: 0 0 30px 30px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
+    }
+
+    /* ==========================================================================
+       FITCORE V2 Mockup Aligned Custom Styles
+       ========================================================================== */
+
+    /* 身体数据与度量指标网格 */
+    .body-metrics-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-8);
+      margin-bottom: var(--space-8);
+    }
+    
+    .body-metrics-grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: var(--space-6);
+    }
+    
+    .metric-tile {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 84px;
+      padding: var(--space-10) var(--space-8);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg-card);
+      transition: background var(--duration-normal) ease, border-color var(--duration-normal) ease;
+    }
+    
+    .metric-tile-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+    }
+    
+    .metric-tile-title {
+      font-size: 11px;
+      color: var(--color-text-secondary);
+      font-weight: 600;
+    }
+    
+    .metric-tile-icon {
+      width: 14px;
+      height: 14px;
+      color: var(--color-text-tertiary);
+    }
+    
+    .metric-tile-value {
+      font-family: var(--font-numeric);
+      font-size: 20px;
+      line-height: 24px;
+      font-weight: 800;
+      color: var(--color-text-primary);
+      margin-top: 4px;
+      font-variant-numeric: tabular-nums;
+      display: flex;
+      align-items: baseline;
+      gap: 1px;
+    }
+    
+    .metric-tile-value small {
+      font-family: var(--font-sans);
+      font-size: 10px;
+      color: var(--color-text-tertiary);
+      font-weight: 500;
+    }
+    
+    .metric-tile-footer {
+      display: flex;
+      align-items: center;
+      font-size: 10px;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+    
+    .metric-tile-footer.good {
+      color: var(--color-success-fg);
+    }
+    
+    .metric-tile-footer.good .icon {
+      width: 10px;
+      height: 10px;
+      stroke-width: 2.5;
+      margin-right: 1px;
+      color: inherit;
+    }
+    
+    .metric-badge {
+      display: inline-block;
+      padding: 1px 5px;
+      border-radius: var(--radius-pill);
+      font-size: 9px;
+      font-weight: 700;
+      margin-top: 2px;
+      line-height: 1;
+    }
+    
+    .metric-badge.good {
+      color: var(--color-success-fg);
+      background: var(--color-success-bg);
+      border: 1px solid var(--color-success-border);
+    }
+
+    /* 录入态 MetricInputTile */
+    .metric-input-tile {
+      display: flex;
+      flex-direction: column;
+      padding: 10px 12px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg-card);
+      transition: all var(--duration-fast) ease;
+    }
+    
+    .metric-input-tile:focus-within {
+      border-color: var(--color-primary);
+      background: var(--color-bg-surface);
+      box-shadow: 0 0 0 1px var(--color-primary), var(--shadow-card);
+    }
+    
+    .metric-input-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 2px;
+    }
+    
+    .metric-input-label {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      font-size: 11px;
+      color: var(--color-text-secondary);
+      font-weight: 600;
+    }
+    
+    .metric-input-label .icon {
+      width: 13px;
+      height: 13px;
+      color: var(--color-text-tertiary);
+    }
+    
+    .metric-input-unit {
+      font-size: 10px;
+      color: var(--color-text-tertiary);
+    }
+    
+    .metric-input-field {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      padding: 0;
+      margin: 0;
+      color: var(--color-text-primary);
+      font-family: var(--font-numeric);
+      font-size: 20px;
+      font-weight: 800;
+      line-height: 24px;
+      font-variant-numeric: tabular-nums;
+    }
+    
+    .metric-input-field:focus {
+      outline: none;
+    }
+
+    /* 疲劳评分卡 V2 */
+    .fatigue-card {
+      padding: var(--space-12) var(--space-14);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-bg-card);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-10);
+    }
+    
+    .fatigue-header-v2 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .fatigue-title-v2 {
+      display: flex;
+      align-items: center;
+      gap: var(--space-6);
+      font-size: 12px;
+      color: var(--color-text-primary);
+      font-weight: 600;
+    }
+    
+    .fatigue-title-v2 .icon {
+      width: 15px;
+      height: 15px;
+      color: var(--color-text-secondary);
+    }
+    
+    .fatigue-badge-v2 {
+      padding: 2px var(--space-8);
+      border-radius: var(--radius-pill);
+      font-size: 10px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      line-height: 1;
+      transition: all var(--duration-fast) ease;
+    }
+    
+    .fatigue-badge-v2.good {
+      color: var(--color-success-fg);
+      background: var(--color-success-bg);
+      border: 1px solid var(--color-success-border);
+    }
+    
+    .fatigue-badge-v2.fair {
+      color: var(--color-warning-fg);
+      background: var(--color-warning-bg);
+      border: 1px solid var(--color-warning-border);
+    }
+    
+    .fatigue-badge-v2.warn {
+      color: var(--color-danger-fg);
+      background: var(--color-danger-bg);
+      border: 1px solid var(--color-danger-border);
+    }
+    
+    .fatigue-badge-v2 .icon {
+      width: 12px;
+      height: 12px;
+    }
+    
+    .fatigue-slider-container {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+    
+    .fatigue-slider-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-12);
+    }
+    
+    .fatigue-val-num {
+      font-family: var(--font-numeric);
+      font-size: 24px;
+      font-weight: 850;
+      color: var(--color-text-primary);
+      min-width: 44px;
+      line-height: 1;
+    }
+    
+    .fatigue-val-num small {
+      font-family: var(--font-sans);
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+      font-weight: 500;
+    }
+    
+    .fatigue-slider-v2 {
+      flex: 1;
+      height: 28px;
+      -webkit-appearance: none;
+      background: transparent;
+      outline: none;
+      margin: 0;
+    }
+    
+    .fatigue-slider-v2::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 6px;
+      background: var(--color-border-strong);
+      border-radius: var(--radius-pill);
+    }
+    
+    .fatigue-slider-v2::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--color-bg-surface);
+      border: 3.5px solid var(--color-primary);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      margin-top: -8px;
+      cursor: pointer;
+      transition: border-color var(--duration-fast) ease, transform var(--duration-instant) ease;
+    }
+    
+    .fatigue-slider-v2::-webkit-slider-thumb:active {
+      transform: scale(1.15);
+    }
+    
+    .fatigue-ticks-v2 {
+      display: flex;
+      justify-content: space-between;
+      padding-inline: 4px;
+      color: var(--color-text-disabled);
+      font-family: var(--font-numeric);
+      font-size: 9px;
+      margin-top: -2px;
+    }
+    
+    .fatigue-labels-v2 {
+      display: flex;
+      justify-content: space-between;
+      color: var(--color-text-tertiary);
+      font-size: 10px;
+      margin-top: 2px;
+    }
+
+    /* 恢复评分卡 */
+    .recovery-score-card {
+      display: flex;
+      align-items: center;
+      gap: var(--space-16);
+      padding: var(--space-14);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-bg-tint);
+      margin-bottom: var(--space-12);
+      transition: background var(--duration-normal) ease, border-color var(--duration-normal) ease;
+    }
+    
+    .recovery-score-ring-wrapper {
+      position: relative;
+      width: 56px;
+      height: 56px;
+      flex-shrink: 0;
+    }
+    
+    .recovery-score-ring-svg {
+      width: 100%;
+      height: 100%;
+    }
+    
+    .recovery-ring-bg {
+      fill: none;
+      stroke: var(--color-border-strong);
+      stroke-width: 3.5;
+    }
+    
+    .recovery-ring-fill {
+      fill: none;
+      stroke: var(--color-success-fg);
+      stroke-width: 3.5;
+      stroke-linecap: round;
+      transition: stroke-dasharray var(--duration-slow) ease;
+    }
+    
+    .recovery-ring-text {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      font-family: var(--font-numeric);
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--color-text-primary);
+    }
+    
+    .recovery-score-details {
+      min-width: 0;
+      flex: 1;
+    }
+    
+    .recovery-score-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--color-text-primary);
+    }
+    
+    .recovery-score-desc {
+      margin: 3px 0 0;
+      color: var(--color-text-secondary);
+      font-size: 11px;
+      line-height: 16px;
+    }
+
+    /* 健康指数评估卡 BMI / WHtR */
+    .health-assessment-card {
+      padding: var(--space-14);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-bg-card);
+      margin-top: var(--space-12);
+    }
+    
+    .health-assessment-title-v2 {
+      font-size: 11px;
+      color: var(--color-text-secondary);
+      font-weight: 600;
+      margin-bottom: var(--space-10);
+    }
+    
+    .health-assessment-item {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      margin-bottom: var(--space-12);
+    }
+    
+    .health-assessment-item:last-child {
+      margin-bottom: 0;
+    }
+    
+    .health-assessment-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+    }
+    
+    .health-assessment-name {
+      color: var(--color-text-secondary);
+      font-weight: 600;
+    }
+    
+    .health-assessment-val {
+      font-family: var(--font-numeric);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--color-text-primary);
+      display: flex;
+      align-items: center;
+      gap: var(--space-6);
+    }
+    
+    .health-scale-wrapper {
+      position: relative;
+      height: 6px;
+      margin-block: 4px;
+    }
+    
+    .health-scale-track {
+      height: 100%;
+      width: 100%;
+      border-radius: var(--radius-pill);
+    }
+    
+    .bmi-scale-track {
+      background: linear-gradient(to right, var(--color-info) 0% 30%, var(--color-success-fg) 30% 65%, var(--color-warning-fg) 65% 85%, var(--color-danger-fg) 85% 100%);
+    }
+    
+    .whtr-scale-track {
+      background: linear-gradient(to right, var(--color-success-fg) 0% 50%, var(--color-warning-fg) 50% 80%, var(--color-danger-fg) 80% 100%);
+    }
+    
+    .health-scale-pointer {
+      position: absolute;
+      top: -3px;
+      width: 12px;
+      height: 12px;
+      background: var(--color-bg-surface);
+      border: 3.5px solid var(--color-text-primary);
+      border-radius: 50%;
+      transform: translateX(-50%);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+      transition: left var(--duration-normal) ease;
+    }
+    
+    .health-scale-labels {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-numeric);
+      color: var(--color-text-disabled);
+      font-size: 8px;
+    }
+
+    /* 卡路里预算对账卡 */
+    .calorie-math-card {
+      padding: var(--space-12) var(--space-14);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-bg-card);
+      margin-bottom: var(--space-12);
+    }
+    
+    .calorie-math-grid {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      align-items: center;
+      text-align: center;
+    }
+    
+    .calorie-math-col {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    
+    .calorie-math-col.remain {
+      background: var(--color-primary-subtle);
+      border-radius: var(--radius-md);
+      padding: var(--space-6) var(--space-4);
+      border: 1px dashed var(--color-primary);
+    }
+    
+    .calorie-math-col.remain.is-over {
+      background: var(--color-danger-bg);
+      border-color: var(--color-danger-border);
+    }
+    
+    .calorie-math-label {
+      color: var(--color-text-tertiary);
+      font-size: 9px;
+      font-weight: 600;
+    }
+    
+    .calorie-math-col.remain .calorie-math-label {
+      color: var(--color-text-secondary);
+    }
+    
+    .calorie-math-val {
+      font-family: var(--font-numeric);
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--color-text-primary);
+      font-variant-numeric: tabular-nums;
+    }
+    
+    .calorie-math-val small {
+      font-family: var(--font-sans);
+      font-size: 9px;
+      color: var(--color-text-tertiary);
+      font-weight: 500;
+    }
+    
+    .calorie-math-col.remain .calorie-math-val {
+      font-size: 18px;
+    }
+    
+    .calorie-math-col.remain.is-over .calorie-math-val {
+      color: var(--color-danger-fg);
+    }
+    
+    .calorie-math-op {
+      font-family: var(--font-numeric);
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--color-text-tertiary);
+      padding-bottom: 12px;
+    }
+
+    /* 营养步进器 Stepper */
+    .macro-stepper-grid {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+      margin-top: var(--space-12);
+    }
+    
+    .macro-stepper-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-10) var(--space-12);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-bg-card);
+      transition: border-color var(--duration-fast) ease, background var(--duration-normal) ease;
+    }
+    
+    .macro-stepper-row:focus-within {
+      border-color: var(--color-primary);
+      background: var(--color-bg-surface);
+    }
+    
+    .macro-stepper-row.protein-accent { border-left: 4px solid var(--color-protein); }
+    .macro-stepper-row.carb-accent { border-left: 4px solid var(--color-carb); }
+    .macro-stepper-row.fat-accent { border-left: 4px solid var(--color-fat); }
+    
+    .macro-stepper-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      text-align: left;
+    }
+    
+    .macro-stepper-label {
+      display: flex;
+      align-items: center;
+      gap: var(--space-6);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--color-text-primary);
+    }
+    
+    .macro-stepper-label .icon {
+      width: 14px;
+      height: 14px;
+    }
+    
+    .macro-stepper-row.protein-accent .macro-stepper-label .icon { color: var(--color-protein); }
+    .macro-stepper-row.carb-accent .macro-stepper-label .icon { color: var(--color-carb); }
+    .macro-stepper-row.fat-accent .macro-stepper-label .icon { color: var(--color-fat); }
+    
+    .macro-stepper-target {
+      font-size: 10px;
+      color: var(--color-text-tertiary);
+    }
+    
+    .macro-stepper-controls {
+      display: flex;
+      align-items: center;
+      gap: var(--space-6);
+    }
+    
+    .macro-stepper-btn {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 1px solid var(--color-border-strong);
+      border-radius: var(--radius-sm);
+      background: var(--color-bg-surface);
+      color: var(--color-text-primary);
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background var(--duration-fast) ease, transform var(--duration-instant) ease;
+    }
+    
+    .macro-stepper-btn:active {
+      transform: scale(0.92);
+    }
+    
+    .macro-stepper-input {
+      width: 56px;
+      height: 32px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-bg-surface);
+      color: var(--color-text-primary);
+      font-family: var(--font-numeric);
+      font-size: 15px;
+      font-weight: 700;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+    
+    .macro-stepper-input:focus {
+      outline: none;
+      border-color: var(--color-primary);
+    }
+    
+    .macro-stepper-unit {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      font-weight: 600;
+      min-width: 12px;
+    }
+
+    /* 休息日与插画 */
+    .rest-cover {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      inset: 0;
+      z-index: -3;
+      object-fit: cover;
+    }
+    
+    .rest-image-card {
+      min-height: 188px;
+      position: relative;
+      overflow: hidden;
+      color: #F8FAF4;
+      background:
+        radial-gradient(circle at 80% 30%, rgba(90, 167, 255, 0.15), transparent 30%),
+        linear-gradient(135deg, #1C232B 0%, #11171D 50%, #090D10 100%);
+      isolation: isolate;
+    }
+    
+    .rest-bg-shapes {
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      opacity: 0.15;
+      background-image: 
+        radial-gradient(circle at 10% 90%, rgba(255, 255, 255, 0.15) 0%, transparent 60%),
+        radial-gradient(circle at 90% 10%, rgba(255, 255, 255, 0.1) 0%, transparent 40%);
+    }
+    
+    .rest-mark {
+      position: absolute;
+      top: 50%;
+      right: -20px;
+      transform: translateY(-50%) rotate(-15deg);
+      color: var(--color-info);
+      opacity: 0.08;
+      pointer-events: none;
+    }
+    
+    .rest-mark .icon {
+      width: 160px;
+      height: 160px;
+    }
+    
+    .badge--recovery {
+      color: var(--color-info-fg) !important;
+      border-color: rgba(90, 167, 255, 0.3) !important;
+      background: rgba(27, 44, 61, 0.5) !important;
+    }
+    
+    .schedule-calendar-tile-v2 {
+      width: 44px;
+      height: 48px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--color-border-strong);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      text-align: center;
+      background: var(--color-bg-surface);
+      box-shadow: var(--shadow-card);
+    }
+    
+    .calendar-header-v2 {
+      background: var(--color-info-fg);
+      color: #FFF;
+      font-size: 8px;
+      font-weight: 700;
+      padding-block: 1px;
+    }
+    
+    [data-theme="dark"] .calendar-header-v2 {
+      background: #31506D;
+    }
+    
+    .calendar-body-v2 {
+      font-family: var(--font-numeric);
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--color-text-primary);
+      flex: 1;
+      display: grid;
+      place-items: center;
+      line-height: 1;
+    }
+    
+    .recovery-advice-card {
+      padding: var(--space-14);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-bg-card);
+      margin-top: var(--space-12);
+      display: flex;
+      gap: var(--space-12);
+      align-items: center;
+    }
+    
+    .recovery-advice-list {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+      text-align: left;
+    }
+    
+    .recovery-advice-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-8);
+      font-size: 12px;
+      color: var(--color-text-secondary);
+    }
+    
+    .recovery-advice-item .icon {
+      width: 14px;
+      height: 14px;
+      color: var(--color-info-fg);
+    }
+    
+    .recovery-illustration-wrapper {
+      width: 90px;
+      height: 80px;
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
+      position: relative;
+    }
+    
+    .recovery-illustration {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* 已完成 Hero V2 */
+    .complete-hero-v2 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-12);
+      padding: var(--space-16);
+      border: 1px solid var(--color-success-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-success-bg);
+      color: var(--color-success-fg);
+      margin-bottom: var(--space-12);
+      text-align: left;
+    }
+    
+    .complete-hero-info {
+      flex: 1;
+    }
+    
+    .complete-hero-info h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--color-text-primary);
+    }
+    
+    .complete-hero-info p {
+      margin: 3px 0 0;
+      font-size: 12px;
+      line-height: 16px;
+      color: var(--color-text-secondary);
+    }
+    
+    .complete-hero-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--color-success-fg) 18%, transparent);
+      color: var(--color-success-fg);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+    
+    .complete-hero-badge .icon {
+      width: 24px;
+      height: 24px;
+      stroke-width: 2.5;
+      color: inherit;
+    }
+    
+    .completed-metrics-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: var(--space-6);
+      margin-bottom: var(--space-12);
+    }
+    
+    .completed-metric-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-8) var(--space-4);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg-card);
+      text-align: center;
+      min-height: 68px;
+    }
+    
+    .completed-metric-val {
+      font-family: var(--font-numeric);
+      font-size: 16px;
+      font-weight: 850;
+      color: var(--color-text-primary);
+      line-height: 1.2;
+    }
+    
+    .completed-metric-label {
+      color: var(--color-text-tertiary);
+      font-size: 9px;
+      margin-top: 2px;
+      font-weight: 600;
+    }
+
+    /* FITCORE V3: reference-aligned body, nutrition and state cards. */
+    .fit-data-section {
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .fit-module-head {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-12);
+      margin-bottom: var(--space-8);
+      padding-inline: var(--space-2);
+    }
+
+    .fit-module-title {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-6);
+      margin: 0;
+      color: var(--color-text-primary);
+      font-size: 18px;
+      line-height: 24px;
+      font-weight: 700;
+      letter-spacing: -.015em;
+    }
+
+    .fit-module-state {
+      color: var(--color-text-tertiary);
+      font-size: 11px;
+      line-height: 16px;
+      font-weight: 500;
+    }
+
+    .fit-module-action {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-4);
+      padding: var(--space-6) var(--space-10);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-pill);
+      color: var(--color-text-secondary);
+      background: color-mix(in srgb, var(--color-bg-surface) 84%, transparent);
+      font-size: 11px;
+      line-height: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .fit-module-action .icon { width: 14px; height: 14px; }
+
+    .body-entry-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-8);
+    }
+
+    .body-entry-card {
+      min-width: 0;
+      min-height: 94px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: var(--space-12);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-bg-surface);
+      box-shadow: var(--shadow-card);
+      transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease, background var(--duration-normal) ease;
+    }
+
+    .body-entry-card:focus-within {
+      border-color: color-mix(in srgb, var(--color-primary) 78%, var(--color-border));
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 16%, transparent), var(--shadow-card);
+    }
+
+    .body-entry-label {
+      display: flex;
+      align-items: center;
+      gap: var(--space-6);
+      color: var(--color-text-secondary);
+      font-size: 11px;
+      line-height: 16px;
+      font-weight: 500;
+    }
+
+    .body-entry-label .icon { width: 15px; height: 15px; color: var(--color-primary-pressed); }
+    [data-theme="dark"] .body-entry-label .icon { color: var(--color-primary); }
+
+    .body-entry-value {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-4);
+      margin-top: var(--space-6);
+    }
+
+    .body-entry-value input {
+      width: 100%;
+      min-width: 0;
+      height: 34px;
+      padding: 0;
+      border: 0;
+      outline: 0;
+      color: var(--color-text-primary);
+      background: transparent;
+      font-family: var(--font-numeric);
+      font-size: 24px;
+      line-height: 30px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .body-entry-value span { flex: 0 0 auto; color: var(--color-text-tertiary); font-size: 11px; }
+
+    .fatigue-entry-card {
+      grid-column: 1 / -1;
+      padding: var(--space-12) var(--space-14);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-bg-surface);
+      box-shadow: var(--shadow-card);
+    }
+
+    .fatigue-entry-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); }
+    .fatigue-entry-name { display: flex; align-items: center; gap: var(--space-6); color: var(--color-text-secondary); font-size: 11px; }
+    .fatigue-entry-name .icon { width: 15px; height: 15px; color: var(--color-primary-pressed); }
+    .fatigue-entry-score { display: flex; align-items: baseline; gap: 2px; color: var(--color-text-primary); font-family: var(--font-numeric); font-size: 24px; line-height: 28px; font-weight: 700; }
+    .fatigue-entry-score small { color: var(--color-text-tertiary); font-family: var(--font-sans); font-size: 11px; font-weight: 400; }
+    .fatigue-entry-status { min-height: 22px; display: inline-flex; align-items: center; padding-inline: var(--space-8); border-radius: var(--radius-pill); color: var(--color-success-fg); background: var(--color-success-bg); font-size: 10px; font-weight: 700; }
+    .fatigue-entry-status[data-level="fair"] { color: var(--color-warning-fg); background: var(--color-warning-bg); }
+    .fatigue-entry-status[data-level="warn"] { color: var(--color-danger-fg); background: var(--color-danger-bg); }
+    .fatigue-entry-card input[type="range"] { height: 30px; margin: var(--space-6) 0 0; }
+    .fatigue-entry-scale { display: flex; justify-content: space-between; color: var(--color-text-tertiary); font-size: 9px; line-height: 14px; }
+
+    .body-saved-primary,
+    .body-saved-secondary { display: grid; gap: var(--space-8); }
+    .body-saved-primary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .body-saved-secondary { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: var(--space-8); }
+
+    .body-stat-card {
+      min-width: 0;
+      min-height: 96px;
+      display: flex;
+      flex-direction: column;
+      padding: var(--space-12) var(--space-10);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-bg-surface);
+      box-shadow: var(--shadow-card);
+    }
+
+    .body-saved-secondary .body-stat-card { min-height: 92px; padding-inline: var(--space-8); }
+    .body-stat-label { overflow: hidden; color: var(--color-text-secondary); font-size: 10px; line-height: 15px; white-space: nowrap; text-overflow: ellipsis; }
+    .body-stat-number { display: flex; align-items: baseline; gap: 3px; margin-top: var(--space-6); color: var(--color-text-primary); font-family: var(--font-numeric); font-size: 23px; line-height: 27px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .body-saved-secondary .body-stat-number { font-size: 20px; line-height: 25px; }
+    .body-stat-number small { color: var(--color-text-tertiary); font-family: var(--font-sans); font-size: 9px; font-weight: 400; }
+    .body-stat-foot { min-height: 18px; display: flex; align-items: center; gap: 3px; margin-top: auto; color: var(--color-success-fg); font-size: 9px; line-height: 14px; font-weight: 600; white-space: nowrap; }
+    .body-stat-foot .icon { width: 11px; height: 11px; }
+    .body-stat-foot.is-neutral { color: var(--color-text-tertiary); }
+    .body-stat-foot.is-warning { color: var(--color-warning-fg); }
+    .body-stat-badge { min-height: 20px; display: inline-flex; align-items: center; align-self: flex-start; margin-top: auto; padding: 2px 7px; border: 1px solid var(--color-success-border); border-radius: var(--radius-pill); color: var(--color-success-fg); background: var(--color-success-bg); font-size: 9px; line-height: 14px; font-weight: 700; }
+
+    .fit-section-save { min-height: 48px; margin-top: var(--space-12); }
+
+    .nutrition-controls { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-8); margin-bottom: var(--space-10); }
+    .nutrition-controls .segmented { min-width: 0; }
+    .nutrition-controls .segmented button { min-height: 44px; padding-inline: var(--space-4); font-size: 10px; }
+
+    .nutrition-ledger-card {
+      padding: var(--space-14);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-bg-surface);
+      box-shadow: var(--shadow-card);
+    }
+
+    .nutrition-ledger-top { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-12); }
+    .nutrition-ledger-label { color: var(--color-text-secondary); font-size: 10px; line-height: 15px; }
+    .nutrition-ledger-value { display: flex; align-items: baseline; gap: var(--space-4); margin-top: 2px; color: var(--color-text-primary); font-family: var(--font-numeric); font-size: 26px; line-height: 31px; font-weight: 700; }
+    .nutrition-ledger-value small { color: var(--color-text-tertiary); font-family: var(--font-sans); font-size: 11px; font-weight: 400; }
+    .nutrition-ledger-percent { color: var(--color-primary-pressed); font-family: var(--font-numeric); font-size: 13px; font-weight: 700; }
+    [data-theme="dark"] .nutrition-ledger-percent { color: var(--color-primary); }
+    .nutrition-ledger-card > .progress-track { margin-top: var(--space-8); }
+
+    .calorie-equation {
+      display: grid;
+      grid-template-columns: 1fr 18px 1fr 18px 1fr;
+      align-items: center;
+      margin-bottom: var(--space-12);
+      padding: var(--space-12) var(--space-8);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-bg-surface);
+      box-shadow: var(--shadow-card);
+    }
+
+    .calorie-equation-item { min-width: 0; text-align: center; }
+    .calorie-equation-label { color: var(--color-text-tertiary); font-size: 9px; line-height: 14px; }
+    .calorie-equation-value { margin-top: 3px; color: var(--color-text-primary); font-family: var(--font-numeric); font-size: 16px; line-height: 21px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .calorie-equation-value small { color: var(--color-text-tertiary); font-family: var(--font-sans); font-size: 8px; font-weight: 400; }
+    .calorie-equation-item.is-result .calorie-equation-value { color: var(--color-primary-pressed); }
+    [data-theme="dark"] .calorie-equation-item.is-result .calorie-equation-value { color: var(--color-primary); }
+    .calorie-equation-item.is-result.is-over .calorie-equation-value { color: var(--color-warning-fg); }
+    .calorie-equation-op { color: var(--color-text-tertiary); text-align: center; font-size: 14px; font-weight: 700; }
+
+    .macro-entry-list { display: grid; gap: var(--space-8); }
+    .macro-entry-row {
+      min-height: 58px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: var(--space-8);
+      padding: var(--space-8) var(--space-10);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg-surface);
+      box-shadow: var(--shadow-card);
+    }
+
+    .macro-entry-copy { min-width: 0; }
+    .macro-entry-name { display: flex; align-items: center; gap: var(--space-6); color: var(--color-text-primary); font-size: 11px; line-height: 16px; font-weight: 600; }
+    .macro-entry-name .icon { width: 14px; height: 14px; }
+    .macro-entry-row[data-tone="protein"] .macro-entry-name .icon { color: var(--color-protein); }
+    .macro-entry-row[data-tone="carb"] .macro-entry-name .icon { color: var(--color-carb); }
+    .macro-entry-row[data-tone="fat"] .macro-entry-name .icon { color: var(--color-fat); }
+    .macro-entry-target { margin-top: 2px; color: var(--color-text-tertiary); font-size: 9px; line-height: 14px; }
+    .macro-entry-control { display: grid; grid-template-columns: 36px 48px 36px 14px; align-items: center; gap: var(--space-4); }
+    .macro-step-button { width: 36px; height: 44px; display: grid; place-items: center; padding: 0; border: 1px solid var(--color-border); border-radius: var(--radius-sm); color: var(--color-text-primary); background: var(--color-bg-card); cursor: pointer; }
+    .macro-step-button .icon { width: 15px; height: 15px; }
+    .macro-entry-input { width: 48px; height: 40px; padding: 0; border: 0; outline: 0; color: var(--color-text-primary); background: transparent; font-family: var(--font-numeric); font-size: 16px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+    .macro-entry-unit { color: var(--color-text-tertiary); font-size: 10px; }
+
+    .nutrition-progress-list { display: grid; gap: var(--space-12); margin-top: var(--space-16); }
+    .nutrition-progress-row { display: grid; grid-template-columns: 78px minmax(0, 1fr) 34px; align-items: center; gap: var(--space-8); }
+    .nutrition-progress-name { color: var(--color-text-secondary); font-size: 10px; line-height: 15px; }
+    .nutrition-progress-name small { display: block; color: var(--color-text-tertiary); font-size: 8px; line-height: 12px; }
+    .nutrition-progress-percent { color: var(--color-primary-pressed); font-family: var(--font-numeric); font-size: 10px; font-weight: 700; text-align: right; }
+    [data-theme="dark"] .nutrition-progress-percent { color: var(--color-primary); }
+
+    .rest-day-card {
+      overflow: hidden;
+      padding: var(--space-14);
+      border: 1px solid var(--color-info-border);
+      border-radius: var(--radius-xl);
+      background: color-mix(in srgb, var(--color-info-bg) 70%, var(--color-bg-surface));
+      box-shadow: var(--shadow-card);
+    }
+
+    .rest-day-heading { display: flex; align-items: center; gap: var(--space-10); padding: var(--space-2) var(--space-2) var(--space-12); }
+    .rest-day-icon { width: 38px; height: 38px; display: grid; place-items: center; flex: 0 0 auto; border-radius: var(--radius-md); color: var(--color-info-fg); background: color-mix(in srgb, var(--color-info-bg) 75%, var(--color-bg-surface)); }
+    .rest-day-icon .icon { width: 22px; height: 22px; }
+    .rest-day-heading h2 { margin: 0; color: var(--color-text-primary); font-size: 16px; line-height: 22px; font-weight: 700; }
+    .rest-day-heading p { margin: 2px 0 0; color: var(--color-text-secondary); font-size: 10px; line-height: 15px; }
+
+    .rest-plan-card { overflow: hidden; padding: var(--space-14); border: 1px solid color-mix(in srgb, var(--color-info-border) 76%, var(--color-border)); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--color-bg-surface) 78%, transparent); }
+    .rest-next-label { color: var(--color-text-secondary); font-size: 10px; line-height: 15px; }
+    .rest-next-date { display: flex; align-items: baseline; gap: var(--space-6); margin-top: 2px; color: var(--color-text-primary); }
+    .rest-next-date strong { font-family: var(--font-numeric); font-size: 22px; line-height: 28px; font-weight: 700; }
+    .rest-next-date span { color: var(--color-text-secondary); font-size: 10px; }
+    .rest-session-chip { min-height: 24px; display: inline-flex; align-items: center; gap: var(--space-4); margin-top: var(--space-6); padding-inline: var(--space-8); border-radius: var(--radius-pill); color: var(--color-info-fg); background: var(--color-info-bg); font-size: 9px; line-height: 14px; font-weight: 700; }
+    .rest-session-chip .icon { width: 12px; height: 12px; }
+    .rest-divider { height: 1px; margin: var(--space-12) 0; background: var(--color-border); }
+    .rest-advice-layout { display: grid; grid-template-columns: minmax(0, 1fr) 112px; align-items: end; gap: var(--space-8); }
+    .rest-advice-title { margin-bottom: var(--space-8); color: var(--color-text-primary); font-size: 11px; line-height: 16px; font-weight: 700; }
+    .rest-advice-list { display: grid; gap: var(--space-6); }
+    .rest-advice-item { display: flex; align-items: center; gap: var(--space-6); color: var(--color-text-secondary); font-size: 9px; line-height: 14px; }
+    .rest-advice-item .icon { width: 13px; height: 13px; color: var(--color-info-fg); }
+    .rest-illustration { height: 112px; position: relative; overflow: hidden; border-radius: var(--radius-lg); color: var(--color-info-fg); background: radial-gradient(circle at 70% 30%, color-mix(in srgb, var(--color-info) 18%, transparent), transparent 38%), linear-gradient(145deg, color-mix(in srgb, var(--color-info-bg) 82%, transparent), color-mix(in srgb, var(--color-bg-card) 78%, transparent)); }
+    .rest-illustration .sofa-icon { width: 70px; height: 70px; position: absolute; right: 4px; bottom: 0; opacity: .48; }
+    .rest-illustration .yoga-icon { width: 42px; height: 42px; position: absolute; left: 9px; bottom: 18px; color: var(--color-primary-pressed); filter: drop-shadow(0 3px 8px rgba(0,0,0,.08)); }
+    .rest-illustration-image { width: 108%; height: 108%; position: absolute; right: -6%; bottom: -6%; z-index: 2; object-fit: contain; object-position: center bottom; filter: drop-shadow(0 8px 12px rgba(20, 28, 20, .1)); }
+    [data-theme="dark"] .rest-illustration-image { filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .26)); }
+
+    .rest-actions { display: grid; gap: var(--space-8); margin-top: var(--space-10); }
+    .rest-actions .btn { min-height: 46px; }
+    .rest-primary-disabled { color: var(--color-text-disabled); border-color: var(--color-border); background: color-mix(in srgb, var(--color-text-disabled) 18%, var(--color-bg-card)); }
+    .rest-extra-button { color: var(--color-text-primary); border-color: var(--color-primary); background: transparent; }
+
+    .complete-day-card {
+      padding: var(--space-14);
+      border: 1px solid color-mix(in srgb, var(--color-primary) 66%, var(--color-border));
+      border-radius: var(--radius-xl);
+      background: color-mix(in srgb, var(--color-primary-subtle) 62%, var(--color-bg-surface));
+      box-shadow: var(--shadow-card);
+    }
+
+    .complete-day-head { display: grid; grid-template-columns: 40px minmax(0, 1fr) 58px; align-items: center; gap: var(--space-10); }
+    .complete-day-mark { width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-primary-pressed); background: color-mix(in srgb, var(--color-primary) 18%, transparent); }
+    .complete-day-mark .icon { width: 23px; height: 23px; }
+    .complete-day-copy h2 { margin: 0; color: var(--color-text-primary); font-size: 16px; line-height: 22px; font-weight: 700; }
+    .complete-day-copy p { margin: 2px 0 0; color: var(--color-text-secondary); font-size: 10px; line-height: 15px; }
+    .complete-check-ring { width: 58px; height: 58px; display: grid; place-items: center; border: 5px solid color-mix(in srgb, var(--color-primary) 78%, var(--color-border)); border-radius: 50%; color: var(--color-primary-pressed); background: color-mix(in srgb, var(--color-bg-surface) 72%, transparent); }
+    .complete-check-ring .icon { width: 30px; height: 30px; stroke-width: 2; }
+
+    .complete-stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: var(--space-14);
+      padding: var(--space-12) var(--space-4);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: color-mix(in srgb, var(--color-bg-surface) 80%, transparent);
+    }
+
+    .complete-stat { min-width: 0; padding-inline: var(--space-5, 5px); text-align: center; border-right: 1px solid var(--color-border); }
+    .complete-stat:last-child { border-right: 0; }
+    .complete-stat-label { color: var(--color-text-tertiary); font-size: 8px; line-height: 12px; white-space: nowrap; }
+    .complete-stat-value { margin-top: var(--space-5, 5px); color: var(--color-text-primary); font-family: var(--font-numeric); font-size: 18px; line-height: 23px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .complete-stat-unit { margin-top: 1px; color: var(--color-text-tertiary); font-size: 8px; line-height: 12px; }
+    .complete-deload-button { min-height: 48px; margin-top: var(--space-12); color: var(--color-text-primary); border-color: var(--color-primary); background: transparent; }
+
+    @media (max-width: 350px) {
+      .body-saved-secondary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .nutrition-controls { grid-template-columns: 1fr; }
+      .macro-entry-control { grid-template-columns: 34px 44px 34px 12px; }
+      .rest-advice-layout { grid-template-columns: 1fr 78px; }
+    }
+
+    /* FITCORE Saved/Recorded State High-Fidelity Custom Styles */
+    #bodyModule,
+    #nutritionModule {
+      --color-text-muted: var(--color-text-tertiary);
+      --color-border-subtle: var(--color-border);
+      --color-success: #3F8E25;
+    }
+
+    [data-theme="dark"] #bodyModule,
+    [data-theme="dark"] #nutritionModule {
+      --color-success: #8EE36A;
+    }
+
+    #bodyModule .fit-module-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    #nutritionModule .fit-module-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    #bodyModule .fit-module-title {
+      font-size: 19px;
+      line-height: 28px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: baseline;
+    }
+
+    #nutritionModule .fit-module-title {
+      font-size: 20px;
+      line-height: 28px;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: baseline;
+    }
+
+    #bodyModule .fit-module-state,
+    #nutritionModule .fit-module-state {
+      font-size: 14px;
+      line-height: 20px;
+      font-weight: 400;
+      margin-left: 8px;
+      color: var(--color-text-muted);
+    }
+
+    #bodyModule .fit-module-action,
+    #nutritionModule .fit-module-action {
+      height: 34px;
+      padding: 0 14px;
+      border-radius: 999px;
+      font-size: 14px;
+      line-height: 20px;
+      font-weight: 500;
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      box-shadow: none;
+      color: var(--color-text-secondary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      cursor: pointer;
+    }
+
+    #bodyModule .fit-module-action:hover,
+    #nutritionModule .fit-module-action:hover {
+      background: var(--color-bg-subtle);
+    }
+
+    #bodyModule.section-card {
+      padding: 20px 22px;
+      border-radius: 22px;
+      margin-bottom: 16px;
+      min-height: unset;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.025);
+      border: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+    }
+
+    #nutritionModule.section-card {
+      padding: 22px 24px 24px;
+      border-radius: 22px;
+      min-height: unset;
+      margin-top: 0;
+      box-shadow: 0 2px 8px rgba(20, 28, 20, 0.02);
+      border: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+    }
+
+    [data-theme="dark"] #bodyModule.section-card,
+    [data-theme="dark"] #nutritionModule.section-card {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+      border: 1px solid var(--color-border);
+    }
+
+    /* 身体数据已保存状态 */
+    #bodySavedView .body-saved-primary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    #bodySavedView .body-saved-secondary {
+      display: grid;
+      grid-template-columns: 1fr 1fr 2fr;
+      gap: 12px;
+    }
+
+    #bodySavedView .body-saved-primary .body-stat-card {
+      min-height: 100px;
+      padding: 14px 15px 13px;
+      border-radius: 16px;
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.02);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-width: 0;
+      position: relative;
+    }
+
+    [data-theme="dark"] #bodySavedView .body-saved-primary .body-stat-card {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+    }
+
+    #bodySavedView .body-saved-secondary .body-stat-card {
+      min-height: 86px;
+      padding: 12px 10px 11px;
+      border-radius: 16px;
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      box-shadow: 0 4px 8px rgba(15, 23, 42, 0.015);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-width: 0;
+      position: relative;
+    }
+
+    [data-theme="dark"] #bodySavedView .body-saved-secondary .body-stat-card {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+    }
+
+    #bodySavedView .body-stat-label {
+      font-size: 12.5px;
+      line-height: 18px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      margin-bottom: 8px;
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+    }
+
+    #bodySavedView .body-stat-number {
+      font-size: 26px;
+      line-height: 30px;
+      font-weight: 650;
+      letter-spacing: -0.035em;
+      color: var(--color-text-primary);
+      display: flex;
+      align-items: baseline;
+      gap: 3px;
+      margin-bottom: 9px;
+      margin-top: 0;
+    }
+
+    #bodySavedView .body-saved-secondary .body-stat-number,
+    #bodySavedView .body-combined-card .body-stat-number {
+      font-size: 23px;
+      line-height: 28px;
+    }
+
+    #bodySavedView .body-stat-foot {
+      font-size: 12px;
+      line-height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      margin-top: auto;
+    }
+
+    #bodySavedView .body-stat-unit {
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 400;
+      color: var(--color-text-muted);
+    }
+
+    #bodySavedView .body-stat-trend {
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 600;
+      color: var(--color-success);
+      display: inline-flex;
+      align-items: center;
+      gap: 1px;
+    }
+
+    #bodySavedView .trend-arrow-icon {
+      width: 11px;
+      height: 11px;
+    }
+
+    #bodySavedView .body-stat-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: auto;
+      min-width: 44px;
+      height: 22px;
+      padding: 0 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 500;
+      color: var(--color-success);
+      background: rgba(94, 177, 91, 0.12);
+      border: 1px solid rgba(94, 177, 91, 0.24);
+      align-self: flex-start;
+      margin-top: auto;
+      white-space: nowrap;
+      word-break: keep-all;
+      writing-mode: horizontal-tb;
+    }
+
+    #bodySavedView .body-stat-badge.is-warn {
+      color: var(--color-danger-fg);
+      background: rgba(238, 120, 73, 0.12);
+      border: 1px solid rgba(238, 120, 73, 0.24);
+    }
+
+    #bodySavedView .metric-illustration-icon {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      object-fit: contain;
+      right: 12px;
+      bottom: 11px;
+    }
+
+    #bodySavedView .body-combined-card {
+      min-height: 86px;
+      padding: 12px 16px 11px;
+      border-radius: 16px;
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      box-shadow: 0 4px 8px rgba(15, 23, 42, 0.015);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
+      column-gap: 14px;
+      align-items: stretch;
+      grid-column: auto;
+    }
+
+    [data-theme="dark"] #bodySavedView .body-combined-card {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+    }
+
+    #bodySavedView .body-combined-half {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: flex-start;
+      min-width: 0;
+    }
+
+    #bodySavedView .body-combined-divider {
+      width: 1px;
+      background: var(--color-border-subtle);
+      opacity: 0.8;
+      align-self: stretch;
+    }
+
+    /* 营养已记录状态 */
+    #nutritionSavedView {
+      --color-primary-strong: var(--color-primary-pressed);
+    }
+
+    #nutritionSavedView .nutrition-ledger-card {
+      padding: 16px 18px;
+      border-radius: 18px;
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.035);
+    }
+
+    [data-theme="dark"] #nutritionSavedView .nutrition-ledger-card {
+      box-shadow: 0 8px 20px rgba(0, 0, 0, .28);
+    }
+
+    #nutritionSavedView .nutrition-card-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    #nutritionSavedView .nutrition-card-title {
+      font-size: 14px;
+      line-height: 20px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+    }
+
+    #nutritionSavedView .nutrition-card-summary {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+
+    #nutritionSavedView .nutrition-value-bold {
+      font-size: 23px;
+      line-height: 28px;
+      font-weight: 650;
+      letter-spacing: -0.035em;
+      color: var(--color-text-primary);
+      font-family: var(--font-numeric);
+    }
+
+    #nutritionSavedView .nutrition-value-slash {
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 400;
+      color: var(--color-text-muted);
+      font-family: var(--font-sans);
+    }
+
+    #nutritionSavedView .nutrition-progress-bar-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    #nutritionSavedView .nutrition-progress-bar-row .progress-track {
+      height: 7px;
+      border-radius: 999px;
+      background: var(--color-bg-subtle);
+      overflow: hidden;
+      width: 100%;
+    }
+
+    #nutritionSavedView .nutrition-progress-bar-row .progress-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: var(--color-primary);
+    }
+
+    #nutritionSavedView .nutrition-ledger-percent {
+      font-size: 14px;
+      line-height: 20px;
+      font-weight: 650;
+      color: var(--color-primary-strong);
+      font-family: var(--font-numeric);
+    }
+
+    #nutritionSavedView .nutrition-progress-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-top: 12px;
+      margin-top: 12px;
+      border-top: 1px solid var(--color-border-subtle);
+    }
+
+    #nutritionSavedView .nutrition-progress-row {
+      display: grid;
+      grid-template-columns: 82px 78px 1fr 38px;
+      align-items: center;
+      column-gap: 10px;
+      min-height: 26px;
+      gap: 0;
+    }
+
+    #nutritionSavedView .nutrition-progress-label {
+      font-size: 13.5px;
+      line-height: 20px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+    }
+
+    #nutritionSavedView .nutrition-progress-value {
+      font-size: 12.5px;
+      line-height: 18px;
+      font-weight: 400;
+      color: var(--color-text-muted);
+      font-family: var(--font-numeric);
+    }
+
+    #nutritionSavedView .nutrition-progress-row .progress-track {
+      height: 6px;
+      border-radius: 999px;
+      background: var(--color-bg-subtle);
+      overflow: hidden;
+    }
+
+    #nutritionSavedView .nutrition-progress-row .progress-fill {
+      height: 100%;
+      border-radius: 999px;
+    }
+
+    #nutritionSavedView .nutrition-progress-percent {
+      font-size: 13px;
+      line-height: 18px;
+      font-weight: 650;
+      text-align: right;
+      font-family: var(--font-numeric);
+    }
+
+    #nutritionSavedView .progress-fill[data-tone="protein"] {
+      background: #4FC36B;
+    }
+
+    #nutritionSavedView .progress-fill[data-tone="carb"] {
+      background: #E6B936;
+    }
+
+    #nutritionSavedView .progress-fill[data-tone="fat"] {
+      background: #F06F45;
+    }
+
+    #nutritionSavedView .nutrition-progress-row[data-tone="protein"] .nutrition-progress-percent {
+      color: #4FAF5F;
+    }
+
+    #nutritionSavedView .nutrition-progress-row[data-tone="carb"] .nutrition-progress-percent {
+      color: #A8B600;
+    }
+
+    #nutritionSavedView .nutrition-progress-row[data-tone="fat"] .nutrition-progress-percent {
+      color: #E85F3F;
+    }
+
+    /* Figma Grid Layout styles */
+    .figma-grid-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 40px;
+      padding: 40px;
+      justify-content: center;
+      background: #f8fafc;
+      min-height: 100vh;
+      font-family: var(--font-sans);
+    }
+    .figma-frame {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .figma-frame-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #475569;
+      background: #e2e8f0;
+      padding: 6px 14px;
+      border-radius: 999px;
+    }
+    .figma-frame iframe {
+      width: 390px;
+      height: 844px;
+      border: none;
+      border-radius: 24px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08), 0 5px 15px rgba(0, 0, 0, 0.05);
+      background: #fff;
+    }
+  </style>
+</head>
+<body>
+  <svg aria-hidden="true" width="0" height="0" style="position:absolute">
+    <symbol id="i-sun" viewBox="0 0 24 24">
+      <path d="M12 18C15.3137 18 18 15.3137 18 12C18 8.68629 15.3137 6 12 6C8.68629 6 6 8.68629 6 12C6 15.3137 8.68629 18 12 18Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M22 12L23 12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 2V1" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 23V22" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M20 20L19 19" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M20 4L19 5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M4 20L5 19" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M4 4L5 5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M1 12L2 12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24">
+      <path d="M3 11.5066C3 16.7497 7.25034 21 12.4934 21C16.2209 21 19.4466 18.8518 21 15.7259C12.4934 15.7259 8.27411 11.5066 8.27411 3C5.14821 4.55344 3 7.77915 3 11.5066Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24">
+      <path d="M6.75469 17.2828L5.32612 7.28284C5.154 6.07798 6.08892 5 7.30602 5H10.694C11.9111 5 12.846 6.07797 12.6739 7.28284L11.2453 17.2828C11.1046 18.2681 10.2607 19 9.26541 19H8.73459C7.73929 19 6.89545 18.2681 6.75469 17.2828Z" stroke="currentColor" stroke-width="1.5"/>
+      <path d="M2 12L6 12M22 12L12 12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-down" viewBox="0 0 24 24">
+      <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-info" viewBox="0 0 24 24">
+      <path d="M12 11.5V16.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 7.51L12.01 7.49889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24">
+      <path d="M20.0429 21H3.95705C2.41902 21 1.45658 19.3364 2.22324 18.0031L10.2662 4.01533C11.0352 2.67792 12.9648 2.67791 13.7338 4.01532L21.7768 18.0031C22.5434 19.3364 21.581 21 20.0429 21Z" stroke="currentColor" stroke-linecap="round"/>
+      <path d="M12 9V13" stroke="currentColor" stroke-linecap="round"/>
+      <path d="M12 17.01L12.01 16.9989" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-dumbbell" viewBox="0 0 24 24">
+      <path d="M7.4 7H4.6C4.26863 7 4 7.26863 4 7.6V16.4C4 16.7314 4.26863 17 4.6 17H7.4C7.73137 17 8 16.7314 8 16.4V7.6C8 7.26863 7.73137 7 7.4 7Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M19.4 7H16.6C16.2686 7 16 7.26863 16 7.6V16.4C16 16.7314 16.2686 17 16.6 17H19.4C19.7314 17 20 16.7314 20 16.4V7.6C20 7.26863 19.7314 7 19.4 7Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M1 14.4V9.6C1 9.26863 1.26863 9 1.6 9H3.4C3.73137 9 4 9.26863 4 9.6V14.4C4 14.7314 3.73137 15 3.4 15H1.6C1.26863 15 1 14.7314 1 14.4Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M23 14.4V9.6C23 9.26863 22.7314 9 22.4 9H20.6C20.2686 9 20 9.26863 20 9.6V14.4C20 14.7314 20.2686 15 20.6 15H22.4C22.7314 15 23 14.7314 23 14.4Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M8 12H16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-play" viewBox="0 0 24 24">
+      <path d="M6.90588 4.53682C6.50592 4.2998 6 4.58808 6 5.05299V18.947C6 19.4119 6.50592 19.7002 6.90588 19.4632L18.629 12.5162C19.0211 12.2838 19.0211 11.7162 18.629 11.4838L6.90588 4.53682Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-skip" viewBox="0 0 24 24">
+      <path d="M18 7V17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M6.97179 5.2672C6.57832 4.95657 6 5.23682 6 5.73813V18.2619C6 18.7632 6.57832 19.0434 6.97179 18.7328L14.9035 12.4709C15.2078 12.2307 15.2078 11.7693 14.9035 11.5291L6.97179 5.2672Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24">
+      <path d="M6 18.4V5.6C6 5.26863 6.26863 5 6.6 5H9.4C9.73137 5 10 5.26863 10 5.6V18.4C10 18.7314 9.73137 19 9.4 19H6.6C6.26863 19 6 18.7314 6 18.4Z" stroke="currentColor" stroke-width="1.5"/>
+      <path d="M14 18.4V5.6C14 5.26863 14.2686 5 14.6 5H17.4C17.7314 5 18 5.26863 18 5.6V18.4C18 18.7314 17.7314 19 17.4 19H14.6C14.2686 19 14 18.7314 14 18.4Z" stroke="currentColor" stroke-width="1.5"/>
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24">
+      <path d="M5 13L9 17L19 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24">
+      <path d="M22 8.86222C22 10.4087 21.4062 11.8941 20.3458 12.9929C17.9049 15.523 15.5374 18.1613 13.0053 20.5997C12.4249 21.1505 11.5042 21.1304 10.9488 20.5547L3.65376 12.9929C1.44875 10.7072 1.44875 7.01723 3.65376 4.73157C5.88044 2.42345 9.50794 2.42345 11.7346 4.73157L11.9998 5.00642L12.2648 4.73173C13.3324 3.6245 14.7864 3 16.3053 3C17.8242 3 19.2781 3.62444 20.3458 4.73157C21.4063 5.83045 22 7.31577 22 8.86222Z" stroke="currentColor" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-utensils" viewBox="0 0 24 24">
+      <path d="M9 18C9 18 9.9 14.2588 12 12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M16.1857 7.24133L16.5601 11.1306C16.8031 13.6536 14.9114 15.9001 12.3883 16.143C9.91266 16.3814 7.67 14.5718 7.43162 12.0962C7.19324 9.62055 9.00691 7.4204 11.4826 7.18203L15.6293 6.78274C15.9096 6.75575 16.1587 6.96107 16.1857 7.24133Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24">
+      <path d="M20 20H4V4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M4 16.5L12 9L15 12L19.5 7.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-user" viewBox="0 0 24 24">
+      <path d="M5 20V19C5 15.134 8.13401 12 12 12V12C15.866 12 19 15.134 19 19V20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 12C14.2091 12 16 10.2091 16 8C16 5.79086 14.2091 4 12 4C9.79086 4 8 5.79086 8 8C8 10.2091 9.79086 12 12 12Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-list" viewBox="0 0 24 24">
+      <path d="M8 6L20 6" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M4 6.01L4.01 5.99889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M4 12.01L4.01 11.9989" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M4 18.01L4.01 17.9989" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M8 12L20 12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M8 18L20 18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24">
+      <path d="M12 6L12 12L18 12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24">
+      <path d="M15 4V2M15 4V6M15 4H10.5M3 10V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V10H3Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M3 10V6C3 4.89543 3.89543 4 5 4H7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M7 2V6" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M21 10V6C21 4.89543 20.1046 4 19 4H18.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-flame" viewBox="0 0 24 24">
+      <path d="M8 18C8 20.4148 9.79086 21 12 21C15.7587 21 17 18.5 14.5 13.5C11 18 10.5 11 11 9C9.5 12 8 14.8177 8 18Z" stroke="currentColor"  stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 21C17.0495 21 20 18.0956 20 13.125C20 8.15444 12 3 12 3C12 3 4 8.15444 4 13.125C4 18.0956 6.95054 21 12 21Z" stroke="currentColor"  stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-bed" viewBox="0 0 24 24">
+      <path d="M21 4V20C21 21.1046 20.1046 22 19 22H5C3.89543 22 3 21.1046 3 20V4C3 2.89543 3.89543 2 5 2H19C20.1046 2 21 2.89543 21 4Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M3 8L11 8L11 6" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M21 8L13 8L13 6" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-walk" viewBox="0 0 24 24">
+      <path d="M12.4409 9.12717L11.0322 14.7618L15.9626 21.1008" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M10.3278 18.2835L8.21484 21.1008" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M8.21484 13.3532C8.21484 9.40889 11.0323 9.12714 12.4409 9.12717L13.8494 9.12714C14.0842 10.301 15.1172 12.7897 17.3711 13.3531" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M13 7C14.1046 7 15 6.10457 15 5C15 3.89543 14.1046 3 13 3C11.8954 3 11 3.89543 11 5C11 6.10457 11.8954 7 13 7Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-weight" viewBox="0 0 24 24">
+      <path d="M16.5 5H20.4C20.7314 5 21 5.26863 21 5.6V20.4C21 20.7314 20.7314 21 20.4 21H3.6C3.26863 21 3 20.7314 3 20.4V5.6C3 5.26863 3.26863 5 3.6 5H7.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M16.2785 6.3288L16.4836 5.09864C16.4944 5.03333 16.4944 4.96667 16.4836 4.90136L16.2785 3.6712C16.1178 2.70683 15.2834 2 14.3057 2H9.69425C8.71658 2 7.8822 2.70683 7.72147 3.6712L7.51644 4.90136C7.50556 4.96667 7.50556 5.03333 7.51644 5.09864L7.72147 6.3288C7.8822 7.29317 8.71658 8 9.69425 8H14.3057C15.2834 8 16.1178 7.29317 16.2785 6.3288Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 8L11 5.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-ruler" viewBox="0 0 24 24">
+      <path d="M16 7V2.6C16 2.26863 15.7314 2 15.4 2H8.6C8.26863 2 8 2.26863 8 2.6V21.4C8 21.7314 8.26863 22 8.6 22H15.4C15.7314 22 16 21.7314 16 21.4V17M16 7H13M16 7V12M16 12H13M16 12V17M16 17H13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24">
+      <path d="M3 12H6L9 3L15 21L18 12H21" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-brain" viewBox="0 0 24 24">
+      <path d="M7 14C5.34315 14 4 15.3431 4 17C4 18.6569 5.34315 20 7 20C7.35064 20 7.68722 19.9398 8 19.8293" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M4.26392 15.6046C2.9243 14.9582 2.00004 13.587 2.00004 12C2.00004 10.7883 2.53877 9.70251 3.38978 8.96898" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M3.42053 8.8882C3.1549 8.49109 3 8.01363 3 7.5C3 6.11929 4.11929 5 5.5 5C6.06291 5 6.58237 5.18604 7.00024 5.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M7.23769 5.56533C7.08524 5.24215 7 4.88103 7 4.5C7 3.11929 8.11929 2 9.5 2C10.8807 2 12 3.11929 12 4.5V20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M8 20C8 21.1046 8.89543 22 10 22C11.1046 22 12 21.1046 12 20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 7C12 8.65685 13.3431 10 15 10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M17 14C18.6569 14 20 15.3431 20 17C20 18.6569 18.6569 20 17 20C16.6494 20 16.3128 19.9398 16 19.8293" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M19.7361 15.6046C21.0757 14.9582 22 13.587 22 12C22 10.7883 21.4612 9.70251 20.6102 8.96898" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M20.5795 8.8882C20.8451 8.49109 21 8.01363 21 7.5C21 6.11929 19.8807 5 18.5 5C17.9371 5 17.4176 5.18604 16.9998 5.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 4.5C12 3.11929 13.1193 2 14.5 2C15.8807 2 17 3.11929 17 4.5C17 4.88103 16.9148 5.24215 16.7623 5.56533" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M16 20C16 21.1046 15.1046 22 14 22C12.8954 22 12 21.1046 12 20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-fish" viewBox="0 0 24 24">
+      <path d="M10.5 9C10.5 9 10.5 7 9.5 5C13.5 5 16 7.49997 16 7.49997C16 7.49997 19.5 7 22 12C21 17.5 16 18 16 18L12 20.5C12 20.5 12 19.5 12 17.5C9.5 16.5 6.99998 14 7 12.5C7.00001 11 10.5 9 10.5 9ZM10.5 9C10.5 9 11.5 8.5 12.5 8.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M2 9.5L3 12.5L2 15.5C2 15.5 7 15.5 7 12.5C7 9.5 2 9.5 2 9.5Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M17 12.01L17.01 11.9989" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-bread" viewBox="0 0 24 24">
+      <path d="M7.00009 20V9C7.00009 9 3.00004 4 9.50009 4H17.0001C24.0002 4 20.0001 9 20.0001 9V18C20.0001 19.1046 19.1047 20 18.0001 20H7.00009Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M7.00009 20H6.00009C4.89552 20 4.00009 19.1046 4.00009 18V9C4.00009 9 4.00543e-05 4 6.50009 4H10.0001" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-droplet" viewBox="0 0 24 24">
+      <path d="M20 14C20 9.58172 12 2 12 2C12 2 4 9.58172 4 14C4 18.4183 7.58172 22 12 22C16.4183 22 20 18.4183 20 14Z" stroke="currentColor"/>
+    </symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24">
+      <path d="M18 8.4C18 6.70261 17.3679 5.07475 16.2426 3.87452C15.1174 2.67428 13.5913 2 12 2C10.4087 2 8.88258 2.67428 7.75736 3.87452C6.63214 5.07475 6 6.70261 6 8.4C6 15.8667 3 18 3 18H21C21 18 18 15.8667 18 8.4Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M13.73 21C13.5542 21.3031 13.3019 21.5547 12.9982 21.7295C12.6946 21.9044 12.3504 21.9965 12 21.9965C11.6496 21.9965 11.3054 21.9044 11.0018 21.7295C10.6982 21.5547 10.4458 21.3031 10.27 21" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24">
+      <path d="M12 4C6 4 6 8 6 10C4.33333 10 1 11 1 15C1 19 4.33333 20 6 20H18C19.6667 20 23 19 23 15C23 11 19.6667 10 18 10C18 8 18 4 12 4Z" stroke="currentColor" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-check-circle" viewBox="0 0 24 24">
+      <path d="M7 12.5L10 15.5L17 8.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-emoji" viewBox="0 0 24 24">
+      <path d="M12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M16.5 14.5C16.5 14.5 15 16.5 12 16.5C9 16.5 7.5 14.5 7.5 14.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M15.5 9C15.2239 9 15 8.77614 15 8.5C15 8.22386 15.2239 8 15.5 8C15.7761 8 16 8.22386 16 8.5C16 8.77614 15.7761 9 15.5 9Z" fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M8.5 9C8.22386 9 8 8.77614 8 8.5C8 8.22386 8.22386 8 8.5 8C8.77614 8 9 8.22386 9 8.5C9 8.77614 8.77614 9 8.5 9Z" fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <!-- Iconoir v7.11 regular icons, inlined for this standalone prototype. -->
+    <symbol id="i-home" viewBox="0 0 24 24">
+      <path d="M2 8L11.7317 3.13416C11.9006 3.04971 12.0994 3.0497 12.2683 3.13416L22 8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M20 11V19C20 20.1046 19.1046 21 18 21H6C4.89543 21 4 20.1046 4 19V11" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-reports" viewBox="0 0 24 24">
+      <path d="M9 21H15M9 21V16M9 21H3.6C3.26863 21 3 20.7314 3 20.4V16.6C3 16.2686 3.26863 16 3.6 16H9M15 21V9M15 21H20.4C20.7314 21 21 20.7314 21 20.4V3.6C21 3.26863 20.7314 3 20.4 3H15.6C15.2686 3 15 3.26863 15 3.6V9M15 9H9.6C9.26863 9 9 9.26863 9 9.6V16" stroke="currentColor"/>
+    </symbol>
+    <symbol id="i-sofa" viewBox="0 0 24 24">
+      <path d="M2 16V19M4 9V7C4 5.89543 4.89543 5 6 5H18C19.1046 5 20 5.89543 20 7V9" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M20 9C18.8954 9 18 9.89543 18 11V13H6V11C6 9.89543 5.10457 9 4 9C2.89543 9 2 9.89543 2 11V17H22V11C22 9.89543 21.1046 9 20 9Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M22 16V19" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-yoga" viewBox="0 0 24 24">
+      <path d="M14.5714 15.0036L15.4286 16.8486C15.4286 16.8486 19.2857 17.6678 19.2857 19.6162C19.2857 21 17.5714 21 17.5714 21H13L10.75 19.75" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M9.42864 15.0036L8.5715 16.8486C8.5715 16.8486 4.71436 17.6678 4.71436 19.6162C4.71436 21 6.42864 21 6.42864 21H8.50007L10.7501 19.75L13.5001 18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M3 15.9261C3 15.9261 5.14286 15.4649 6.42857 15.0036C7.71429 8.54595 11.5714 9.00721 12 9.00721C12.4286 9.00721 16.2857 8.54595 17.5714 15.0036C18.8571 15.4649 21 15.9261 21 15.9261" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="12" cy="5" r="2" stroke="currentColor"/>
+    </symbol>
+    <symbol id="i-trophy" viewBox="0 0 24 24">
+      <path d="M6.74534 4H17.3132C17.3132 4 16.4326 17.2571 12.0293 17.2571C7.62603 17.2571 6.74534 4 6.74534 4Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M17.3132 4C17.3132 4 18.2344 3.01733 19 3C20.5 2.96603 20.7773 4 20.7773 4C21.0709 4.60953 21.3057 6.19429 19.8967 7.65715C18.4876 9.12 16.9103 10.4 16.2684 10.8571M6.74527 4C6.74527 4 5.78547 3.00614 5 3C3.5 2.9883 3.22264 4 3.22264 4C2.92908 4.60953 2.69424 6.19429 4.1033 7.65715C5.51235 9.12001 7.14823 10.4 7.79004 10.8572" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M8.50662 20C8.50662 18.1714 12.0292 17.2571 12.0292 17.2571C12.0292 17.2571 15.5519 18.1714 15.5519 20H8.50662Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24">
+      <path d="M14.3632 5.65156L15.8431 4.17157C16.6242 3.39052 17.8905 3.39052 18.6716 4.17157L20.0858 5.58579C20.8668 6.36683 20.8668 7.63316 20.0858 8.41421L18.6058 9.8942M14.3632 5.65156L4.74749 15.2672C4.41542 15.5993 4.21079 16.0376 4.16947 16.5054L3.92738 19.2459C3.87261 19.8659 4.39148 20.3848 5.0115 20.33L7.75191 20.0879C8.21972 20.0466 8.65806 19.8419 8.99013 19.5099L18.6058 9.8942M14.3632 5.65156L18.6058 9.8942" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M6 12H18M12 6V18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M6 12H18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 3V21M12 21L20.5 12.5M12 21L3.5 12.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-apple" viewBox="0 0 24 24">
+      <path d="M12.1471 21.2646L12 21.2351L11.8529 21.2646C9.47627 21.7399 7.23257 21.4756 5.59352 20.1643C3.96312 18.86 2.75 16.374 2.75 12C2.75 7.52684 3.75792 5.70955 5.08541 5.04581C6.47409 4.35147 8.6964 4.6894 11.7628 5.71153L12.0235 5.79841L12.2785 5.69638C14.7602 4.70367 16.9909 4.3234 18.5578 5.05463C20.0271 5.7403 21.25 7.59326 21.25 12C21.25 16.374 20.0369 18.86 18.4065 20.1643C16.7674 21.4756 14.5237 21.7399 12.1471 21.2646Z" stroke="currentColor"/>
+      <path d="M12 5.5C12 3 11 2 9 2" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+  </svg>
+
+  <main class="phone-shell">
+    <div class="app-content">
+      <div class="status-bar" aria-label="设备状态栏">
+        <span id="statusTime">9:41</span>
+        <span class="status-icons" aria-hidden="true">
+          <span class="status-signal"><i></i><i></i><i></i><i></i></span>
+          <span class="status-wifi"></span>
+          <span class="status-battery"></span>
+        </span>
+      </div>
+
+      <header class="app-header">
+        <div>
+          <p class="eyebrow"><span id="dateText">6月13日</span> · <span id="weekdayText">星期六</span></p>
+          <h1>今日</h1>
+          <div class="plan-picker-wrap">
+            <button class="plan-picker" id="planPicker" type="button" aria-expanded="false">
+              <span id="planName">力量增肌计划</span>
+              <svg class="icon" style="width:14px;height:14px"><use href="#i-down"/></svg>
+            </button>
+            <div class="plan-menu" id="planMenu" role="menu">
+              <button class="plan-option is-active" type="button" data-plan="力量增肌计划">力量增肌计划</button>
+              <button class="plan-option" type="button" data-plan="GZCLP 四日计划">GZCLP 四日计划</button>
+              <button class="plan-option" type="button" data-plan="基础力量周期">基础力量周期</button>
+            </div>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button class="icon-button prototype-toggle" id="prototypeToggle" type="button" aria-label="打开原型状态控制" aria-expanded="false">
+            <svg class="icon"><use href="#i-sliders"/></svg>
+          </button>
+          <button class="icon-button" id="themeToggle" type="button" aria-label="切换为深色模式">
+            <svg class="icon" id="themeIcon"><use href="#i-moon"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <section class="date-strip" id="dateStrip" aria-label="本周日期"></section>
+
+      <section class="prototype-panel" id="prototypePanel" aria-label="原型状态控制">
+        <div class="prototype-label">
+          <strong>原型控制</strong>
+          <span>仅用于视觉与交互验证</span>
+        </div>
+        <div class="control-stack">
+          <div class="segmented" id="trainingStateControl" aria-label="今日状态">
+            <button class="is-active" type="button" data-value="training">训练日</button>
+            <button type="button" data-value="rest">休息日</button>
+            <button type="button" data-value="complete">已完成</button>
+          </div>
+          <div class="segmented" id="noticeStateControl" aria-label="提示示例">
+            <button class="is-active" type="button" data-value="deload">减载提醒</button>
+            <button type="button" data-value="risk">风险预警</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="notices" id="noticeDeck" aria-label="训练提示">
+        <article class="notice" id="deloadNotice" data-tone="primary">
+          <svg class="icon"><use href="#i-info"/></svg>
+          <div class="notice-copy">
+            <h2 class="notice-title">减载周提示</h2>
+            <p class="notice-text">建议从下周一开启，降低训练总量并关注恢复</p>
+          </div>
+          <button class="notice-action" type="button" id="scheduleDeload">从下周一开启</button>
+        </article>
+        <article class="notice" id="riskNotice" data-tone="warning">
+          <svg class="icon"><use href="#i-alert"/></svg>
+          <div class="notice-copy">
+            <h2 class="notice-title">过度训练预警</h2>
+            <p class="notice-text">连续 8 周未减载，注意中枢神经疲劳风险</p>
+          </div>
+          <button class="notice-action" type="button" id="startDeload">立即减载</button>
+        </article>
+      </section>
+
+      <section id="trainingModule" aria-live="polite"></section>
+
+      <section class="section-card fit-data-section" id="bodyModule">
+        <div class="fit-module-head">
+          <h2 class="fit-module-title">身体数据 <span class="fit-module-state" id="bodySectionDesc">（录入中）</span></h2>
+          <button class="fit-module-action" id="bodyModeToggle" type="button"><span id="bodyModeToggleText">已保存 &gt;</span></button>
+        </div>
+
+        <div id="bodyInputView">
+          <div class="body-entry-grid">
+            <label class="body-entry-card" for="bodyWeight">
+              <span class="body-entry-label"><svg class="icon"><use href="#i-weight"/></svg>体重</span>
+              <span class="body-entry-value"><input id="bodyWeight" type="number" inputmode="decimal" min="30" max="250" step="0.1" value="72.6" /><span>kg</span></span>
+            </label>
+            <label class="body-entry-card" for="bodyWaist">
+              <span class="body-entry-label"><svg class="icon"><use href="#i-ruler"/></svg>腰围</span>
+              <span class="body-entry-value"><input id="bodyWaist" type="number" inputmode="decimal" min="40" max="180" step="0.1" value="81" /><span>cm</span></span>
+            </label>
+            <label class="body-entry-card" for="bodyHeartRate">
+              <span class="body-entry-label"><svg class="icon"><use href="#i-activity"/></svg>静息心率</span>
+              <span class="body-entry-value"><input id="bodyHeartRate" type="number" inputmode="numeric" min="35" max="140" step="1" value="56" /><span>bpm</span></span>
+            </label>
+            <label class="body-entry-card" for="bodySleep">
+              <span class="body-entry-label"><svg class="icon"><use href="#i-bed"/></svg>睡眠时长</span>
+              <span class="body-entry-value"><input id="bodySleep" type="number" inputmode="decimal" min="0" max="16" step="0.1" value="7.2" /><span>小时</span></span>
+            </label>
+            <div class="fatigue-entry-card">
+              <div class="fatigue-entry-head">
+                <div>
+                  <div class="fatigue-entry-name"><svg class="icon"><use href="#i-brain"/></svg>主观疲劳度</div>
+                  <div class="fatigue-entry-score"><span id="fatigueValue">3</span><small>/10</small></div>
+                </div>
+                <span class="fatigue-entry-status" id="fatigueStatus" data-level="good">恢复良好</span>
+              </div>
+              <input id="fatigueRange" type="range" min="1" max="10" value="3" aria-label="主观疲劳度 3 / 10" />
+              <div class="fatigue-entry-scale"><span>充沛 1</span><span>适中 5</span><span>疲惫 10</span></div>
+            </div>
+          </div>
+          <button class="btn btn--primary btn--full fit-section-save" id="saveBody" type="button"><svg class="icon"><use href="#i-check"/></svg>保存今日身体数据</button>
+        </div>
+
+        <div id="bodySavedView" class="hidden">
+          <div id="bodyMetricsGrid"></div>
+          <button class="hidden" id="editBody" type="button">编辑今日记录</button>
+        </div>
+      </section>
+
+      <section class="section-card fit-data-section" id="nutritionModule">
+        <div class="fit-module-head">
+          <h2 class="fit-module-title">营养摄入 <span class="fit-module-state" id="nutritionSectionDesc">（记录中）</span></h2>
+          <button class="fit-module-action" id="nutritionModeToggle" type="button"><span id="nutritionModeToggleText">已记录 &gt;</span></button>
+        </div>
+
+        <div id="nutritionInputView">
+          <div class="nutrition-controls">
+            <div class="segmented" id="budgetDayControl" aria-label="今天性质">
+              <button class="is-active" type="button" data-value="training">训练日</button>
+              <button type="button" data-value="rest">休息日</button>
+            </div>
+            <div class="segmented" id="entryModeControl" aria-label="营养录入模式">
+              <button class="is-active" type="button" data-value="grams">克数直录</button>
+              <button type="button" data-value="ratio">比例换算</button>
+            </div>
+          </div>
+
+          <div class="calorie-equation" aria-label="热量预算对账">
+            <div class="calorie-equation-item"><div class="calorie-equation-label">热量预算</div><div class="calorie-equation-value"><span id="liveBudgetTotal">0</span> <small>kcal</small></div></div>
+            <span class="calorie-equation-op">−</span>
+            <div class="calorie-equation-item"><div class="calorie-equation-label">已摄入</div><div class="calorie-equation-value"><span id="liveCalories">0</span> <small>kcal</small></div></div>
+            <span class="calorie-equation-op">=</span>
+            <div class="calorie-equation-item is-result"><div class="calorie-equation-label" id="budgetDiffLabel">剩余</div><div class="calorie-equation-value"><span id="budgetDiff">0</span> <small>kcal</small></div></div>
+          </div>
+
+          <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="liveBudgetProgress" data-tone="primary"></div></div>
+          <strong class="hidden" id="liveBudgetLabel">0 / 0 kcal</strong>
+          <div class="macro-entry-list" id="macroFields" style="margin-top:12px"></div>
+          <button class="btn btn--primary btn--full fit-section-save" id="saveNutrition" type="button"><svg class="icon"><use href="#i-check"/></svg>保存今日营养对账</button>
+        </div>
+
+        <div id="nutritionSavedView" class="hidden">
+          <div class="nutrition-ledger-card">
+            <div class="nutrition-card-header">
+              <span class="nutrition-card-title">热量摄入</span>
+              <div class="nutrition-card-summary">
+                <span class="nutrition-value-bold" id="savedCalories">0</span>
+                <span class="nutrition-value-slash" id="savedBudgetText">/ 0 kcal</span>
+              </div>
+            </div>
+            <div class="nutrition-progress-bar-row">
+              <div class="progress-track"><div class="progress-fill" id="savedCalorieProgress" data-tone="primary"></div></div>
+              <div class="nutrition-ledger-percent" id="savedDifference">0%</div>
+            </div>
+            <div class="nutrition-progress-list" id="savedProgressList"></div>
+          </div>
+          <button class="hidden" id="editNutrition" type="button">编辑今日对账</button>
+        </div>
+      </section>
+    </div>
+
+    <nav class="bottom-nav" aria-label="主导航">
+      <button class="nav-item is-active" type="button"><svg class="icon"><use href="#i-home"/></svg><span>今日</span></button>
+      <button class="nav-item" type="button"><svg class="icon"><use href="#i-dumbbell"/></svg><span>训练</span></button>
+      <button class="nav-item" type="button"><svg class="icon"><use href="#i-reports"/></svg><span>数据</span></button>
+      <button class="nav-item" type="button"><svg class="icon"><use href="#i-user"/></svg><span>我的</span></button>
+    </nav>
+  </main>
+
+  <div class="overlay" id="dialogOverlay" role="presentation">
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle" aria-describedby="dialogDescription">
+      <div class="dialog-icon"><svg class="icon"><use href="#i-alert"/></svg></div>
+      <h2 id="dialogTitle">确认操作</h2>
+      <p id="dialogDescription">这是一个原型确认对话框。</p>
+      <div class="dialog-actions">
+        <button class="btn btn--secondary" id="dialogCancel" type="button">取消</button>
+        <button class="btn btn--primary" id="dialogConfirm" type="button">确认</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="overlay sheet-overlay" id="sheetOverlay" role="presentation">
+    <section class="bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">
+        <svg class="icon" style="width:30px;height:30px;color:var(--color-info-fg)"><use href="#i-walk"/></svg>
+        <div>
+          <h2 id="sheetTitle">今天想加练？</h2>
+          <p>休息日的首要任务仍然是恢复。</p>
+        </div>
+      </div>
+      <div class="recovery-list">
+        <div class="recovery-item"><svg class="icon"><use href="#i-bed"/></svg><span>睡眠不足 7 小时时，建议继续休息。</span></div>
+        <div class="recovery-item"><svg class="icon"><use href="#i-heart"/></svg><span>若疲劳评分高于 6，避免安排高强度训练。</span></div>
+      </div>
+      <div class="sheet-actions">
+        <button class="btn btn--primary btn--full" id="sheetConfirm" type="button">确认进入轻量加练</button>
+        <button class="btn btn--ghost btn--full" id="sheetCancel" type="button">今天继续休息</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <svg class="icon"><use href="#i-check"/></svg>
+    <span id="toastText">操作成功</span>
+  </div>
+
+  <script>
+    const state = {
+      theme: 'light',
+      trainingState: 'training',
+      noticeMode: 'deload',
+      manualDeload: false,
+      nextDeload: false,
+      bodyMode: 'input',
+      nutritionView: 'input',
+      nutritionEntryMode: 'grams',
+      budgetDay: 'training',
+      body: { weight: 72.6, waist: 81, heartRate: 56, sleep: 7.2, fatigue: 3 },
+      grams: { carb: 210, protein: 135, fat: 58 },
+      ratio: { carb: 81, protein: 90, fat: 83 },
+    };
+
+    const workoutMock = {
+      // 日后用同名文件覆盖即可替换封面，无需改动 HTML。
+      imageUrl: './assets/workout-squat-cover.png',
+      imageAlt: '运动员在深色力量训练区进行杠铃深蹲',
+      eyebrow: '今日训练计划',
+      intensityLabel: '中等强度',
+      dayLabel: 'Day A1',
+      title: '下肢力量',
+      subtitle: '深蹲主项、卧推容量与背部辅助',
+      exerciseCount: 6,
+      setCount: 18,
+      durationMinutes: 62,
+    };
+
+    const budgets = {
+      training: { calories: 2200, carb: 260, protein: 150, fat: 70 },
+      rest: { calories: 1900, carb: 180, protein: 150, fat: 65 },
+    };
+
+    const $ = (selector) => document.querySelector(selector);
+    const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+    const icon = (name, className = '') => `<svg class="icon ${className}"><use href="#i-${name}"/></svg>`;
+
+    function setToday() {
+      const now = new Date();
+      $('#dateText').textContent = now.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' });
+      $('#weekdayText').textContent = now.toLocaleDateString('zh-CN', { weekday: 'long' });
+      const weekNames = ['日', '一', '二', '三', '四', '五', '六'];
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+      $('#dateStrip').innerHTML = Array.from({ length: 7 }, (_, index) => {
+        const date = new Date(weekStart);
+        date.setDate(weekStart.getDate() + index);
+        const isToday = date.toDateString() === now.toDateString();
+        return `<span class="date-item ${isToday ? 'is-today' : ''}" ${isToday ? 'aria-current="date"' : ''}><span>周${weekNames[date.getDay()]}</span><strong>${date.getDate()}</strong></span>`;
+      }).join('');
+    }
+
+    function setSegmentedValue(container, value) {
+      container.querySelectorAll('button').forEach((button) => {
+        const active = button.dataset.value === value;
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
+    }
+
+    function showToast(message) {
+      const toast = $('#toast');
+      $('#toastText').textContent = message;
+      toast.classList.add('is-visible');
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => toast.classList.remove('is-visible'), 2200);
+    }
+
+    function setTheme(theme) {
+      state.theme = theme;
+      document.documentElement.dataset.theme = theme;
+      const dark = theme === 'dark';
+      $('#themeIcon').innerHTML = `<use href="#i-${dark ? 'sun' : 'moon'}"/>`;
+      $('#themeToggle').setAttribute('aria-label', dark ? '切换为浅色模式' : '切换为深色模式');
+    }
+
+    function renderNotices() {
+      $('#deloadNotice').classList.toggle('hidden', state.noticeMode === 'risk');
+      $('#riskNotice').classList.toggle('hidden', state.noticeMode === 'deload');
+      setSegmentedValue($('#noticeStateControl'), state.noticeMode);
+    }
+
+    function trainingTemplate() {
+      const intensityLabel = state.manualDeload ? '减载期' : workoutMock.intensityLabel;
+      return `
+        <article class="section-card section-card--hero workout-card">
+          <div class="workout-image-card">
+            <img class="workout-cover" src="${workoutMock.imageUrl}" alt="${workoutMock.imageAlt}" onerror="this.remove()" />
+            <div class="workout-image-overlay" aria-hidden="true"></div>
+            <div class="workout-image-content">
+              <div class="workout-topline">
+                <span class="badge">${workoutMock.eyebrow}</span>
+                <span class="badge badge--intensity">${intensityLabel}</span>
+              </div>
+              <div class="workout-copy">
+                <h2 class="training-title">${workoutMock.dayLabel} · ${workoutMock.title}</h2>
+                <p class="training-subtitle">${workoutMock.subtitle}</p>
+                <div class="workout-meta" aria-label="训练摘要">
+                  <span class="badge"><span class="dot"></span>${workoutMock.exerciseCount} 个动作</span>
+                  <span class="badge"><span class="dot"></span>${workoutMock.setCount} 组</span>
+                  <span class="badge"><span class="dot"></span>${workoutMock.durationMinutes} 分钟</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="training-body">
+            <button class="btn btn--primary btn--full" id="startTraining" type="button">${icon('play')}<span>开始今日训练</span></button>
+            <button class="btn btn--secondary btn--full" id="skipTraining" type="button">${icon('skip')}<span>跳过今天（顺延）</span></button>
+            <div class="switch-row" id="manualDeloadRow" role="button" tabindex="0" aria-label="本次训练手动减载">
+              <div class="switch-copy"><strong>本次训练手动减载（减量）</strong><span>${state.manualDeload ? '已启用：今日强度与总量将下调' : '保持常规计划强度'}</span></div>
+              <button class="switch ${state.manualDeload ? 'is-on' : ''}" id="manualDeloadSwitch" type="button" role="switch" aria-checked="${state.manualDeload}" aria-label="切换本次训练手动减载"></button>
+            </div>
+          </div>
+        </article>`;
+    }
+
+    function restTemplate() {
+      return `
+        <article class="rest-day-card">
+          <div class="rest-day-heading">
+            <span class="rest-day-icon">${icon('cloud')}</span>
+            <div><h2>今天是休息日</h2><p>好好恢复，身体正在变强。</p></div>
+          </div>
+          <div class="rest-plan-card">
+            <div class="rest-next-label">下次训练日</div>
+            <div class="rest-next-date"><strong>6 月 15 日</strong><span>（周一）</span></div>
+            <span class="rest-session-chip">${icon('dumbbell')}上肢推（力量）</span>
+            <div class="rest-divider"></div>
+            <div class="rest-advice-layout">
+              <div>
+                <div class="rest-advice-title">恢复建议</div>
+                <div class="rest-advice-list">
+                  <div class="rest-advice-item">${icon('moon')}睡眠：保证 7–9 小时</div>
+                  <div class="rest-advice-item">${icon('apple')}营养：保持蛋白质摄入</div>
+                  <div class="rest-advice-item">${icon('walk')}活动：轻度拉伸或散步</div>
+                </div>
+              </div>
+              <div class="rest-illustration" aria-hidden="true">
+                <svg class="icon sofa-icon"><use href="#i-sofa"/></svg>
+                <svg class="icon yoga-icon"><use href="#i-yoga"/></svg>
+                <img class="rest-illustration-image" src="./assets/rest-day-illustration.png" alt="" onerror="this.remove()" />
+              </div>
+            </div>
+          </div>
+          <div class="rest-actions">
+            <button class="btn btn--full rest-primary-disabled" type="button" disabled>${icon('check-circle')}今日休息</button>
+            <button class="btn btn--full rest-extra-button" id="extraTraining" type="button">${icon('dumbbell')}想加练？</button>
+          </div>
+        </article>`;
+    }
+
+    function completeTemplate() {
+      return `
+        <article class="complete-day-card">
+          <div class="complete-day-head">
+            <span class="complete-day-mark">${icon('trophy')}</span>
+            <div class="complete-day-copy"><h2>今日训练已完成</h2><p>干得漂亮，继续保持！</p></div>
+            <span class="complete-check-ring">${icon('check')}</span>
+          </div>
+          <div class="complete-stats" aria-label="今日训练完成摘要">
+            <div class="complete-stat"><div class="complete-stat-label">训练组数</div><div class="complete-stat-value">18</div><div class="complete-stat-unit">总组数</div></div>
+            <div class="complete-stat"><div class="complete-stat-label">训练容量</div><div class="complete-stat-value">8,640</div><div class="complete-stat-unit">kg</div></div>
+            <div class="complete-stat"><div class="complete-stat-label">训练时长</div><div class="complete-stat-value">62</div><div class="complete-stat-unit">分钟</div></div>
+            <div class="complete-stat"><div class="complete-stat-label">预计消耗</div><div class="complete-stat-value">612</div><div class="complete-stat-unit">kcal</div></div>
+          </div>
+          <button class="btn btn--full complete-deload-button" id="nextDeload" type="button"><span>${state.nextDeload ? '已预设下次训练为减载期' : '预设下次训练为减载期'}</span>${icon('calendar')}</button>
+        </article>`;
+    }
+
+    function renderTraining() {
+      const module = $('#trainingModule');
+      module.innerHTML = state.trainingState === 'training'
+        ? trainingTemplate()
+        : state.trainingState === 'rest' ? restTemplate() : completeTemplate();
+      setSegmentedValue($('#trainingStateControl'), state.trainingState);
+
+      if (state.trainingState === 'training') {
+        $('#startTraining').addEventListener('click', startTrainingDemo);
+        $('#skipTraining').addEventListener('click', () => openDialog({
+          title: '跳过今天的训练？',
+          description: '确认后训练计划将自动顺延一天。本原型只演示确认流程，不会保存任何数据。',
+          confirmText: '确认顺延',
+          onConfirm: () => showToast('已模拟顺延今日训练'),
+        }));
+        const toggleDeload = () => {
+          state.manualDeload = !state.manualDeload;
+          renderTraining();
+          showToast(state.manualDeload ? '本次训练已设为减载' : '已恢复常规训练强度');
+        };
+        $('#manualDeloadSwitch').addEventListener('click', (event) => { event.stopPropagation(); toggleDeload(); });
+        $('#manualDeloadRow').addEventListener('click', toggleDeload);
+        $('#manualDeloadRow').addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleDeload(); } });
+      } else if (state.trainingState === 'rest') {
+        $('#extraTraining').addEventListener('click', openExtraTrainingSheet);
+      } else {
+        $('#nextDeload').addEventListener('click', () => {
+          state.nextDeload = !state.nextDeload;
+          renderTraining();
+          showToast(state.nextDeload ? '已预设下次训练减载' : '已取消下次减载预设');
+        });
+      }
+    }
+
+    function startTrainingDemo() {
+      const button = $('#startTraining');
+      if (!button || button.disabled) return;
+      button.disabled = true;
+      button.innerHTML = '<span class="spinner"></span><span>正在准备训练...</span>';
+      setTimeout(() => {
+        button.innerHTML = `${icon('check')}<span>训练已准备</span>`;
+        showToast('Loading 与按压反馈验证完成');
+        setTimeout(() => {
+          if (!$('#startTraining')) return;
+          button.disabled = false;
+          button.innerHTML = `${icon('play')}<span>开始今日训练</span>`;
+        }, 900);
+      }, 1100);
+    }
+
+    let dialogConfirmHandler = null;
+
+    function openDialog({ title, description, confirmText, onConfirm }) {
+      $('#dialogTitle').textContent = title;
+      $('#dialogDescription').textContent = description;
+      $('#dialogConfirm').textContent = confirmText;
+      dialogConfirmHandler = onConfirm;
+      $('#dialogOverlay').classList.add('is-open');
+      document.body.style.overflow = 'hidden';
+      $('#dialogCancel').focus();
+    }
+
+    function closeDialog() {
+      $('#dialogOverlay').classList.remove('is-open');
+      document.body.style.overflow = '';
+    }
+
+    function openExtraTrainingSheet() {
+      $('#sheetOverlay').classList.add('is-open');
+      document.body.style.overflow = 'hidden';
+      $('#sheetCancel').focus();
+    }
+
+    function closeExtraTrainingSheet() {
+      $('#sheetOverlay').classList.remove('is-open');
+      document.body.style.overflow = '';
+    }
+
+    function readBodyInputs() {
+      state.body = {
+        weight: Number($('#bodyWeight').value) || 0,
+        waist: Number($('#bodyWaist').value) || 0,
+        heartRate: Number($('#bodyHeartRate').value) || 0,
+        sleep: Number($('#bodySleep').value) || 0,
+        fatigue: Number($('#fatigueRange').value) || 1,
+      };
+    }
+
+    function updateFatigueDisplay(value) {
+      const fatigue = Number(value);
+      const status = fatigue <= 3
+        ? { label: '恢复良好', level: 'good' }
+        : fatigue <= 6
+          ? { label: '状态一般', level: 'fair' }
+          : { label: '注意恢复', level: 'warn' };
+      $('#fatigueValue').textContent = fatigue;
+      $('#fatigueStatus').textContent = status.label;
+      $('#fatigueStatus').dataset.level = status.level;
+      $('#fatigueRange').setAttribute('aria-label', `主观疲劳度 ${fatigue} / 10`);
+    }
+
+    function renderBodySaved() {
+      const bmi = state.body.weight > 0 ? state.body.weight / (1.75 * 1.75) : 0;
+      const whtr = state.body.waist > 0 ? state.body.waist / 175 : 0;
+      const bmiStatus = bmi >= 18.5 && bmi < 24 ? '正常' : '关注';
+      const whtrStatus = whtr < .5 ? '优秀' : '关注';
+      const bmiClass = bmi >= 18.5 && bmi < 24 ? 'is-success' : 'is-warn';
+      const whtrClass = whtr < .5 ? 'is-success' : 'is-warn';
+      
+      $('#bodyMetricsGrid').innerHTML = `
+        <div class="body-saved-primary">
+          ${bodyStatCard('体重', state.body.weight.toFixed(1), 'kg', `${icon('arrow-down', 'trend-arrow-icon')}0.6`)}
+          ${bodyStatCard('腰围', state.body.waist.toFixed(1), 'cm', `${icon('arrow-down', 'trend-arrow-icon')}1.0`)}
+          ${bodyStatCard('静息心率', state.body.heartRate, 'bpm', `${icon('arrow-down', 'trend-arrow-icon')}3`)}
+        </div>
+        <div class="body-saved-secondary">
+          ${bodyStatCard('睡眠时长', state.body.sleep.toFixed(1), '小时', '', 'is-sleep')}
+          ${bodyStatCard('疲劳评分', state.body.fatigue, '/10', '', 'is-fatigue')}
+          ${bodyCombinedCard(bmi.toFixed(1), bmiStatus, bmiClass, whtr.toFixed(2), whtrStatus, whtrClass)}
+        </div>`;
+    }
+
+    function bodyStatCard(label, value, footerLeft, footerRight, footerClass = '', badge = false) {
+      let illustrationHtml = '';
+      if (label === '睡眠时长') {
+        illustrationHtml = `<img class="metric-illustration-icon" src="assets/icons/fluent-emoji/moon-recovery.svg" alt="" />`;
+      } else if (label === '疲劳评分') {
+        illustrationHtml = `<img class="metric-illustration-icon" src="assets/icons/fluent-emoji/smile-fatigue.svg" alt="" />`;
+      }
+      return `
+        <div class="body-stat-card ${footerClass}">
+          <div class="body-stat-label">${label}</div>
+          <div class="body-stat-number">${value}</div>
+          ${badge
+            ? `<span class="body-stat-badge ${footerClass}">${footerRight}</span>`
+            : `
+              <div class="body-stat-foot ${footerClass}">
+                <span class="body-stat-unit">${footerLeft}</span>
+                <span class="body-stat-trend">${footerRight}</span>
+              </div>
+            `}
+          ${illustrationHtml}
+        </div>`;
+    }
+
+    function bodyCombinedCard(bmiValue, bmiStatus, bmiClass, whtrValue, whtrStatus, whtrClass) {
+      return `
+        <div class="body-combined-card">
+          <div class="body-combined-half">
+            <div class="body-stat-label">BMI</div>
+            <div class="body-stat-number">${bmiValue}</div>
+            <span class="body-stat-badge ${bmiClass}">${bmiStatus}</span>
+          </div>
+          <div class="body-combined-divider"></div>
+          <div class="body-combined-half">
+            <div class="body-stat-label">WHtR</div>
+            <div class="body-stat-number">${whtrValue}</div>
+            <span class="body-stat-badge ${whtrClass}">${whtrStatus}</span>
+          </div>
+        </div>`;
+    }
+
+    function setBodyMode(mode) {
+      state.bodyMode = mode;
+      const saved = mode === 'saved';
+      $('#bodyInputView').classList.toggle('hidden', saved);
+      $('#bodySavedView').classList.toggle('hidden', !saved);
+      $('#bodyModeToggleText').textContent = saved ? '趋势 >' : '已保存 >';
+      $('#bodySectionDesc').textContent = saved ? '（已保存）' : '（录入中）';
+      if (saved) renderBodySaved();
+    }
+
+    function currentNutrition() {
+      const budget = budgets[state.budgetDay];
+      const values = state.nutritionEntryMode === 'grams'
+        ? { ...state.grams }
+        : {
+            carb: budget.carb * state.ratio.carb / 100,
+            protein: budget.protein * state.ratio.protein / 100,
+            fat: budget.fat * state.ratio.fat / 100,
+          };
+      const calories = Math.round(values.carb * 4 + values.protein * 4 + values.fat * 9);
+      return { budget, values, calories, difference: budget.calories - calories };
+    }
+
+    function renderMacroFields() {
+      const ratioMode = state.nutritionEntryMode === 'ratio';
+      const source = ratioMode ? state.ratio : state.grams;
+      const fields = [
+        ['protein', '蛋白质', 'fish', 'protein'],
+        ['carb', '碳水化合物', 'bread', 'carb'],
+        ['fat', '脂肪', 'droplet', 'fat'],
+      ];
+      const budget = budgets[state.budgetDay];
+      const unit = ratioMode ? '%' : 'g';
+      $('#macroFields').innerHTML = fields.map(([key, label, iconName, tone]) => `
+        <div class="macro-entry-row" data-tone="${tone}">
+          <div class="macro-entry-copy">
+            <div class="macro-entry-name">${icon(iconName)}${label}</div>
+            <div class="macro-entry-target">${ratioMode ? `目标换算 ${budget[key]} g` : `目标 ${budget[key]} g`}</div>
+          </div>
+          <div class="macro-entry-control">
+            <button class="macro-step-button" type="button" data-step="-1" data-key="${key}" aria-label="减少${label}">${icon('minus')}</button>
+            <input class="macro-entry-input" id="macro-${key}" data-macro="${key}" type="number" inputmode="decimal" min="0" step="1" value="${Math.round(source[key])}" aria-label="${label}" />
+            <button class="macro-step-button" type="button" data-step="1" data-key="${key}" aria-label="增加${label}">${icon('plus')}</button>
+            <span class="macro-entry-unit">${unit}</span>
+          </div>
+        </div>`).join('');
+      $$('[data-macro]').forEach((input) => input.addEventListener('input', (event) => {
+        const target = state.nutritionEntryMode === 'ratio' ? state.ratio : state.grams;
+        target[event.currentTarget.dataset.macro] = Math.max(0, Number(event.currentTarget.value) || 0);
+        updateNutritionLive();
+      }));
+      $$('[data-step]').forEach((button) => button.addEventListener('click', () => {
+        const target = state.nutritionEntryMode === 'ratio' ? state.ratio : state.grams;
+        const key = button.dataset.key;
+        const amount = state.nutritionEntryMode === 'ratio' ? 5 : 5;
+        target[key] = Math.max(0, Number(target[key]) + Number(button.dataset.step) * amount);
+        renderNutritionInput();
+      }));
+    }
+
+    function updateNutritionLive() {
+      const { budget, calories, difference } = currentNutrition();
+      const percentage = Math.min(calories / budget.calories * 100, 100);
+      $('#liveBudgetTotal').textContent = budget.calories.toLocaleString('zh-CN');
+      $('#liveCalories').textContent = calories.toLocaleString('zh-CN');
+      $('#liveBudgetLabel').textContent = `${calories.toLocaleString('zh-CN')} / ${budget.calories.toLocaleString('zh-CN')} kcal`;
+      $('#liveBudgetProgress').style.width = `${percentage}%`;
+      const diff = $('#budgetDiff');
+      diff.textContent = Math.abs(difference).toLocaleString('zh-CN');
+      $('#budgetDiffLabel').textContent = difference >= 0 ? '剩余' : '超出';
+      diff.closest('.calorie-equation-item').classList.toggle('is-over', difference < 0);
+    }
+
+    function renderNutritionInput() {
+      setSegmentedValue($('#budgetDayControl'), state.budgetDay);
+      setSegmentedValue($('#entryModeControl'), state.nutritionEntryMode);
+      renderMacroFields();
+      updateNutritionLive();
+    }
+
+    function progressRow(label, value, target, tone) {
+      const percentage = Math.round(value / target * 100);
+      return `
+        <div class="nutrition-progress-row" data-tone="${tone}">
+          <div class="nutrition-progress-label">${label}</div>
+          <div class="nutrition-progress-value">${Math.round(value)} / ${target} g</div>
+          <div class="progress-track"><div class="progress-fill" data-tone="${tone}" style="width:${Math.min(percentage, 100)}%"></div></div>
+          <div class="nutrition-progress-percent">${percentage}%</div>
+        </div>`;
+    }
+
+    function renderNutritionSaved() {
+      const { budget, values, calories, difference } = currentNutrition();
+      const percentage = Math.round(calories / budget.calories * 100);
+      $('#savedCalories').textContent = calories.toLocaleString('zh-CN');
+      $('#savedBudgetText').textContent = `/ ${budget.calories.toLocaleString('zh-CN')} kcal`;
+      const differenceBadge = $('#savedDifference');
+      differenceBadge.textContent = `${percentage}%`;
+      differenceBadge.title = difference >= 0 ? `还可摄入 ${difference} kcal` : `已超出 ${Math.abs(difference)} kcal`;
+      differenceBadge.style.color = difference >= 0 ? '' : 'var(--color-warning-fg)';
+      $('#savedCalorieProgress').style.width = `${Math.min(percentage, 100)}%`;
+      $('#savedProgressList').innerHTML = [
+        progressRow('蛋白质', values.protein, budget.protein, 'protein'),
+        progressRow('碳水化合物', values.carb, budget.carb, 'carb'),
+        progressRow('脂肪', values.fat, budget.fat, 'fat'),
+      ].join('');
+    }
+
+    function setNutritionView(view) {
+      state.nutritionView = view;
+      const saved = view === 'saved';
+      $('#nutritionInputView').classList.toggle('hidden', saved);
+      $('#nutritionSavedView').classList.toggle('hidden', !saved);
+      $('#nutritionModeToggleText').textContent = saved ? '记录 >' : '已记录 >';
+      $('#nutritionSectionDesc').textContent = saved ? '（已记录）' : '（记录中）';
+      if (saved) renderNutritionSaved(); else renderNutritionInput();
+    }
+
+    function bindSegmented(container, onChange) {
+      container.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-value]');
+        if (!button) return;
+        onChange(button.dataset.value);
+      });
+    }
+
+    setToday();
+    setTheme('light');
+    renderNotices();
+    renderTraining();
+    renderNutritionInput();
+    updateFatigueDisplay(state.body.fatigue);
+
+    $('#themeToggle').addEventListener('click', () => setTheme(state.theme === 'light' ? 'dark' : 'light'));
+
+    $('#prototypeToggle').addEventListener('click', () => {
+      const panel = $('#prototypePanel');
+      const open = panel.classList.toggle('is-open');
+      $('#prototypeToggle').classList.toggle('is-active', open);
+      $('#prototypeToggle').setAttribute('aria-expanded', String(open));
+      $('#prototypeToggle').setAttribute('aria-label', open ? '关闭原型状态控制' : '打开原型状态控制');
+    });
+
+    bindSegmented($('#trainingStateControl'), (value) => {
+      state.trainingState = value;
+      renderTraining();
+      if (value === 'complete') {
+        readBodyInputs();
+        setBodyMode('saved');
+        setNutritionView('saved');
+      } else {
+        setBodyMode('input');
+        setNutritionView('input');
+      }
+    });
+    bindSegmented($('#noticeStateControl'), (value) => { state.noticeMode = value; renderNotices(); });
+    bindSegmented($('#budgetDayControl'), (value) => { state.budgetDay = value; renderNutritionInput(); });
+    bindSegmented($('#entryModeControl'), (value) => { state.nutritionEntryMode = value; renderNutritionInput(); });
+
+    $('#planPicker').addEventListener('click', () => {
+      const menu = $('#planMenu');
+      const open = menu.classList.toggle('is-open');
+      $('#planPicker').setAttribute('aria-expanded', String(open));
+    });
+
+    $$('.plan-option').forEach((button) => button.addEventListener('click', () => {
+      $$('.plan-option').forEach((item) => item.classList.remove('is-active'));
+      button.classList.add('is-active');
+      $('#planName').textContent = button.dataset.plan;
+      $('#planMenu').classList.remove('is-open');
+      $('#planPicker').setAttribute('aria-expanded', 'false');
+      showToast(`已切换为${button.dataset.plan}`);
+    }));
+
+    document.addEventListener('click', (event) => {
+      if (!event.target.closest('.plan-picker-wrap')) {
+        $('#planMenu').classList.remove('is-open');
+        $('#planPicker').setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      $('#prototypePanel').classList.remove('is-open');
+      $('#prototypeToggle').classList.remove('is-active');
+      $('#prototypeToggle').setAttribute('aria-expanded', 'false');
+      closeDialog();
+      closeExtraTrainingSheet();
+    });
+
+    $('#scheduleDeload').addEventListener('click', (event) => {
+      event.currentTarget.textContent = '已安排';
+      event.currentTarget.disabled = true;
+      showToast('已模拟安排下周一减载');
+    });
+
+    $('#startDeload').addEventListener('click', (event) => {
+      state.manualDeload = true;
+      event.currentTarget.textContent = '减载已开启';
+      event.currentTarget.disabled = true;
+      if (state.trainingState === 'training') renderTraining();
+      showToast('已模拟立即开启减载');
+    });
+
+    $('#fatigueRange').addEventListener('input', (event) => {
+      updateFatigueDisplay(event.currentTarget.value);
+    });
+
+    $('#saveBody').addEventListener('click', () => {
+      readBodyInputs();
+      setBodyMode('saved');
+      showToast('身体数据已保存到原型状态');
+    });
+
+    $('#editBody').addEventListener('click', () => setBodyMode('input'));
+    $('#bodyModeToggle').addEventListener('click', () => {
+      if (state.bodyMode === 'input') readBodyInputs();
+      setBodyMode(state.bodyMode === 'input' ? 'saved' : 'input');
+    });
+
+    $('#saveNutrition').addEventListener('click', () => {
+      setNutritionView('saved');
+      showToast('营养对账已保存到原型状态');
+    });
+
+    $('#editNutrition').addEventListener('click', () => setNutritionView('input'));
+    $('#nutritionModeToggle').addEventListener('click', () => setNutritionView(state.nutritionView === 'input' ? 'saved' : 'input'));
+
+    $('#dialogCancel').addEventListener('click', closeDialog);
+    $('#dialogConfirm').addEventListener('click', () => {
+      const handler = dialogConfirmHandler;
+      closeDialog();
+      handler?.();
+    });
+    $('#dialogOverlay').addEventListener('click', (event) => { if (event.target === event.currentTarget) closeDialog(); });
+
+    $('#sheetCancel').addEventListener('click', closeExtraTrainingSheet);
+    $('#sheetConfirm').addEventListener('click', () => {
+      closeExtraTrainingSheet();
+      showToast('已模拟进入轻量加练预览');
+    });
+    $('#sheetOverlay').addEventListener('click', (event) => { if (event.target === event.currentTarget) closeExtraTrainingSheet(); });
+
+    $$('.nav-item:not(.is-active)').forEach((button) => button.addEventListener('click', () => showToast('原型仅展示“今日”页面')));
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      closeDialog();
+      closeExtraTrainingSheet();
+      $('#planMenu').classList.remove('is-open');
+    });
+
+    // Figma 展示专属渲染函数
+    function renderFigmaGridView() {
+      const phoneShell = $('.phone-shell');
+      if (phoneShell) phoneShell.style.display = 'none';
+      const toast = $('#toast');
+      if (toast) toast.style.display = 'none';
+
+      const container = document.createElement('div');
+      container.className = 'figma-grid-container';
+
+      const frames = [
+        { label: 'Light · Training · Body Saved · Nutrition Saved', url: '?theme=light&state=training&body=saved&nutrition=saved' },
+        { label: 'Light · Training · Body Editing · Nutrition Editing', url: '?theme=light&state=training&body=editing&nutrition=editing' },
+        { label: 'Light · Rest · Body Saved · Nutrition Saved', url: '?theme=light&state=rest&body=saved&nutrition=saved' },
+        { label: 'Light · Completed · Body Saved · Nutrition Saved', url: '?theme=light&state=completed&body=saved&nutrition=saved' },
+        { label: 'Dark · Training · Body Saved · Nutrition Saved', url: '?theme=dark&state=training&body=saved&nutrition=saved' },
+        { label: 'Dark · Completed · Body Saved · Nutrition Saved', url: '?theme=dark&state=completed&body=saved&nutrition=saved' }
+      ];
+
+      container.innerHTML = frames.map(f => `
+        <div class="figma-frame">
+          <div class="figma-frame-label">${f.label}</div>
+          <iframe src="${window.location.pathname}${f.url}"></iframe>
+        </div>
+      `).join('');
+
+      document.body.appendChild(container);
+    }
+
+    // 解析 URL 参数控制页面渲染
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('figma') === 'all') {
+      renderFigmaGridView();
+    } else {
+      if (params.has('theme')) {
+        const themeParam = params.get('theme');
+        if (themeParam === 'light' || themeParam === 'dark') setTheme(themeParam);
+      }
+      if (params.has('state')) {
+        const stateParam = params.get('state');
+        if (stateParam === 'training') {
+          state.trainingState = 'training';
+          renderTraining();
+        } else if (stateParam === 'rest') {
+          state.trainingState = 'rest';
+          renderTraining();
+        } else if (stateParam === 'completed') {
+          state.trainingState = 'complete';
+          renderTraining();
+        }
+      }
+      if (params.has('body')) {
+        const bodyParam = params.get('body');
+        if (bodyParam === 'saved') {
+          setBodyMode('saved');
+        } else if (bodyParam === 'editing') {
+          setBodyMode('input');
+        }
+      }
+      if (params.has('nutrition')) {
+        const nutritionParam = params.get('nutrition');
+        if (nutritionParam === 'saved') {
+          setNutritionView('saved');
+        } else if (nutritionParam === 'editing') {
+          setNutritionView('input');
+        }
+      }
+    }
+  </script>
+</body>
+</html>

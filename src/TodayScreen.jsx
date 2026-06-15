@@ -5,6 +5,7 @@ import { saveBodyMetrics } from './services/bodyService';
 import { getBmiInfo, getWhtrInfo } from './healthUtils';
 import { Play, RotateCcw, Heart, Utensils, Calendar, ChevronDown, ArrowRight, SkipForward, Flag, Loader2, Zap, Dumbbell, Timer, Scale, Moon, ClipboardList, Pause, Ruler } from 'lucide-react';
 import WorkoutSessionSummary from './components/WorkoutSessionSummary';
+import { Button } from './design-system/components';
 
 // 训练摘要纯展示组件（从 JSX IIFE 提取）
 const TIER_MINUTES = { T1: 3.5, T2: 2.5, T3: 1.5 };
@@ -964,13 +965,14 @@ function TodayScreen({
             {/* 卡片下方：开始训练 + 跳过 */}
             {!isSessionActive && (
               <div className="flex flex-col gap-2">
-                <button type="button"
-                  className="btn-main w-full"
+                <Button
+                  fullWidth
+                  size="lg"
+                  leftIcon={<Play size={18} fill="currentColor" />}
                   onClick={onStartTrain}
                 >
-                  <Play size={18} fill="currentColor" />
-                  <span>开始今日训练 ({todayWorkout?.dayLabel || ''})</span>
-                </button>
+                  开始今日训练 ({todayWorkout?.dayLabel || ''})
+                </Button>
                 <button type="button"
                   className="btn-sec w-full"
                   onClick={() => setShowSkipModal(true)}

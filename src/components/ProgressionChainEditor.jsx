@@ -1,15 +1,15 @@
 import { useState } from 'react';
 
 const DEFAULT_T1_CHAIN = [
-  { sets: 3, reps: 5, amrap: true },
-  { sets: 4, reps: 3, amrap: false },
-  { sets: 5, reps: 2, amrap: false }
+  { sets: 5, reps: 3, amrap: true },
+  { sets: 6, reps: 2, amrap: true },
+  { sets: 10, reps: 1, amrap: true }
 ];
 
 const DEFAULT_T2_CHAIN = [
   { sets: 3, reps: 10, amrap: false },
   { sets: 3, reps: 8, amrap: false },
-  { sets: 4, reps: 6, amrap: false }
+  { sets: 3, reps: 6, amrap: false }
 ];
 
 /**

@@ -18,6 +18,7 @@ import { useRestTimer } from './hooks/useRestTimer';
 import { useNavigation } from './hooks/useNavigation';
 import { supabase, ensureAppUser, clearEnsureUserCache } from './supabaseClient';
 import ErrorBoundary from './components/ErrorBoundary';
+import { ThemeProvider } from './design-system/theme';
 
 const TodayScreen = lazy(() => import('./TodayScreen'));
 const PlanScreen = lazy(() => import('./PlanScreen'));
@@ -1251,7 +1252,8 @@ function App() {
   const activeUserPrograms = userPrograms.filter(up => up.is_active);
 
   return (
-    <div className="min-h-screen flex flex-col max-w-[480px] w-full mx-auto bg-bg-main dark:bg-bg-main-dark text-text-main dark:text-text-main-dark border-x border-border-card dark:border-border-card-dark shadow-2xl relative transition-colors duration-200">
+    <ThemeProvider mode={themeMode}>
+      <div className="min-h-screen flex flex-col max-w-[480px] w-full mx-auto bg-bg-main dark:bg-bg-main-dark text-text-main dark:text-text-main-dark border-x border-border-card dark:border-border-card-dark shadow-2xl relative transition-colors duration-200">
       {toast && (
         <div className="toast toast-top toast-center z-[9999] min-w-[320px] max-w-[440px] px-4" style={{ top: '1.5rem' }}>
           <div className={`shadow-lg rounded-xl px-4 py-3 flex items-center gap-3 border ${
@@ -1556,7 +1558,8 @@ function App() {
           />
         </Suspense>
       )}
-    </div>
+      </div>
+    </ThemeProvider>
   );
 }
 
