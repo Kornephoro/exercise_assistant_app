@@ -1670,9 +1670,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                     </div>
                     <div className="flex flex-col gap-1.5">
                       <div className="flex items-center h-6">
-                        <label className="section-subtitle select-none mb-0">
-                          T1 加重 <span className="text-[10px] font-normal text-text-secondary/70">(初始为5% 1RM)</span>
-                        </label>
+                        <label className="section-subtitle select-none mb-0">T1 加重</label>
                       </div>
                       <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
                         <input
@@ -1688,9 +1686,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                     </div>
                     <div className="flex flex-col gap-1.5">
                       <div className="flex items-center h-6">
-                        <label className="section-subtitle select-none mb-0">
-                          T2 加重 <span className="text-[10px] font-normal text-text-secondary/70">(初始为5% 1RM)</span>
-                        </label>
+                        <label className="section-subtitle select-none mb-0">T2 加重</label>
                       </div>
                       <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
                         <input
@@ -1707,15 +1703,19 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                   </div>
 
                   {rm > 0 && (
-                    <div className="text-xs text-text-secondary dark:text-text-secondary-dark font-mono bg-bg-main/40 dark:bg-bg-main-dark/40 border border-border-card/50 dark:border-border-card-dark/50 rounded-lg p-2 flex flex-col gap-1">
-                      <div>
-                        <Lightbulb size={14} className="inline shrink-0 mr-1 text-primary" />
-                        1RM 推导：T1 起始 <span className="font-bold text-primary">{t1Start}{exUnit}</span>
-                        <span className="mx-1 opacity-50">·</span>
-                        T2 起始 <span className="font-bold text-primary">{t2Start}{exUnit}</span>
-                      </div>
-                      <div className="text-[10px] text-text-secondary/80 pl-4">
-                        💡 T1/T2 初始加重默认为该动作 1RM 的 5% 并根据杠铃片就近取值
+                    <div className="text-xs text-text-secondary dark:text-text-secondary-dark font-mono bg-bg-main/40 dark:bg-bg-main-dark/40 border border-border-card/50 dark:border-border-card-dark/50 rounded-lg p-2.5 flex flex-col gap-1.5">
+                      <div className="flex items-start gap-1.5">
+                        <Lightbulb size={14} className="text-primary shrink-0 mt-0.5" />
+                        <div className="flex flex-col gap-1">
+                          <div>
+                            1RM 推导：T1 起始 <span className="font-bold text-primary">{t1Start}{exUnit}</span>
+                            <span className="mx-1 opacity-50">·</span>
+                            T2 起始 <span className="font-bold text-primary">{t2Start}{exUnit}</span>
+                          </div>
+                          <div className="text-[10px] text-text-secondary/70">
+                            加重提示：T1/T2 初始加重默认为该动作 1RM 的 5% 并根据杠铃片就近取值
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
