@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { saveUserProgram, fetchExercises, fetchWorkoutTemplates, saveWorkoutTemplate, deleteWorkoutTemplate } from './services/programService';
-import { Search, ChevronRight, X, Users, Calendar, Zap, Target, BookOpen, Pause, Play, StopCircle, Settings, AlertTriangle, Plus, Trash2, Edit, FolderOpen, Loader2 } from 'lucide-react';
+import { Search, ChevronRight, X, Users, Calendar, Zap, Target, BookOpen, Pause, Play, StopCircle, Settings, AlertTriangle, Plus, Trash2, Edit, FolderOpen, Loader2, RefreshCw } from 'lucide-react';
 import ProgramConfigScreen from './ProgramConfigScreen';
 import ExerciseLibrary from './ExerciseLibrary';
 import ExercisePickerModal from './components/ExercisePickerModal';
 import { getCNName, FEATURE_LABELS, EXERCISE_TYPE_MAP } from './exerciseNames';
+import { convertWeight, toStorageWeight } from './unitUtils';
 
 const DIFFICULTY_MAP = {
   beginner: { label: '初学者', color: 'badge-success' },
@@ -379,6 +380,346 @@ function PlanScreen({
     const { program: p, userProgram: up } = selectedActiveProgram;
     const engineType = p.config?.engine_type;
     const isPlaceholder = engineType === 'starting_strength' && p.config?.note;
+
+    const handleUpdateExerciseParams = async (userProgram, exKey, tier, updates) => {
+      const nextUP = JSON.parse(JSON.stringify(userProgram));
+      if (!nextUP.program_state) nextUP.program_state = {};
+      if (!nextUP.program_state.exercises) nextUP.program_state.exercises = {};
+      if (!nextUP.program_state.exercises[exKey]) nextUP.program_state.exercises[exKey] = {};
+      if (!nextUP.program_state.exercises[exKey][tier]) nextUP.program_state.exercises[exKey][tier] = {};
+
+      const exState = nextUP.program_state.exercises[exKey][tier];
+      
+      if (updates.weight !== undefined) {
+        exState.weight = updates.weight;
+      }
+      if (updates.status !== undefined) {
+        exState.status = updates.status;
+      }
+      if (updates.scheme_index !== undefined) {
+        exState.scheme_index = updates.scheme_index;
+      }
+      if (updates.major_cycle !== undefined) {
+        exState.major_cycle = updates.major_cycle;
+      }
+
+      if (!nextUP.exercise_config) nextUP.exercise_config = {};
+      if (!nextUP.exercise_config[exKey]) nextUP.exercise_config[exKey] = {};
+      const userEx = nextUP.exercise_config[exKey];
+
+      if (updates.increment !== undefined) {
+        if (tier === 'T1') userEx.increment_t1 = updates.increment;
+        else if (tier === 'T2') userEx.increment_t2 = updates.increment;
+        else userEx.increment_t3 = updates.increment;
+      }
+      if (updates.unit !== undefined) {
+        userEx.unit = updates.unit;
+      }
+
+      try {
+        optimisticUpdateUserProgram(userProgram.id, {
+          program_state: nextUP.program_state,
+          exercise_config: nextUP.exercise_config
+        });
+        await saveUserProgram(userProgram.id, null, {
+          program_state: nextUP.program_state,
+          exercise_config: nextUP.exercise_config
+        });
+      } catch (err) {
+        console.error('Failed to update exercise params:', err);
+        onProgramError?.('更新动作参数失败：' + err.message);
+      }
+    };
+
+    // 如果是活跃的 GZCLP 计划，并且有训练记录，显示进行中看板
+    if (engineType === 'gzclp' && up.program_state?.total_sessions > 0) {
+      const rotation = Math.floor((up.program_state?.total_sessions || 0) / (p.days_per_week || 4)) + 1;
+      
+      const getActiveExercises = () => {
+        const list = [];
+        if (!p.config?.day_map) return list;
+        Object.values(p.config.day_map).forEach(dayConfig => {
+          if (dayConfig.T1) list.push({ exercise: dayConfig.T1, tier: 'T1' });
+          if (dayConfig.T2) list.push({ exercise: dayConfig.T2, tier: 'T2' });
+          if (dayConfig.T3) {
+            const t3s = Array.isArray(dayConfig.T3) ? dayConfig.T3 : [dayConfig.T3];
+            t3s.forEach(t3 => {
+              list.push({ exercise: t3, tier: 'T3' });
+            });
+          }
+        });
+        const seen = new Set();
+        return list.filter(item => {
+          const key = `${item.exercise}-${item.tier}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      };
+
+      const activeExs = getActiveExercises();
+      const gdState = up.program_state?.global_deload || {};
+      const isGDActive = gdState.status === 'active';
+
+      return (
+        <div className="flex flex-col gap-5 animate-fadeIn">
+          {/* Header */}
+          <div className="flex items-center gap-3">
+            <button type="button" className="btn-aux w-8 h-8 rounded-full" onClick={() => setSelectedActiveProgramId(null)}>
+              ←
+            </button>
+            <h3 className="text-lg font-bold text-text-main dark:text-text-main-dark">{p.name}</h3>
+            {!up.is_active && up.paused_at
+              ? <span className="badge badge-warning badge-sm font-bold">已暂停</span>
+              : <span className="badge badge-primary badge-sm font-bold gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                  进行中
+                </span>}
+          </div>
+
+          {isOperationLocked && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-warning-bg border border-warning/40 text-warning text-sm font-semibold">
+              <AlertTriangle size={16} className="shrink-0" />
+              <span>训练进行中，请先完成或放弃训练后再管理计划。</span>
+            </div>
+          )}
+
+          {/* 看板整体进度卡片 */}
+          <div className="card bg-bg-card border border-border-card dark:bg-bg-card-dark dark:border-border-card-dark rounded-2xl p-4 flex flex-col gap-3 shadow-sm select-none">
+            <div className="flex justify-between items-center">
+              <div className="flex flex-col">
+                <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark">进行中计划进度</span>
+                <span className="text-sm font-bold text-text-main dark:text-text-main-dark mt-0.5">
+                  第 <span className="font-mono text-base font-black text-primary">{rotation}</span> 轮训练周期 (Rotation)
+                </span>
+              </div>
+              <div className="flex flex-col text-right">
+                <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark">累计已完成</span>
+                <span className="text-sm font-mono font-bold text-text-main dark:text-text-main-dark mt-0.5">
+                  {up.program_state?.total_sessions || 0} 次训练
+                </span>
+              </div>
+            </div>
+
+            {isGDActive && (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary text-xs font-bold animate-pulse">
+                <AlertTriangle size={14} className="shrink-0" />
+                <span>⚠️ 全局减载已激活 (当前负荷降低 {up.exercise_config?._global_deload?.intensity_pct ?? 20}%)</span>
+              </div>
+            )}
+          </div>
+
+          {/* 动作细节列表 */}
+          <div className="flex flex-col gap-4">
+            <h4 className="text-xs font-bold text-text-secondary dark:text-text-secondary-dark px-1">动作进阶参数监控与微调</h4>
+            {activeExs.map(({ exercise, tier }, idx) => {
+              const userEx = up.exercise_config?.[exercise] || {};
+              const exUnit = userEx.unit || up.exercise_config?._unit || 'kg';
+              const exState = up.program_state?.exercises?.[exercise]?.[tier] || {};
+              
+              const currentWeightKg = exState.weight ?? (tier === 'T1' ? (userEx.initial_weight_t1 ?? userEx.initial_weight ?? p.config.default_weights?.[exercise]) : tier === 'T2' ? (userEx.initial_weight_t2 ?? userEx.initial_weight ?? p.config.default_weights?.[exercise]) : (userEx.initial_weight ?? p.config.default_weights?.[exercise] ?? 10));
+              const incrementKg = tier === 'T1' ? (userEx.increment_t1 ?? p.config.default_increment?.T1 ?? 2.5) : tier === 'T2' ? (userEx.increment_t2 ?? p.config.default_increment?.T2 ?? 2.5) : (userEx.increment_t3 ?? p.config.default_increment?.T3 ?? 2.5);
+
+              const displayWeight = exUnit === 'lbs' ? convertWeight(currentWeightKg, 'lbs') : currentWeightKg;
+              const displayIncrement = exUnit === 'lbs' ? convertWeight(incrementKg, 'lbs') : incrementKg;
+
+              const schemeText = (() => {
+                if (tier === 'T3') {
+                  const isDouble = userEx.progression_type === 'double_progression';
+                  if (isDouble) {
+                    return `${exState.sets ?? userEx.sets ?? 3}组 × ${exState.planned_reps ?? userEx.min_reps ?? 12}次 (双进阶)`;
+                  }
+                  return `3组 × 15次 (AMRAP)`;
+                }
+                const chainKey = tier === 'T1' ? 't1_chain' : 't2_chain';
+                const schemeKey = tier === 'T1' ? 't1_schemes' : 't2_schemes';
+                const userChain = userEx[chainKey];
+                const defaultSchemes = p.config[schemeKey] || [];
+                const schemeIdx = exState.scheme_index ?? 0;
+                if (userChain && userChain.length > 0) {
+                  const stage = userChain[schemeIdx] || userChain[0];
+                  return `${stage.sets}组 × ${stage.reps}次${stage.amrap ? ' (AMRAP)' : ''}`;
+                } else {
+                  const scheme = defaultSchemes[schemeIdx] || defaultSchemes[0];
+                  if (scheme) {
+                    return `${scheme.sets}组 × ${scheme.reps}次${scheme.amrap_last ? ' (AMRAP)' : ''}`;
+                  }
+                }
+                return '未知阶段';
+              })();
+
+              const tierBadge = tier === 'T1' ? 'bg-primary/10 text-primary' : tier === 'T2' ? 'bg-secondary/10 text-secondary' : 'bg-accent/10 text-accent';
+              const tierBorder = tier === 'T1' ? 'border-l-primary' : tier === 'T2' ? 'border-l-secondary' : 'border-l-accent';
+
+              return (
+                <div key={`${exercise}-${tier}-${idx}`} className={`card bg-bg-card border border-border-card border-l-4 ${tierBorder} dark:bg-bg-card-dark dark:border-border-card-dark rounded-2xl p-4 flex flex-col gap-3 shadow-sm select-none`}>
+                  {/* Card Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`badge ${tierBadge} font-bold text-xs`}>{tier}</span>
+                      <span className="text-sm font-bold text-text-main dark:text-text-main-dark">
+                        {getCNName(exercise, exercisesMap)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newUnit = exUnit === 'lbs' ? 'kg' : 'lbs';
+                          handleUpdateExerciseParams(up, exercise, tier, { unit: newUnit });
+                        }}
+                        className="text-xs font-mono font-bold text-primary dark:text-primary-dark bg-primary/10 px-1.5 py-0.5 rounded hover:bg-primary/20 cursor-pointer border-0"
+                      >
+                        {exUnit}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Status Row */}
+                  <div className="flex items-center justify-between text-xs bg-bg-main/30 dark:bg-bg-main-dark/30 px-3 py-2 rounded-xl border border-border-card/50 dark:border-border-card-dark/50 font-semibold text-text-secondary dark:text-text-secondary-dark">
+                    <span>当前阶段: {schemeText}</span>
+                    {exState.status === 'needs_retest' ? (
+                      <span className="text-amber-500 font-bold">⚠️ 待重测极限</span>
+                    ) : (
+                      <span>大轮次: 第 {exState.major_cycle ?? 1} 轮</span>
+                    )}
+                  </div>
+
+                  {/* Param Editors */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-bold text-text-secondary dark:text-text-secondary-dark">当前负荷 ({exUnit})</label>
+                      <div className="input-standard flex items-center justify-between px-3 h-10">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={displayWeight === '' || displayWeight === undefined ? '' : displayWeight}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/[^\d.]/g, '');
+                            const cleaned = raw.split('.').length > 2 ? raw.slice(0, raw.lastIndexOf('.')) : raw;
+                            const val = cleaned === '' || cleaned === '.' ? '' : parseFloat(cleaned);
+                            const kgVal = exUnit === 'lbs' ? toStorageWeight(val, 'lbs') : val;
+                            handleUpdateExerciseParams(up, exercise, tier, { weight: kgVal });
+                          }}
+                          className="w-full bg-transparent font-mono font-bold text-sm text-text-main dark:text-text-main-dark focus:outline-none"
+                        />
+                        <span className="text-xs font-semibold text-text-secondary/50 font-mono select-none">{exUnit}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-bold text-text-secondary dark:text-text-secondary-dark">单次进阶步长 ({exUnit})</label>
+                      <div className="input-standard flex items-center justify-between px-3 h-10">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={displayIncrement === '' || displayIncrement === undefined ? '' : displayIncrement}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/[^\d.]/g, '');
+                            const cleaned = raw.split('.').length > 2 ? raw.slice(0, raw.lastIndexOf('.')) : raw;
+                            const val = cleaned === '' || cleaned === '.' ? '' : parseFloat(cleaned);
+                            const kgVal = exUnit === 'lbs' ? toStorageWeight(val, 'lbs') : val;
+                            handleUpdateExerciseParams(up, exercise, tier, { increment: kgVal });
+                          }}
+                          className="w-full bg-transparent font-mono font-bold text-sm text-text-main dark:text-text-main-dark focus:outline-none"
+                        />
+                        <span className="text-xs font-semibold text-text-secondary/50 font-mono select-none">{exUnit}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Advanced Actions inside card */}
+                  <div className="flex items-center gap-2 border-t border-border-card/30 dark:border-border-card-dark/30 pt-3 mt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`确认将该动作 ${getCNName(exercise, exercisesMap)} (${tier}) 重置到进阶起点（即第 0 节点，状态置为激活）？`)) {
+                          handleUpdateExerciseParams(up, exercise, tier, { scheme_index: 0, status: 'active' });
+                        }
+                      }}
+                      className="btn-sec flex-1 h-8 min-h-8 text-xs rounded-xl border-border-card/70 hover:bg-bg-hover cursor-pointer"
+                    >
+                      重置动作进度
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`确认手动将该动作 ${getCNName(exercise, exercisesMap)} (${tier}) 标记为“待重测极限”？下一次训练将触发重测。`)) {
+                          handleUpdateExerciseParams(up, exercise, tier, { status: 'needs_retest' });
+                        }
+                      }}
+                      className="btn-sec flex-1 h-8 min-h-8 text-xs rounded-xl text-amber-500 hover:text-amber-600 border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 cursor-pointer"
+                    >
+                      触发极限重测
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 底部计划控制按钮 */}
+          <div className="flex flex-col gap-2 border-t border-border-card dark:border-border-card-dark pt-4 mt-2">
+            <button
+              type="button"
+              className="btn-main w-full h-11 min-h-0 font-bold cursor-pointer"
+              onClick={() => { setConfigProgram(p); setSelectedActiveProgramId(null); }}
+            >
+              <Settings size={16} />
+              <span>更改动作与进阶方案配置</span>
+            </button>
+            
+            <div className="flex gap-2">
+              {!up.is_active && up.paused_at ? (
+                <button
+                  type="button"
+                  className="btn-main flex-1 h-11 min-h-0 font-bold bg-green-600 hover:bg-green-700 text-white cursor-pointer"
+                  onClick={() => handleResumeProgram(up.id)}
+                >
+                  <Play size={16} />
+                  <span>恢复计划</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-sec flex-1 h-11 min-h-0 font-semibold cursor-pointer"
+                  onClick={() => openPauseConfirm(up.id)}
+                >
+                  <Pause size={16} />
+                  <span>暂停计划</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn-sec flex-1 h-11 min-h-0 text-error border-error/20 hover:bg-error/5 cursor-pointer"
+                onClick={() => openEndConfirm(up.id)}
+              >
+                <StopCircle size={16} />
+                <span>结束计划</span>
+              </button>
+            </div>
+          </div>
+
+          <ConfirmModal
+            isOpen={showPauseConfirm}
+            title="暂停计划"
+            message="确定要暂停这个计划吗？你可以随时恢复。"
+            onConfirm={() => handlePauseProgram(pendingUserProgramId)}
+            onCancel={() => setShowPauseConfirm(false)}
+            confirmText="确认暂停"
+          />
+          <ConfirmModal
+            isOpen={showEndConfirm}
+            title="结束计划"
+            message="确定要结束这个计划吗？此操作不可撤销，但训练历史将保留。"
+            onConfirm={() => handleEndProgram(pendingUserProgramId)}
+            onCancel={() => setShowEndConfirm(false)}
+            confirmText="确认结束"
+            confirmClass="btn-error"
+          />
+        </div>
+      );
+    }
 
     return (
       <div className="flex flex-col gap-5 animate-fadeIn">

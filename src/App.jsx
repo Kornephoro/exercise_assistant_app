@@ -10,7 +10,7 @@ import {
   fetchLatestOneRmForExercises,
   completeWorkoutSession
 } from './services/workoutService';
-import { getNextWorkout, getNextDay, isTodayTrainingDay, getNextTrainingDate, getDaysUntilStart } from './programEngine';
+import { getNextWorkout, getNextDay, isTodayTrainingDay, getNextTrainingDate, getDaysUntilStart, gzclpCalculateNextProgressionState } from './programEngine';
 import { calcE1RM, MAIN_LIFT_KEYS } from './oneRmUtils';
 import { DEFAULT_GYM_EQUIPMENT_CONFIG } from './unitUtils';
 import { getCNName } from './exerciseNames';
@@ -857,6 +857,36 @@ function App() {
     await loadWorkoutData();
   };
 
+  const handleUpdateExerciseUnit = async (exerciseKey, newUnit) => {
+    const activeUP = userPrograms.find(u => u.id === activeProgramId);
+    if (!activeUP) return;
+    const currentEc = activeUP.exercise_config || {};
+    const updatedEc = {
+      ...currentEc,
+      [exerciseKey]: {
+        ...(currentEc[exerciseKey] || {}),
+        unit: newUnit
+      }
+    };
+    const allUserPrograms = [...userPrograms];
+    const activeIdx = allUserPrograms.findIndex(u => u.id === activeUP.id);
+    if (activeIdx !== -1) {
+      allUserPrograms[activeIdx] = {
+        ...allUserPrograms[activeIdx],
+        exercise_config: updatedEc
+      };
+      setUserPrograms(allUserPrograms);
+    }
+    try {
+      await saveUserProgram(activeUP.id, null, { exercise_config: updatedEc, updated_at: new Date().toISOString() });
+      setToast({ type: 'success', message: `已将动作单位成功切换为 ${newUnit === 'lbs' ? 'LBS' : 'KG'}` });
+      await loadWorkoutData();
+    } catch (err) {
+      console.error('Failed to update exercise unit:', err);
+      setToast({ type: 'error', message: '切换动作单位失败' });
+    }
+  };
+
   // 保存训练记录
   const handleSaveSession = async (setDetails = {}) => {
     const activeUP = userPrograms.find(u => u.id === activeProgramId);
@@ -1145,12 +1175,23 @@ function App() {
         }
       }
 
+      const updatedExercises = gzclpCalculateNextProgressionState(
+        activeProgram.config,
+        activeUP,
+        todayWorkout,
+        setsData,
+        historyByExerciseTier,
+        gymEquipmentConfig,
+        exercisesMap
+      );
+
       const newState = {
         ...activeUP.program_state,
         current_day: nextDay,
         last_training_date: new Date().toISOString(),
         total_sessions: totalSessions,
-        global_deload: updatedGD
+        global_deload: updatedGD,
+        exercises: updatedExercises
       };
       const updatedAt = new Date().toISOString();
 
@@ -1165,10 +1206,25 @@ function App() {
         one_rm_records: oneRmRecords
       });
 
+      const stalledExercises = [];
+      Object.keys(updatedExercises).forEach(exKey => {
+        Object.keys(updatedExercises[exKey]).forEach(tierKey => {
+          const prevStatus = activeUP.program_state?.exercises?.[exKey]?.[tierKey]?.status || 'active';
+          const newStatus = updatedExercises[exKey][tierKey]?.status;
+          if (newStatus === 'needs_retest' && prevStatus !== 'needs_retest') {
+            stalledExercises.push({ ex: exKey, tier: tierKey });
+          }
+        });
+      });
+
       const nextDateStr = getNextTrainingDate(schedule, newState.last_training_date, newState.start_date);
       let toastMsg = `保存成功！下次训练日为 ${nextDay}`;
       if (nextDateStr) {
         toastMsg = `保存成功！下次训练日为 ${nextDateStr}`;
+      }
+      if (stalledExercises.length > 0) {
+        const cnNames = stalledExercises.map(item => `${getCNName(item.ex, exercisesMap)} (${item.tier})`).join(', ');
+        toastMsg += `。提示: ${cnNames} 已达本周期进阶极限，下次训练请重测极限！`;
       }
       setToast({ type: 'success', message: toastMsg });
 
@@ -1491,6 +1547,7 @@ function App() {
               setRestTimer={setRestTimer}
               historyByExerciseTier={historyByExerciseTier}
               exerciseConfig={getActiveUserProgram()?.exercise_config || {}}
+              onChangeExerciseUnit={handleUpdateExerciseUnit}
             />
           </Suspense>
         </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Minimize2, X, Check, Sparkles, SkipForward, Plus, FastForward, Dumbbell, Calculator, Play, Pause, Settings, PenLine, Filter, Search, Zap, RotateCcw, Timer, Lightbulb } from 'lucide-react';
+import { Minimize2, X, Check, Sparkles, SkipForward, Plus, FastForward, Dumbbell, Calculator, Play, Pause, Settings, PenLine, Filter, Search, Zap, RotateCcw, RefreshCw, Timer, Lightbulb } from 'lucide-react';
 import { convertWeight, getBarbellPlateBreakdown, toStorageWeight } from './unitUtils';
 import BarbellVisualizer from './BarbellVisualizer';
 import { fetchLatestOneRmForExercises } from './services/workoutService';
@@ -7,7 +7,7 @@ import InfiniteScrollPicker from './components/InfiniteScrollPicker';
 import ConfirmDialog from './components/ConfirmDialog';
 import { EXERCISE_TYPE_MAP } from './exerciseNames';
 import { getNextSet } from './utils/trainingUtils';
-import { MAIN_LIFT_KEYS } from './oneRmUtils';
+import { MAIN_LIFT_KEYS, calcE1RM } from './oneRmUtils';
 
 const DEFAULT_REST_SECONDS = 90;
 
@@ -286,9 +286,26 @@ function TrainSession({
   restTimer,
   setRestTimer,
   historyByExerciseTier = {},
-  exerciseConfig = {}
+  exerciseConfig = {},
+  onChangeExerciseUnit
 }) {
   const getRecordingMethod = (exerciseKey) => exercisesMap?.[exerciseKey]?.recording_method || 'standard';
+
+  const handleSyncWeightToSubsequentSets = (exIdx, currentSetIdx, weightKg) => {
+    setSessionState(prev => {
+      const sets = prev.setsData[exIdx] || [];
+      const nextSets = sets.map((s, idx) => {
+        if (idx > currentSetIdx && !s.completed && !s.skipped) {
+          return { ...s, weight_kg: weightKg };
+        }
+        return s;
+      });
+      return {
+        ...prev,
+        setsData: { ...prev.setsData, [exIdx]: nextSets }
+      };
+    });
+  };
 
   const getTotalSets = () => (todayWorkout?.exercises || []).reduce((sum, ex, idx) => {
     const sets = sessionState.setsData[idx] || [];
@@ -560,23 +577,24 @@ function TrainSession({
   const [customRestSeconds, setCustomRestSeconds] = useState(DEFAULT_REST_SECONDS);
 
   const handleOpenCalculator = async (ex, currentWeightVal) => {
+    const exUnit = exerciseConfig?.[ex.exercise]?.unit || unit || 'kg';
     setCalcLoading(true);
     setCalcOpen(true);
     try {
       const records = await fetchLatestOneRmForExercises([ex.exercise]);
       const latestRecord = records.find(r => r.exercise === ex.exercise);
       if (latestRecord && latestRecord.e1rm_kg) {
-        const valInUnit = unit === 'lbs' ? convertWeight(latestRecord.e1rm_kg, 'lbs') : latestRecord.e1rm_kg;
+        const valInUnit = exUnit === 'lbs' ? convertWeight(latestRecord.e1rm_kg, 'lbs') : latestRecord.e1rm_kg;
         setCalcBaseline1RM(valInUnit.toFixed(1));
       } else {
         const fallbackWeight = currentWeightVal ?? ex.weight ?? 0;
-        const fallbackInUnit = unit === 'lbs' ? convertWeight(fallbackWeight, 'lbs') : fallbackWeight;
+        const fallbackInUnit = exUnit === 'lbs' ? convertWeight(fallbackWeight, 'lbs') : fallbackWeight;
         setCalcBaseline1RM(fallbackInUnit > 0 ? fallbackInUnit.toFixed(1) : '');
       }
     } catch (err) {
       console.error('Failed to fetch latest 1RM:', err);
       const fallbackWeight = currentWeightVal ?? ex.weight ?? 0;
-      const fallbackInUnit = unit === 'lbs' ? convertWeight(fallbackWeight, 'lbs') : fallbackWeight;
+      const fallbackInUnit = exUnit === 'lbs' ? convertWeight(fallbackWeight, 'lbs') : fallbackWeight;
       setCalcBaseline1RM(fallbackInUnit > 0 ? fallbackInUnit.toFixed(1) : '');
     } finally {
       setCalcLoading(false);
@@ -586,7 +604,9 @@ function TrainSession({
   const handleApplyWeight = (calculatedWeight) => {
     if (!focusedSet) return;
     const { exerciseIdx, setIdx } = focusedSet;
-    const weightKg = unit === 'lbs' ? toStorageWeight(calculatedWeight, 'lbs') : calculatedWeight;
+    const ex = todayWorkout.exercises[exerciseIdx];
+    const exUnit = exerciseConfig?.[ex?.exercise]?.unit || unit || 'kg';
+    const weightKg = exUnit === 'lbs' ? toStorageWeight(calculatedWeight, 'lbs') : calculatedWeight;
     const finalWeight = Math.round(weightKg * 10) / 10;
     handleWeightChange(exerciseIdx, setIdx, finalWeight);
     setCalcOpen(false);
@@ -877,7 +897,6 @@ function TrainSession({
 
     // 智能修正 setsData 中的额外属性
     setSessionState(prev => {
-      const sets = prev.setsData[exIdx] || [];
       const nextSets = sets.map(s => {
         const nextSet = { ...s };
         if (newMethod === 'duration_only') {
@@ -902,8 +921,6 @@ function TrainSession({
     setSettingsExIdx(null);
   };
 
-  // ============ FIELD INPUT GROUP (hoisted outside) ============
-
   // ============ SET DETAIL CARD (floating centered) ============
   const renderSetCard = () => {
     if (!showSetCard || !focusedSet) return null;
@@ -916,6 +933,7 @@ function TrainSession({
     const isBarbell = exInfo?.equipment?.includes('barbell') || 
                       MAIN_LIFT_KEYS.includes(ex.exercise.toLowerCase());
 
+    const exUnit = exerciseConfig?.[ex.exercise]?.unit || unit || 'kg';
     const method = getRecordingMethod(ex.exercise);
     const setKey = getSetKey(exerciseIdx, setIdx);
     const detail = setDetails[setKey] || {};
@@ -924,20 +942,25 @@ function TrainSession({
     const isSkipped = !!set.skipped;
     const isCompleted = !!set.completed;
 
+    const getDisplayWeightStr = (w) => {
+      if (w == null) return '';
+      return exUnit === 'lbs' ? `${convertWeight(w, 'lbs').toFixed(1)}lbs` : `${w.toFixed(1)}kg`;
+    };
+
     const METHOD_CONFIG = {
-      standard:           { summary: (s, ex) => `${s.planned_reps} 次 @ ${ex.weight?.toFixed(1)}kg`,    fields: ['reps', 'weight'],        showTempo: true  },
+      standard:           { summary: (s, ex) => `${s.planned_reps} 次 @ ${getDisplayWeightStr(s.weight_kg ?? ex.weight)}`,    fields: ['reps', 'weight'],        showTempo: true  },
       reps_only:          { summary: (s)     => `${s.planned_reps} 次`,                                  fields: ['reps'],                  showTempo: true  },
       duration_only:      { summary: (s)     => `${s.planned_reps} 秒`,                                  fields: ['duration'],              showTempo: false },
       distance_only:      { summary: (s)     => `${s.planned_reps} 米`,                                  fields: ['distance'],              showTempo: false },
-      loaded_carry:       { summary: (s, ex) => `${s.planned_reps}m @ ${ex.weight?.toFixed(1)}kg`,      fields: ['weight', 'distance'],    showTempo: false },
-      bodyweight_added:   { summary: (s, ex) => `${s.planned_reps} 次 @ +${ex.weight?.toFixed(1)}kg`,  fields: ['reps', 'weight'],        showTempo: true  },
-      bodyweight_assisted:{ summary: (s, ex) => `${s.planned_reps} 次 @ -${ex.weight?.toFixed(1)}kg`,  fields: ['reps', 'weight'],        showTempo: true  },
+      loaded_carry:       { summary: (s, ex) => `${s.planned_reps}m @ ${getDisplayWeightStr(s.weight_kg ?? ex.weight)}`,      fields: ['weight', 'distance'],    showTempo: false },
+      bodyweight_added:   { summary: (s, ex) => `${s.planned_reps} 次 @ +${getDisplayWeightStr(s.weight_kg ?? ex.weight)}`,  fields: ['reps', 'weight'],        showTempo: true  },
+      bodyweight_assisted:{ summary: (s, ex) => `${s.planned_reps} 次 @ -${getDisplayWeightStr(s.weight_kg ?? ex.weight)}`,  fields: ['reps', 'weight'],        showTempo: true  },
     };
     const config = METHOD_CONFIG[method] || METHOD_CONFIG.standard;
 
     const FIELD_LABEL = {
       reps:     '实际次数',
-      weight:   method === 'bodyweight_added' ? '附加重量' : method === 'bodyweight_assisted' ? '辅助重量' : method === 'loaded_carry' ? '负重重量' : '实际重量',
+      weight:   method === 'bodyweight_added' ? `附加重量 (${exUnit})` : method === 'bodyweight_assisted' ? `辅助重量 (${exUnit})` : method === 'loaded_carry' ? `负重重量 (${exUnit})` : `实际重量 (${exUnit})`,
       duration: '时长（秒）',
       distance: '距离（米）',
     };
@@ -1058,13 +1081,16 @@ function TrainSession({
               fields={config.fields}
               valueMap={{
                 reps:     set.actual_reps,
-                weight:   set.weight_kg ?? ex.weight,
+                weight:   exUnit === 'lbs' ? convertWeight(set.weight_kg ?? ex.weight, 'lbs') : (set.weight_kg ?? ex.weight),
                 duration: set.duration_seconds,
                 distance: set.distance_meters,
               }}
               onChangeMap={{
                 reps:     (v) => handleRepsChange(exerciseIdx, setIdx, v),
-                weight:   (v) => handleWeightChange(exerciseIdx, setIdx, v),
+                weight:   (v) => {
+                  const kgVal = exUnit === 'lbs' ? toStorageWeight(v, 'lbs') : v;
+                  handleWeightChange(exerciseIdx, setIdx, kgVal);
+                },
                 duration: (v) => handleDurationChange(exerciseIdx, setIdx, v),
                 distance: (v) => handleDistanceChange(exerciseIdx, setIdx, v),
               }}
@@ -1077,6 +1103,17 @@ function TrainSession({
               showCalcBtn={config.fields.includes('weight')}
               onShowCalculator={() => handleOpenCalculator(ex, set.weight_kg)}
             />
+
+            {config.fields.includes('weight') && setIdx < totalSets - 1 && (
+              <button
+                type="button"
+                onClick={() => handleSyncWeightToSubsequentSets(exerciseIdx, setIdx, set.weight_kg ?? ex.weight)}
+                className="btn btn-outline btn-xs text-[10px] py-1 h-auto min-h-0 border-primary/20 text-primary hover:bg-primary hover:text-primary-content rounded-xl flex items-center justify-center gap-1 select-none cursor-pointer w-fit self-end mr-1 mt-1"
+              >
+                <RefreshCw size={11} />
+                <span>将此重量同步到后续未打卡组</span>
+              </button>
+            )}
 
             <div className="divider my-0" />
 
@@ -1475,8 +1512,7 @@ function TrainSession({
           const completedCount = sets.filter(s => s.completed).length;
           const isFullyCompleted = completedCount === sets.length && sets.length > 0;
 
-          const tierBadge = tier === 'T1' ? 'bg-primary/10 text-primary' : tier === 'T2' ? 'bg-secondary/10 text-secondary' : 'bg-accent/10 text-accent';
-          const tierBorder = tier === 'T1' ? 'border-l-primary' : tier === 'T2' ? 'border-l-secondary' : 'border-l-accent';
+          const exUnit = exerciseConfig?.[ex.exercise]?.unit || unit || 'kg';
 
           return (
             <div key={exIdx} className={`card bg-base-100 border border-base-300 border-l-4 ${tierBorder} shadow-sm transition-all duration-300 ${isFullyCompleted ? 'opacity-50' : ''}`}>
@@ -1486,8 +1522,20 @@ function TrainSession({
                     <span className={`badge ${tierBadge} font-bold text-xs`}>{tier}</span>
                     <span className="text-sm font-bold text-base-content">{getExerciseCNName(ex.exercise)}</span>
                     <span className="text-xs font-mono font-bold text-base-content/40 bg-base-200 px-1.5 py-0.5 rounded">
-                      {unit === 'lbs' ? `${convertWeight(ex.weight, 'lbs').toFixed(1)}lbs` : `${ex.weight?.toFixed(1)}kg`}
+                      {exUnit === 'lbs' ? `${convertWeight(ex.weight, 'lbs').toFixed(1)}lbs` : `${ex.weight?.toFixed(1)}kg`}
                     </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const newUnit = exUnit === 'lbs' ? 'kg' : 'lbs';
+                        onChangeExerciseUnit?.(ex.exercise, newUnit);
+                      }}
+                      className="text-[10px] font-mono font-bold text-primary dark:text-primary-dark bg-primary/5 dark:bg-primary/10 border border-primary/10 px-1.5 py-0.5 rounded hover:bg-primary/20 select-none cursor-pointer"
+                      title="切换单位"
+                    >
+                      {exUnit}
+                    </button>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-semibold text-base-content/40">{completedCount}/{sets.length}</span>
@@ -1555,18 +1603,18 @@ function TrainSession({
                                     MAIN_LIFT_KEYS.includes(ex.exercise.toLowerCase());
                   if (!isBarbell || !gymEquipmentConfig) return null;
                   
-                  const configForUnit = gymEquipmentConfig[unit] || gymEquipmentConfig.kg;
-                  const barWeight = configForUnit.barbell?.bar_weight ?? (unit === 'kg' ? 20 : 45);
-                  const enabledPlates = configForUnit.barbell?.enabled_plates || (unit === 'kg' ? [25, 20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]);
+                  const configForUnit = gymEquipmentConfig[exUnit] || gymEquipmentConfig.kg;
+                  const barWeight = configForUnit.barbell?.bar_weight ?? (exUnit === 'kg' ? 20 : 45);
+                  const enabledPlates = configForUnit.barbell?.enabled_plates || (exUnit === 'kg' ? [25, 20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]);
                   const plateLimits = configForUnit.barbell?.plate_limits || {};
                   
-                  const weightInUnit = unit === 'lbs' ? convertWeight(ex.weight, 'lbs') : ex.weight;
+                  const weightInUnit = exUnit === 'lbs' ? convertWeight(ex.weight, 'lbs') : ex.weight;
                   const breakdown = getBarbellPlateBreakdown(weightInUnit, barWeight, enabledPlates, plateLimits);
                    if (!breakdown || breakdown.plates.length === 0) {
                     return (
                       <div className="flex flex-col gap-1.5 mb-2 select-none w-full px-3">
                         <div className="text-[10px] text-base-content/45 bg-base-200/50 px-2.5 py-1.5 rounded-lg font-semibold w-fit border border-base-300/40">
-                          <Lightbulb size={12} className="inline shrink-0" /> 配片: 空杆 {barWeight}{unit}
+                          <Lightbulb size={12} className="inline shrink-0" /> 配片: 空杆 {barWeight}{exUnit}
                         </div>
                       </div>
                     );
@@ -1576,81 +1624,303 @@ function TrainSession({
                   breakdown.plates.forEach(p => { counts[p] = (counts[p] || 0) + 1; });
                   const plateTexts = Object.entries(counts)
                     .sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]))
-                    .map(([plate, count]) => `${plate}${unit} × ${count}`);
+                    .map(([plate, count]) => `${plate}${exUnit} × ${count}`);
                   
                   return (
                     <div className="flex flex-col gap-1.5 mb-2 select-none w-full px-3">
                       <div className="text-[10px] text-primary dark:text-primary-dark bg-primary/5 dark:bg-primary/10 border border-primary/10 rounded-lg px-2.5 py-1.5 flex items-center gap-1 font-semibold">
                         <span><Lightbulb size={12} className="inline shrink-0" /> 配片建议:</span>
-                        <span>{barWeight}{unit} 空杆 + 单侧 [{plateTexts.join(', ')}]</span>
+                        <span>{barWeight}{exUnit} 空杆 + 单侧 [{plateTexts.join(', ')}]</span>
                       </div>
                     </div>
                   );
                 })()}
 
                 <div className="flex flex-col gap-2.5">
-                  {sets.map((set, setIdx) => {
-                    const setKey = getSetKey(exIdx, setIdx);
-                    const detail = setDetails[setKey] || {};
-                    const isLastSet = setIdx === sets.length - 1;
-                    const isSkipped = !!set.skipped;
-                    
-                    let btnClassName = `flex items-center justify-between p-4 rounded-2xl border-2 transition-all duration-200 text-left w-full `;
-                    if (isSkipped) {
-                      btnClassName += `border-dashed border-base-300 bg-base-200/20 opacity-50`;
-                    } else if (set.completed) {
-                      btnClassName += `border-green-500/30 bg-green-500/5`;
-                    } else if (isLastSet && !set.completed) {
-                      btnClassName += `border-primary/40 bg-primary/5`;
-                    } else {
-                      btnClassName += `border-base-300 bg-base-200/30 hover:border-base-content/15`;
-                    }
+                  {ex.needs_retest ? (
+                    renderRetestCard(ex, exIdx)
+                  ) : (
+                    <>
+                      {sets.map((set, setIdx) => {
+                        const setKey = getSetKey(exIdx, setIdx);
+                        const detail = setDetails[setKey] || {};
+                        const isLastSet = setIdx === sets.length - 1;
+                        const isSkipped = !!set.skipped;
+                        
+                        let btnClassName = `flex items-center justify-between p-4 rounded-2xl border-2 transition-all duration-200 text-left w-full `;
+                        if (isSkipped) {
+                          btnClassName += `border-dashed border-base-300 bg-base-200/20 opacity-50`;
+                        } else if (set.completed) {
+                          btnClassName += `border-green-500/30 bg-green-500/5`;
+                        } else if (isLastSet && !set.completed) {
+                          btnClassName += `border-primary/40 bg-primary/5`;
+                        } else {
+                          btnClassName += `border-base-300 bg-base-200/30 hover:border-base-content/15`;
+                        }
 
-                    return (
-                      <button key={setIdx} type="button" className={btnClassName} onClick={() => openSetCard(exIdx, setIdx)}>
-                        <div className="flex items-center gap-3">
-                          {isSkipped ? (
-                            <div className="w-8 h-8 rounded-full border border-base-300 flex items-center justify-center"><SkipForward size={12} className="text-base-content/30" /></div>
-                          ) : set.completed ? (
-                            <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center"><Check size={14} className="text-white" /></div>
-                          ) : (
-                            <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${isLastSet ? 'border-primary' : 'border-base-300'}`}><span className="text-xs font-bold text-base-content/40">{set.set_number}</span></div>
-                          )}
-                          <div className="flex flex-col">
-                            <span className={`text-sm font-bold ${isSkipped ? 'text-base-content/40' : set.completed ? 'text-base-content/30 line-through' : 'text-base-content'}`}>
-                              第 {set.set_number} 组
-                            </span>
-                            <span className="text-xs font-semibold text-base-content/40">目标: {set.planned_reps}{set.is_amrap && (() => { const m = getRecordingMethod(ex.exercise); return m !== 'duration_only' && m !== 'distance_only'; })() ? '+' : ''}{(() => { const m = getRecordingMethod(ex.exercise); return m === 'duration_only' ? '秒' : m === 'distance_only' ? '米' : '次'; })()}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          {isSkipped ? (
-                            <span className="text-xs font-bold text-base-content/30">已跳过</span>
-                          ) : (
-                            <>
-                              {detail.record_rpe !== false && detail.rpe !== undefined && detail.rpe !== null && (
-                                <span className={`text-xs font-bold font-mono ${getRpeColor(detail.rpe)}`}>RPE {detail.rpe.toFixed(1)}</span>
+                        return (
+                          <button key={setIdx} type="button" className={btnClassName} onClick={() => openSetCard(exIdx, setIdx)}>
+                            <div className="flex items-center gap-3">
+                              {isSkipped ? (
+                                <div className="w-8 h-8 rounded-full border border-base-300 flex items-center justify-center"><SkipForward size={12} className="text-base-content/30" /></div>
+                              ) : set.completed ? (
+                                <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center"><Check size={14} className="text-white" /></div>
+                              ) : (
+                                <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${isLastSet ? 'border-primary' : 'border-base-300'}`}><span className="text-xs font-bold text-base-content/40">{set.set_number}</span></div>
                               )}
-                              {['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(getRecordingMethod(ex.exercise)) && (
-                                <span className="text-sm font-mono font-bold text-base-content/60">
-                                  {unit === 'lbs' 
-                                    ? `${convertWeight(set.weight_kg || ex.weight, 'lbs').toFixed(1)}lbs` 
-                                    : `${(set.weight_kg || ex.weight)?.toFixed(1)}kg`
-                                  }
+                              <div className="flex flex-col">
+                                <span className={`text-sm font-bold ${isSkipped ? 'text-base-content/40' : set.completed ? 'text-base-content/30 line-through' : 'text-base-content'}`}>
+                                  第 {set.set_number} 组
                                 </span>
+                                <span className="text-xs font-semibold text-base-content/40">目标: {set.planned_reps}{set.is_amrap && (() => { const m = getRecordingMethod(ex.exercise); return m !== 'duration_only' && m !== 'distance_only'; })() ? '+' : ''}{(() => { const m = getRecordingMethod(ex.exercise); return m === 'duration_only' ? '秒' : m === 'distance_only' ? '米' : '次'; })()}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {isSkipped ? (
+                                <span className="text-xs font-bold text-base-content/30">已跳过</span>
+                              ) : (
+                                <>
+                                  {detail.record_rpe !== false && detail.rpe !== undefined && detail.rpe !== null && (
+                                    <span className={`text-xs font-bold font-mono ${getRpeColor(detail.rpe)}`}>RPE {detail.rpe.toFixed(1)}</span>
+                                  )}
+                                  {['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(getRecordingMethod(ex.exercise)) && (
+                                    <span className="text-sm font-mono font-bold text-base-content/60">
+                                      {exUnit === 'lbs' 
+                                        ? `${convertWeight(set.weight_kg || ex.weight, 'lbs').toFixed(1)}lbs` 
+                                        : `${(set.weight_kg || ex.weight)?.toFixed(1)}kg`
+                                      }
+                                    </span>
+                                  )}
+                                  {set.completed && <span className="text-base font-mono font-black text-green-500">{set.actual_reps ?? set.planned_reps}{(() => { const m = getRecordingMethod(ex.exercise); return m === 'duration_only' ? '秒' : m === 'distance_only' ? '米' : '次'; })()}</span>}
+                                </>
                               )}
-                              {set.completed && <span className="text-base font-mono font-black text-green-500">{set.actual_reps ?? set.planned_reps}{(() => { const m = getRecordingMethod(ex.exercise); return m === 'duration_only' ? '秒' : m === 'distance_only' ? '米' : '次'; })()}</span>}
-                            </>
-                          )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                      {['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(getRecordingMethod(ex.exercise)) && sets.length > 1 && (
+                        <div className="flex justify-end px-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const currentWeight = sets[0]?.weight_kg ?? ex.weight ?? 0;
+                              handleSyncWeightToSubsequentSets(exIdx, -1, currentWeight);
+                            }}
+                            className="btn btn-ghost btn-xs text-primary dark:text-primary-dark font-extrabold gap-1 px-2 py-1 select-none cursor-pointer rounded bg-primary/5 hover:bg-primary/10"
+                          >
+                            <RefreshCw size={11} />
+                            <span>同步首组重量到其余未完成组</span>
+                          </button>
                         </div>
-                      </button>
-                    );
-                  })}
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             </div>
           );
         })}
+      </div>
+    );
+  };
+
+  const renderRetestCard = (ex, exIdx) => {
+    const exUnit = exerciseConfig?.[ex.exercise]?.unit || unit || 'kg';
+    const set = sessionState.setsData[exIdx]?.[0];
+    if (!set) return null;
+
+    const testWeight = set.weight_kg ?? ex.weight ?? 0;
+    const testReps = set.actual_reps ?? '';
+
+    let estimated1RM = 0;
+    let estimated5RM = 0;
+    let recommendedStartWeight = 0;
+
+    if (testWeight > 0 && testReps > 0) {
+      const e1rmResult = calcE1RM(testWeight, testReps);
+      if (e1rmResult.valid) {
+        estimated1RM = e1rmResult.e1rm;
+        estimated5RM = Math.round(estimated1RM * 0.863 * 10) / 10;
+        const ratio = ex.tier === 'T2' ? 0.65 : 0.85;
+        const rawStart = ex.tier === 'T2' ? estimated1RM * 0.65 : estimated5RM * 0.85;
+        recommendedStartWeight = roundExerciseWeight(rawStart, exercisesMap[ex.exercise], gymEquipmentConfig, exUnit);
+      }
+    }
+
+    const currentStartWeightKg = set.retest_start_weight ?? recommendedStartWeight;
+
+    const handleConfirmRetest = () => {
+      if (testWeight <= 0 || !testReps || parseInt(testReps, 10) <= 0) {
+        alert('请输入有效的测试重量和次数！');
+        return;
+      }
+      const finalStartWeight = set.retest_start_weight ?? recommendedStartWeight;
+      if (finalStartWeight <= 0) {
+        alert('请设置有效的新起点重量！');
+        return;
+      }
+      setSessionState(prev => {
+        const nextSets = [{
+          set_number: 1,
+          planned_reps: parseInt(testReps, 10),
+          actual_reps: parseInt(testReps, 10),
+          completed: true,
+          weight_kg: testWeight,
+          retest_start_weight: finalStartWeight,
+          is_warmup: false
+        }];
+        return {
+          ...prev,
+          setsData: { ...prev.setsData, [exIdx]: nextSets }
+        };
+      });
+    };
+
+    return (
+      <div className="card !p-4 bg-bg-card border border-border-card dark:bg-bg-card-dark dark:border-border-card-dark rounded-2xl flex flex-col gap-3 ml-3 mr-3 shadow-sm select-none">
+        <div className="flex flex-col gap-1 select-none">
+          <div className="flex items-center gap-1.5 font-black text-amber-500 text-sm">
+            <span className="badge badge-warning badge-outline scale-90 px-1.5 text-[9px] font-extrabold">极限重测</span>
+            <span>大轮次已告终，请在今日测试极限</span>
+          </div>
+          <p className="text-xs text-text-secondary dark:text-text-secondary-dark leading-normal">
+            该动作在此计划中已达到目前周期上限。请在今天重测（如测试 3RM 或 5RM 直至力竭），并在下方录入您的测试表现，系统将自动折算推荐新起点负荷，并开启新周期。
+          </p>
+        </div>
+
+        {/* Inputs */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-text-secondary dark:text-text-secondary-dark">测试负荷 ({exUnit})</label>
+            <div className="input-standard flex items-center justify-between px-3 h-10">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={testWeight === '' || testWeight === 0 ? '' : (exUnit === 'lbs' ? convertWeight(testWeight, 'lbs') : testWeight)}
+                placeholder="测试重量"
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^\d.]/g, '');
+                  const cleaned = raw.split('.').length > 2 ? raw.slice(0, raw.lastIndexOf('.')) : raw;
+                  const val = cleaned === '' || cleaned === '.' ? '' : parseFloat(cleaned);
+                  const kgVal = exUnit === 'lbs' ? toStorageWeight(val, 'lbs') : val;
+                  setSessionState(prev => {
+                    const nextSets = (prev.setsData[exIdx] || []).map((s, idx) => 
+                      idx === 0 ? { ...s, weight_kg: kgVal } : s
+                    );
+                    return { ...prev, setsData: { ...prev.setsData, [exIdx]: nextSets } };
+                  });
+                }}
+                className="w-full bg-transparent font-mono font-bold text-sm text-text-main dark:text-text-main-dark focus:outline-none"
+              />
+              <span className="text-xs font-semibold text-text-secondary/50 font-mono select-none">{exUnit}</span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-text-secondary dark:text-text-secondary-dark">完成次数 (次)</label>
+            <div className="input-standard flex items-center justify-between px-3 h-10">
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={testReps}
+                placeholder="极限次数"
+                onChange={(e) => {
+                  const cleaned = e.target.value.replace(/\D/g, '');
+                  const val = cleaned === '' ? '' : parseInt(cleaned, 10);
+                  setSessionState(prev => {
+                    const nextSets = (prev.setsData[exIdx] || []).map((s, idx) => 
+                      idx === 0 ? { ...s, actual_reps: val, planned_reps: val || 5 } : s
+                    );
+                    return { ...prev, setsData: { ...prev.setsData, [exIdx]: nextSets } };
+                  });
+                }}
+                className="w-full bg-transparent font-mono font-bold text-sm text-text-main dark:text-text-main-dark focus:outline-none"
+              />
+              <span className="text-xs font-semibold text-text-secondary/50 font-mono select-none">次</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 确认新起点重量输入框 */}
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-text-secondary dark:text-text-secondary-dark">确认新起点负荷 ({exUnit})</label>
+          <div className="input-standard flex items-center justify-between px-3 h-10 border border-primary/30">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={currentStartWeightKg > 0 ? (exUnit === 'lbs' ? convertWeight(currentStartWeightKg, 'lbs') : currentStartWeightKg) : ''}
+              placeholder="新起点负荷"
+              onChange={(e) => {
+                const raw = e.target.value.replace(/[^\d.]/g, '');
+                const cleaned = raw.split('.').length > 2 ? raw.slice(0, raw.lastIndexOf('.')) : raw;
+                const val = cleaned === '' || cleaned === '.' ? '' : parseFloat(cleaned);
+                const kgVal = exUnit === 'lbs' ? toStorageWeight(val, 'lbs') : val;
+                setSessionState(prev => {
+                  const nextSets = (prev.setsData[exIdx] || []).map((s, idx) => 
+                    idx === 0 ? { ...s, retest_start_weight: kgVal } : s
+                  );
+                  return { ...prev, setsData: { ...prev.setsData, [exIdx]: nextSets } };
+                });
+              }}
+              className="w-full bg-transparent font-mono font-bold text-sm text-text-main dark:text-text-main-dark focus:outline-none"
+            />
+            <span className="text-xs font-semibold text-text-secondary/50 font-mono select-none">{exUnit}</span>
+          </div>
+        </div>
+
+        {/* Real-time Estimates */}
+        {testWeight > 0 && testReps > 0 && (
+          <div className="flex flex-col gap-1 p-2.5 rounded-xl bg-primary/5 dark:bg-primary/10 border border-primary/10 select-none animate-fadeIn">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-text-secondary dark:text-text-secondary-dark">估算 1RM:</span>
+              <span className="font-mono font-bold text-text-main dark:text-text-main-dark">{estimated1RM.toFixed(1)} {exUnit}</span>
+            </div>
+            {ex.tier === 'T1' && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-text-secondary dark:text-text-secondary-dark">估算 5RM:</span>
+                <span className="font-mono font-bold text-text-main dark:text-text-main-dark">{estimated5RM.toFixed(1)} {exUnit}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between text-xs border-t border-border-card/50 dark:border-border-card-dark/50 pt-1.5 mt-0.5">
+              <span className="font-black text-primary">新起点起始负荷 (推荐):</span>
+              <span className="font-mono font-black text-primary">{recommendedStartWeight.toFixed(1)} {exUnit}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Buttons */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="btn-sec flex-1 h-8 min-h-8 text-xs rounded-xl"
+            onClick={() => {
+              openSetCard(exIdx, 0);
+              setCalcOpen(true);
+            }}
+          >
+            <Calculator size={12} />
+            <span>做组估算助手</span>
+          </button>
+
+          <button
+            type="button"
+            className={`btn-main flex-1 h-8 min-h-8 text-xs rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold transition-all shadow-sm ${
+              set.completed ? 'opacity-50 pointer-events-none' : ''
+            }`}
+            onClick={handleConfirmRetest}
+            disabled={set.completed}
+          >
+            {set.completed ? (
+              <div className="flex items-center gap-1 justify-center">
+                <Check size={12} />
+                <span>已保存测试</span>
+              </div>
+            ) : (
+              <span>保存测试并开启新周期</span>
+            )}
+          </button>
+        </div>
       </div>
     );
   };
@@ -1667,14 +1937,15 @@ function TrainSession({
 
     if (!gymEquipmentConfig) return null;
 
-    const configForUnit = gymEquipmentConfig[unit] || gymEquipmentConfig.kg;
-    const barWeight = configForUnit.barbell?.bar_weight ?? (unit === 'kg' ? 20 : 45);
-    const enabledPlates = configForUnit.barbell?.enabled_plates || (unit === 'kg' ? [25, 20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]);
+    const exUnit = exerciseConfig?.[ex.exercise]?.unit || unit || 'kg';
+    const configForUnit = gymEquipmentConfig[exUnit] || gymEquipmentConfig.kg;
+    const barWeight = configForUnit.barbell?.bar_weight ?? (exUnit === 'kg' ? 20 : 45);
+    const enabledPlates = configForUnit.barbell?.enabled_plates || (exUnit === 'kg' ? [25, 20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]);
     const plateLimits = configForUnit.barbell?.plate_limits || {};
 
     // 优先使用当前 logged weight，若无则使用动作计划重
     const currentWeight = set.weight_kg ?? ex.weight ?? 0;
-    const weightInUnit = unit === 'lbs' ? convertWeight(currentWeight, 'lbs') : currentWeight;
+    const weightInUnit = exUnit === 'lbs' ? convertWeight(currentWeight, 'lbs') : currentWeight;
     const breakdown = getBarbellPlateBreakdown(weightInUnit, barWeight, enabledPlates, plateLimits) || { plates: [] };
 
     return (
@@ -1712,7 +1983,7 @@ function TrainSession({
             <div className="flex flex-col">
               <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark">当前组录入重量</span>
               <span className="text-lg font-black font-mono text-primary">
-                {weightInUnit.toFixed(1)}{unit}
+                {weightInUnit.toFixed(1)}{exUnit}
               </span>
             </div>
             {breakdown.plates.length > 0 ? (
@@ -1724,7 +1995,7 @@ function TrainSession({
                     breakdown.plates.forEach(p => { counts[p] = (counts[p] || 0) + 1; });
                     return Object.entries(counts)
                       .sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]))
-                      .map(([plate, count]) => `${plate}${unit} × ${count}`)
+                      .map(([plate, count]) => `${plate}${exUnit} × ${count}`)
                       .join(' + ');
                   })()}
                 </span>
@@ -1733,7 +2004,7 @@ function TrainSession({
               <div className="text-right flex flex-col items-end">
                 <span className="text-[10px] text-text-secondary dark:text-text-secondary-dark">默认计算配片</span>
                 <span className="text-[11px] font-bold text-text-secondary dark:text-text-secondary-dark">
-                  仅需 {barWeight}{unit} 空杆
+                  仅需 {barWeight}{exUnit} 空杆
                 </span>
               </div>
             )}
@@ -1743,7 +2014,7 @@ function TrainSession({
           <BarbellVisualizer
             plates={breakdown.plates}
             barWeight={barWeight}
-            unit={unit}
+            unit={exUnit}
             enabledPlates={enabledPlates}
             plateLimits={plateLimits}
           />
@@ -1759,6 +2030,7 @@ function TrainSession({
     const set = sessionState.setsData[exerciseIdx]?.[setIdx];
     if (!set) return null;
 
+    const exUnit = exerciseConfig?.[ex?.exercise]?.unit || unit || 'kg';
     const base1RM = parseFloat(calcBaseline1RM) || 0;
     
     // RTS RPE mode
@@ -1851,7 +2123,7 @@ function TrainSession({
                     {/* Baseline 1RM Input */}
                     <div className="flex flex-col gap-1.5">
                       <div className="flex justify-between items-center">
-                        <label className="text-xs font-semibold text-base-content/50 select-none">基准 1RM ({unit})</label>
+                        <label className="text-xs font-semibold text-base-content/50 select-none">基准 1RM ({exUnit})</label>
                         {calcLoading && <span className="text-[10px] text-primary animate-pulse">加载中...</span>}
                       </div>
                       <div className="input input-bordered flex items-center gap-1 bg-base-200/50 border-base-300 focus-within:border-primary px-3 h-11 transition-colors">
@@ -1867,21 +2139,21 @@ function TrainSession({
                           }}
                           className="w-full bg-transparent font-mono font-semibold text-sm text-base-content focus:outline-none text-right pr-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
-                        <span className="text-sm font-medium text-base-content/40 select-none">{unit}</span>
+                        <span className="text-sm font-medium text-base-content/40 select-none">{exUnit}</span>
                       </div>
                     </div>
 
                     {/* 预估重量 (calculated target weight) */}
                     <div className="flex flex-col gap-1.5">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-base-content/50 select-none">预估重量 ({unit})</label>
+                        <label className="text-xs font-semibold text-base-content/50 select-none">预估重量 ({exUnit})</label>
                         <span className="badge badge-info badge-xs scale-90 px-1 py-0.5 font-bold text-[9px] bg-blue-500/15 text-blue-500 border border-blue-500/20">自动</span>
                       </div>
                       <div className="input input-bordered flex items-center gap-1 bg-primary/5 border-primary/20 px-3 h-11 transition-colors select-none">
                         <div className="w-full font-mono font-black text-sm text-primary text-right pr-0.5">
                           {computedRpeWeight > 0 ? `${computedRpeWeight}` : `0`}
                         </div>
-                        <span className="text-sm font-bold text-primary/70 select-none">{unit}</span>
+                        <span className="text-sm font-bold text-primary/70 select-none">{exUnit}</span>
                       </div>
                     </div>
                   </div>
@@ -1926,7 +2198,7 @@ function TrainSession({
                     {/* Baseline 1RM Input */}
                     <div className="flex flex-col gap-1.5">
                       <div className="flex justify-between items-center">
-                        <label className="text-xs font-semibold text-base-content/50 select-none">基准 1RM ({unit})</label>
+                        <label className="text-xs font-semibold text-base-content/50 select-none">基准 1RM ({exUnit})</label>
                         {calcLoading && <span className="text-[10px] text-primary animate-pulse">加载中...</span>}
                       </div>
                       <div className="input input-bordered flex items-center gap-1 bg-base-200/50 border-base-300 focus-within:border-primary px-3 h-11 transition-colors">
@@ -1942,7 +2214,7 @@ function TrainSession({
                           }}
                           className="w-full bg-transparent font-mono font-semibold text-sm text-base-content focus:outline-none text-right pr-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
-                        <span className="text-sm font-medium text-base-content/40 select-none">{unit}</span>
+                        <span className="text-sm font-medium text-base-content/40 select-none">{exUnit}</span>
                       </div>
                     </div>
 
@@ -1982,7 +2254,7 @@ function TrainSession({
                       <div className="flex flex-col">
                         <span className="text-[10px] text-base-content/40 font-sans leading-none">估算重量</span>
                         <span className="text-xl font-black font-mono text-primary mt-1">
-                          {epleyWeight > 0 ? `${epleyWeight} ${unit}` : `-- ${unit}`}
+                          {epleyWeight > 0 ? `${epleyWeight} ${exUnit}` : `-- ${exUnit}`}
                         </span>
                       </div>
                       <span className="text-[9px] text-base-content/40 leading-normal">
@@ -2011,7 +2283,7 @@ function TrainSession({
                       <div className="flex flex-col">
                         <span className="text-[10px] text-base-content/40 font-sans leading-none">估算重量</span>
                         <span className="text-xl font-black font-mono text-primary mt-1">
-                          {brzyckiWeight > 0 ? `${brzyckiWeight} ${unit}` : `-- ${unit}`}
+                          {brzyckiWeight > 0 ? `${brzyckiWeight} ${exUnit}` : `-- ${exUnit}`}
                         </span>
                       </div>
                       <span className="text-[9px] text-base-content/40 leading-normal">

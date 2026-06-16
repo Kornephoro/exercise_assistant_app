@@ -5,6 +5,7 @@
  */
 
 import { roundExerciseWeight } from './unitUtils';
+import { calcE1RM } from './oneRmUtils';
 
 function roundWeight(weight) {
   return Math.round(weight * 10) / 10;
@@ -246,34 +247,28 @@ function gzclpGetTierProgression(exercise, history, schemes, initialWeight, incr
 
   if (success) {
     nextWeight = lastWeight + step;
-    // 成功：回到 chain 的第一个阶段（基础阶段最重，但要先累积信心）
-    // 原逻辑：成功时 nextIdx = 0 (从最低 reps 重新开始)
-    nextIdx = 0;
+    // 成功时保持当前进阶节点并增加重量
+    nextIdx = currentIdx;
   } else {
     nextWeight = lastWeight;
-    // 失败：前进到下一阶段（更高 reps + 减重 + 保持重量）
-    // 如果有 fail_to 且 >= 0：跳到该阶段
-    // 如果有 fail_to === -1：保持当前阶段
+    // 失败时推进阶段
     if (currentScheme.fail_to !== undefined && currentScheme.fail_to >= 0) {
       nextIdx = currentScheme.fail_to;
     } else if (currentScheme.fail_to === -1) {
-      // 已经是最后方案，保持不变
       nextIdx = currentIdx;
     } else {
-      // 自定义 chain 没有 fail_to 字段：失败时前进到 chain 下一阶段，末阶段循环
       if (safeSchemes.length > 1) {
-        nextIdx = (currentIdx + 1) % safeSchemes.length;
+        nextIdx = Math.min(safeSchemes.length - 1, currentIdx + 1);
       } else {
-        // 单阶段 chain 且无 fail_to：保持原地（userChainToSchemes 总是设置 fail_to，此处为防御性兜底）
         nextIdx = currentIdx;
       }
     }
   }
 
-  const nextScheme = safeSchemes[nextIdx];
+  const nextScheme = safeSchemes[nextIdx] || safeSchemes[0];
 
-  // 末阶段失败停滞标记：当 fail_to === -1 且失败时，用户可能陷入无限停滞
-  const stalled = !success && currentScheme.fail_to === -1;
+  // 判定是否处于进阶链末梢且失败（Stall 标记）
+  const stalled = !success && (currentScheme.fail_to === -1 || currentIdx === safeSchemes.length - 1);
 
   return {
     weight_kg: getRoundedWeight(nextWeight),
@@ -606,33 +601,52 @@ function getWarmupSets(exKey, workingWeight, userExConfig, gymEquipmentConfig, e
  * @returns {Object} exercises.push-ready 训练动作对象
  */
 function processTierExercise(tier, ex, historyByExerciseTier, exConfig, config,
-  gymEquipmentConfig, exercisesMap, unit, _getWarmupSets, _gzclpGetTierProgression) {
+  gymEquipmentConfig, exercisesMap, unit, _getWarmupSets, _gzclpGetTierProgression, userProgram = null) {
   const hist = (historyByExerciseTier[ex] && historyByExerciseTier[ex][tier]) || [];
   const userEx = exConfig[ex] || {};
-  // T1/T2 分别读取各自的起始重量，向后兼容旧的单值 initial_weight
-  const initWeight = tier === 'T1'
-    ? (userEx.initial_weight_t1 ?? userEx.initial_weight ?? config.default_weights?.[ex])
-    : (userEx.initial_weight_t2 ?? userEx.initial_weight ?? config.default_weights?.[ex]);
-  const incrKey = tier === 'T1' ? 'increment_t1' : 'increment_t2';
-  const incrDefault = config.default_increment?.[tier] ?? 2.5;
-  const incr = (userEx[incrKey]) ?? incrDefault;
+  const exUnit = userEx.unit || unit || 'kg';
   // 优先使用用户自定义 chain，fallback 到程序默认
   const chainKey = tier === 'T1' ? 't1_chain' : 't2_chain';
   const schemeKey = tier === 'T1' ? 't1_schemes' : 't2_schemes';
   const userSchemes = userChainToSchemes(userEx[chainKey]);
   const schemes = userSchemes || config[schemeKey];
-  // T2 不传 threshold，让 gzclpGetTierProgression 从当前方案的 success_threshold 自动推导
-  const result = _gzclpGetTierProgression(ex, hist, schemes, initWeight, incr, null, gymEquipmentConfig, exercisesMap[ex], unit);
+
+  let weightVal;
+  let schemeIdx;
+  let needsRetest = false;
+
+  const progState = userProgram?.program_state?.exercises?.[ex]?.[tier];
+  if (progState && progState.weight !== undefined) {
+    weightVal = Number(progState.weight);
+    schemeIdx = Number(progState.scheme_index ?? 0);
+    needsRetest = progState.status === 'needs_retest';
+  } else {
+    // 降级使用原有历史反推计算
+    const initWeight = tier === 'T1'
+      ? (userEx.initial_weight_t1 ?? userEx.initial_weight ?? config.default_weights?.[ex])
+      : (userEx.initial_weight_t2 ?? userEx.initial_weight ?? config.default_weights?.[ex]);
+    const incrKey = tier === 'T1' ? 'increment_t1' : 'increment_t2';
+    const incrDefault = config.default_increment?.[tier] ?? 2.5;
+    const incr = (userEx[incrKey]) ?? incrDefault;
+
+    const result = _gzclpGetTierProgression(ex, hist, schemes, initWeight, incr, null, gymEquipmentConfig, exercisesMap[ex], exUnit);
+    weightVal = result.weight_kg;
+    schemeIdx = result.scheme_index;
+    needsRetest = !!result.stalled;
+  }
+
+  const activeScheme = schemes[schemeIdx] || schemes[0];
 
   return {
     exercise: ex,
     tier,
-    sets: schemes[result.scheme_index].sets,
-    reps: result.planned_reps,
-    weight: result.weight_kg,
-    scheme_text: result.scheme_text,
-    amrap_last: schemes[result.scheme_index].amrap_last,
-    warmup_sets: _getWarmupSets(ex, result.weight_kg, userEx, gymEquipmentConfig, exercisesMap[ex], unit)
+    sets: activeScheme.sets,
+    reps: activeScheme.reps,
+    weight: weightVal,
+    scheme_text: gzclpGetSchemeText(activeScheme),
+    amrap_last: activeScheme.amrap_last,
+    needs_retest: needsRetest,
+    warmup_sets: _getWarmupSets(ex, weightVal, userEx, gymEquipmentConfig, exercisesMap[ex], exUnit)
   };
 }
 
@@ -668,56 +682,76 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier, gymEqui
   // T1
   if (dayConfig.T1) {
     const exObj = processTierExercise('T1', dayConfig.T1, historyByExerciseTier, exConfig, config,
-      gymEquipmentConfig, exercisesMap, unit, getWarmupSets, gzclpGetTierProgression);
+      gymEquipmentConfig, exercisesMap, unit, getWarmupSets, gzclpGetTierProgression, userProgram);
     exercises.push(applyGlobalDeloadToExercise(exObj, userProgram, exercisesMap[dayConfig.T1], gymEquipmentConfig, unit));
   }
 
   // T2
   if (dayConfig.T2) {
     const exObj = processTierExercise('T2', dayConfig.T2, historyByExerciseTier, exConfig, config,
-      gymEquipmentConfig, exercisesMap, unit, getWarmupSets, gzclpGetTierProgression);
+      gymEquipmentConfig, exercisesMap, unit, getWarmupSets, gzclpGetTierProgression, userProgram);
     exercises.push(applyGlobalDeloadToExercise(exObj, userProgram, exercisesMap[dayConfig.T2], gymEquipmentConfig, unit));
   }
 
   // T3
   if (dayConfig.T3) {
     const t3Exercises = Array.isArray(dayConfig.T3) ? dayConfig.T3 : [dayConfig.T3];
-    // 兜底：防止 config.t3_scheme 未定义时引擎崩溃
     const scheme = config.t3_scheme || DEFAULT_T3_SCHEME;
     for (const ex of t3Exercises) {
       const hist = (historyByExerciseTier[ex] && historyByExerciseTier[ex]['T3']) || [];
       const userEx = exConfig[ex] || {};
-      // T3 起始重量（暂无 T1/T2 区分，沿用 initial_weight）
+      const exUnit = userEx.unit || unit || 'kg';
       const initWeight = userEx.initial_weight ?? config.default_weights?.[ex] ?? 10;
       const incr = userEx.increment_t3 ?? config.default_increment?.['T3'] ?? 2.5;
 
       const isDoubleProg = userEx.progression_type === 'double_progression';
-      let result;
+      const progState = userProgram?.program_state?.exercises?.[ex]?.['T3'];
       let targetSets = scheme.sets;
       let amrapLast = scheme.amrap_last;
+      let plannedReps = scheme.reps;
+      let weightVal;
+      let needsRetest = false;
 
-      if (isDoubleProg) {
-        result = calculateDoubleProgression(ex, hist, userEx, initWeight, incr, gymEquipmentConfig, exercisesMap[ex], unit, userProgram);
-        targetSets = result.sets;
-        amrapLast = result.amrap_last;
+      if (progState && progState.weight !== undefined) {
+        weightVal = Number(progState.weight);
+        plannedReps = Number(progState.planned_reps ?? scheme.reps);
+        targetSets = Number(progState.sets ?? scheme.sets);
+        needsRetest = progState.status === 'needs_retest';
       } else {
-        const threshold = userEx.target_reps ?? scheme.success_threshold ?? 25;
-        result = gzclpGetTierProgression(ex, hist, [scheme], initWeight, incr, threshold, gymEquipmentConfig, exercisesMap[ex], unit);
+        if (isDoubleProg) {
+          const result = calculateDoubleProgression(ex, hist, userEx, initWeight, incr, gymEquipmentConfig, exercisesMap[ex], exUnit, userProgram);
+          targetSets = result.sets;
+          amrapLast = result.amrap_last;
+          weightVal = result.weight_kg;
+          plannedReps = result.planned_reps;
+          needsRetest = !!result.stalled;
+        } else {
+          const threshold = userEx.target_reps ?? scheme.success_threshold ?? 25;
+          const result = gzclpGetTierProgression(ex, hist, [scheme], initWeight, incr, threshold, gymEquipmentConfig, exercisesMap[ex], exUnit);
+          weightVal = result.weight_kg;
+          plannedReps = result.planned_reps;
+          needsRetest = !!result.stalled;
+        }
       }
 
       const t3RecordingMethod = exercisesMap[ex]?.recording_method || 'standard';
+      const schemeText = t3RecordingMethod === 'duration_only' && !isDoubleProg
+        ? `${targetSets}组 × ${plannedReps}秒`
+        : t3RecordingMethod === 'distance_only' && !isDoubleProg
+          ? `${targetSets}组 × ${plannedReps}米`
+          : isDoubleProg
+            ? `${targetSets}组 × ${plannedReps}次 (区间: ${userEx.min_reps || 12}~${userEx.max_reps || 15})`
+            : `${targetSets}组 × ${plannedReps}次${amrapLast ? ' (最后一组 AMRAP，即尽量多做)' : ''}`;
+
       const exObj = {
         exercise: ex,
         tier: 'T3',
         sets: targetSets,
-        reps: result.planned_reps,
-        weight: result.weight_kg,
-        scheme_text: t3RecordingMethod === 'duration_only' && !isDoubleProg
-          ? `${targetSets}组 × ${result.planned_reps}秒`
-          : t3RecordingMethod === 'distance_only' && !isDoubleProg
-            ? `${targetSets}组 × ${result.planned_reps}米`
-            : result.scheme_text,
+        reps: plannedReps,
+        weight: weightVal,
+        scheme_text: schemeText,
         amrap_last: amrapLast,
+        needs_retest: needsRetest,
         recording_method: t3RecordingMethod
       };
       exercises.push(applyGlobalDeloadToExercise(exObj, userProgram, exercisesMap[ex], gymEquipmentConfig, unit));
@@ -866,6 +900,152 @@ export function getNextDay(program, lastDay, schedule, lastTrainingDate, startDa
   const engine = engines[program.config?.engine_type];
   if (!engine) return 'Day1';
   return engine.getNextDay(program.config, lastDay, schedule, lastTrainingDate, startDate);
+}
+
+export function gzclpCalculateNextProgressionState(config, userProgram, todayWorkout, completedSetsData, historyByExerciseTier, gymEquipmentConfig = null, exercisesMap = {}) {
+  const state = userProgram.program_state || {};
+  const exConfig = userProgram.exercise_config || {};
+  const unit = exConfig._unit || 'kg';
+  const isDeloadActive = state.global_deload?.status === 'active';
+
+  const nextExercises = { ...(state.exercises || {}) };
+
+  (todayWorkout?.exercises || []).forEach((tierEx, exIdx) => {
+    const ex = tierEx.exercise;
+    const tier = tierEx.tier;
+    if (tier === 'warmup' || tier === 'stretching') return;
+
+    const sets = completedSetsData[exIdx] || [];
+    if (sets.length === 0) return;
+
+    if (!nextExercises[ex]) nextExercises[ex] = {};
+    const prevExState = nextExercises[ex][tier] || {};
+    const prevMajorCycle = prevExState.major_cycle ?? 1;
+
+    // 1. 如果是减载日，不推进常规进度，保留原值
+    if (isDeloadActive) {
+      nextExercises[ex][tier] = {
+        weight: prevExState.weight ?? tierEx.weight,
+        scheme_index: prevExState.scheme_index ?? 0,
+        status: prevExState.status ?? 'active',
+        major_cycle: prevMajorCycle
+      };
+      if (tier === 'T3') {
+        const userEx = exConfig[ex] || {};
+        const isDoubleProg = userEx.progression_type === 'double_progression';
+        if (isDoubleProg) {
+          nextExercises[ex][tier].planned_reps = prevExState.planned_reps ?? tierEx.reps;
+          nextExercises[ex][tier].sets = prevExState.sets ?? tierEx.sets;
+        }
+      }
+      return;
+    }
+
+    // 2. 如果当前是极限重测状态，重测完成后将进入新周期
+    if (tierEx.needs_retest) {
+      const testSet = sets[sets.length - 1] || {};
+      const newStartWeight = Number(testSet.weight_kg) || tierEx.weight;
+
+      nextExercises[ex][tier] = {
+        weight: newStartWeight,
+        scheme_index: 0, // 重置回进阶链第0节点
+        status: 'active', // 重测完成，恢复常规进阶
+        major_cycle: prevMajorCycle + 1 // 大轮次加1
+      };
+      
+      if (tier === 'T3') {
+        const userEx = exConfig[ex] || {};
+        nextExercises[ex][tier].planned_reps = userEx.min_reps ?? 12;
+        nextExercises[ex][tier].sets = userEx.sets ?? 3;
+      }
+      return;
+    }
+
+    // 3. 常规进阶计算
+    const userEx = exConfig[ex] || {};
+    const exUnit = userEx.unit || unit || 'kg';
+    const workSets = sets.filter(s => !s.is_warmup);
+
+    const getFinalReps = (setObj) => {
+      if (setObj.actual_reps === '' || setObj.actual_reps === undefined) return setObj.planned_reps;
+      return parseInt(setObj.actual_reps, 10);
+    };
+
+    let actualLastReps = 0;
+    if (tier === 'T2') {
+      actualLastReps = workSets.reduce((sum, s) => sum + getFinalReps(s), 0);
+    } else {
+      actualLastReps = workSets.length > 0 ? Math.min(...workSets.map(s => getFinalReps(s))) : 0;
+    }
+
+    const lastSet = sets[sets.length - 1];
+    const completedWeight = (lastSet && lastSet.weight_kg !== undefined && lastSet.weight_kg !== '') ? Number(lastSet.weight_kg) : tierEx.weight;
+
+    const newHistoryRow = {
+      weight_kg: completedWeight,
+      planned_reps: tierEx.reps,
+      actual_last_set_reps: actualLastReps,
+      sets: workSets.map(s => ({
+        is_warmup: false,
+        planned_reps: s.planned_reps,
+        actual_reps: getFinalReps(s),
+        weight_kg: s.weight_kg !== undefined && s.weight_kg !== '' ? Number(s.weight_kg) : completedWeight
+      }))
+    };
+
+    const hist = [...(historyByExerciseTier[ex]?.[tier] || []), newHistoryRow];
+
+    if (tier === 'T1' || tier === 'T2') {
+      const chainKey = tier === 'T1' ? 't1_chain' : 't2_chain';
+      const schemeKey = tier === 'T1' ? 't1_schemes' : 't2_schemes';
+      const userSchemes = userChainToSchemes(userEx[chainKey]);
+      const schemes = userSchemes || config[schemeKey];
+
+      const initWeight = tier === 'T1'
+        ? (userEx.initial_weight_t1 ?? userEx.initial_weight ?? config.default_weights?.[ex])
+        : (userEx.initial_weight_t2 ?? userEx.initial_weight ?? config.default_weights?.[ex]);
+      const incrKey = tier === 'T1' ? 'increment_t1' : 'increment_t2';
+      const incrDefault = config.default_increment?.[tier] ?? 2.5;
+      const incr = (userEx[incrKey]) ?? incrDefault;
+
+      const result = gzclpGetTierProgression(ex, hist, schemes, initWeight, incr, null, gymEquipmentConfig, exercisesMap[ex], exUnit);
+
+      nextExercises[ex][tier] = {
+        weight: result.weight_kg,
+        scheme_index: result.scheme_index,
+        status: result.stalled ? 'needs_retest' : 'active',
+        major_cycle: prevMajorCycle
+      };
+    } else if (tier === 'T3') {
+      const initWeight = userEx.initial_weight ?? config.default_weights?.[ex] ?? 10;
+      const incr = userEx.increment_t3 ?? config.default_increment?.['T3'] ?? 2.5;
+      const isDoubleProg = userEx.progression_type === 'double_progression';
+
+      if (isDoubleProg) {
+        const result = calculateDoubleProgression(ex, hist, userEx, initWeight, incr, gymEquipmentConfig, exercisesMap[ex], exUnit, userProgram);
+        nextExercises[ex][tier] = {
+          weight: result.weight_kg,
+          planned_reps: result.planned_reps,
+          sets: result.sets,
+          status: result.stalled ? 'needs_retest' : 'active',
+          major_cycle: prevMajorCycle
+        };
+      } else {
+        const scheme = config.t3_scheme || DEFAULT_T3_SCHEME;
+        const threshold = userEx.target_reps ?? scheme.success_threshold ?? 25;
+        const result = gzclpGetTierProgression(ex, hist, [scheme], initWeight, incr, threshold, gymEquipmentConfig, exercisesMap[ex], exUnit);
+        nextExercises[ex][tier] = {
+          weight: result.weight_kg,
+          planned_reps: result.planned_reps,
+          sets: scheme.sets,
+          status: result.stalled ? 'needs_retest' : 'active',
+          major_cycle: prevMajorCycle
+        };
+      }
+    }
+  });
+
+  return nextExercises;
 }
 
 export { isTodayTrainingDay, getNextTrainingDate, getDaysUntilStart };
