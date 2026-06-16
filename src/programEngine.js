@@ -932,6 +932,7 @@ export function gzclpCalculateNextProgressionState(config, userProgram, todayWor
   const isDeloadActive = state.global_deload?.status === 'active';
 
   const nextExercises = { ...(state.exercises || {}) };
+  const feedbackMessages = [];
 
   (todayWorkout?.exercises || []).forEach((tierEx, exIdx) => {
     const ex = tierEx.exercise;
@@ -1004,6 +1005,13 @@ export function gzclpCalculateNextProgressionState(config, userProgram, todayWor
     const lastSet = sets[sets.length - 1];
     const completedWeight = (lastSet && lastSet.weight_kg !== undefined && lastSet.weight_kg !== '') ? Number(lastSet.weight_kg) : tierEx.weight;
 
+    if (completedWeight !== tierEx.weight && completedWeight > 0) {
+      const cnName = exercisesMap[ex]?.name_cn || ex;
+      feedbackMessages.push(
+        `动作【${cnName} (${tier})】检测到您在训练中调整了重量（由 ${tierEx.weight}kg 改为 ${completedWeight}kg），下次计划已以该实际重量为基准进行推算。`
+      );
+    }
+
     const newHistoryRow = {
       weight_kg: completedWeight,
       planned_reps: tierEx.reps,
@@ -1032,6 +1040,17 @@ export function gzclpCalculateNextProgressionState(config, userProgram, todayWor
       const incr = (userEx[incrKey]) ?? incrDefault;
 
       const result = gzclpGetTierProgression(ex, hist, schemes, initWeight, incr, null, gymEquipmentConfig, exercisesMap[ex], exUnit);
+
+      if (prevExState.scheme_index !== undefined && result.scheme_index !== prevExState.scheme_index) {
+        const cnName = exercisesMap[ex]?.name_cn || ex;
+        const oldScheme = schemes[prevExState.scheme_index] || schemes[0];
+        const newScheme = schemes[result.scheme_index] || schemes[0];
+        const oldText = `${oldScheme.sets}组 × ${oldScheme.reps}次`;
+        const newText = `${newScheme.sets}组 × ${newScheme.reps}次`;
+        feedbackMessages.push(
+          `主项【${cnName} (${tier})】挑战未达标，下次方案已由【${oldText}】调整为【${newText}】，重量保持 ${result.weight_kg}kg 重新挑战。`
+        );
+      }
 
       nextExercises[ex][tier] = {
         weight: result.weight_kg,
@@ -1068,7 +1087,15 @@ export function gzclpCalculateNextProgressionState(config, userProgram, todayWor
     }
   });
 
-  return nextExercises;
+  if (exConfig._adjustedMessages && exConfig._adjustedMessages.length > 0) {
+    feedbackMessages.push(...exConfig._adjustedMessages);
+    delete exConfig._adjustedMessages;
+  }
+
+  return {
+    exercises: nextExercises,
+    feedbackMessages
+  };
 }
 
 export { isTodayTrainingDay, getNextTrainingDate, getDaysUntilStart };

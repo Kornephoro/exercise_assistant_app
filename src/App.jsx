@@ -1181,7 +1181,7 @@ function App() {
         }
       }
 
-      const updatedExercises = gzclpCalculateNextProgressionState(
+      const { exercises: updatedExercises, feedbackMessages } = gzclpCalculateNextProgressionState(
         activeProgram.config,
         activeUP,
         todayWorkout,
@@ -1245,6 +1245,9 @@ function App() {
       if (stalledExercises.length > 0) {
         const cnNames = stalledExercises.map(item => `${getCNName(item.ex, exercisesMap)} (${item.tier})`).join(', ');
         toastMsg += `。提示: ${cnNames} 已达本周期进阶极限，下次训练请重测极限！`;
+      }
+      if (feedbackMessages && feedbackMessages.length > 0) {
+        toastMsg += `\n\n数据调整提示：\n${feedbackMessages.map(msg => '· ' + msg).join('\n')}`;
       }
       setToast({ type: 'success', message: toastMsg });
 
@@ -1342,7 +1345,7 @@ function App() {
               : toast.type === 'error'
                 ? <AlertTriangle size={18} className="shrink-0" />
                 : <SkipForward size={18} className="shrink-0" />}
-            <span className="text-sm font-semibold break-words text-left">{toast.message}</span>
+            <span className="text-sm font-semibold break-words text-left" style={{ whiteSpace: 'pre-wrap' }}>{toast.message}</span>
           </div>
         </div>
       )}
