@@ -2057,6 +2057,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                       let incrLabel = '加重步长';
                       let rangeLabel = '次数区间';
                       let unitLabel = exUnit;
+                      let rangeUnitLabel = '次';
                       let stepVal = '0.5';
                       let minVal = '0';
 
@@ -2065,6 +2066,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                         incrLabel = '增量';
                         rangeLabel = '时长区间';
                         unitLabel = '秒';
+                        rangeUnitLabel = '秒';
                         stepVal = '5';
                         minVal = '5';
                       } else if (recMethod === 'distance_only') {
@@ -2072,6 +2074,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                         incrLabel = '增量';
                         rangeLabel = '距离区间';
                         unitLabel = '米';
+                        rangeUnitLabel = '米';
                         stepVal = '10';
                         minVal = '10';
                       }
@@ -2149,7 +2152,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                                     setT3Exercises(newT3);
                                   }}
                                 />
-                                <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50">{unitLabel}</span>
+                                <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50">{rangeUnitLabel}</span>
                               </div>
                             </div>
                             {/* 区间上限 */}
@@ -2166,7 +2169,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                                     setT3Exercises(newT3);
                                   }}
                                 />
-                                <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50">{unitLabel}</span>
+                                <span className="text-xs text-text-secondary/50 dark:text-text-secondary-dark/50">{rangeUnitLabel}</span>
                               </div>
                             </div>
                             {/* 减载模式 */}

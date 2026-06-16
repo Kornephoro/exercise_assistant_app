@@ -1048,7 +1048,7 @@ function TrainSession({
               return (
                 <div className="p-2.5 rounded-xl bg-accent/10 border border-accent/20 text-xs text-accent font-bold flex items-center justify-between">
                   <span>🎯 双进阶本组指引</span>
-                  <span>目标：{maxR}{unitLabel} | 上次：{lastValText}</span>
+                  <span>目标：{ex.reps}{unitLabel} (上限: {maxR}{unitLabel}) | 上次：{lastValText}</span>
                 </div>
               );
             })()}
@@ -1538,7 +1538,7 @@ function TrainSession({
                     <div className="flex flex-col gap-1 mx-3 px-2.5 py-2 rounded-xl bg-accent/5 dark:bg-accent/10 border border-accent/10 text-xs text-accent">
                       <div className="flex items-center gap-1.5 font-bold">
                         <span className="badge badge-accent badge-outline scale-90 px-1.5 text-[9px] font-extrabold">双进阶</span>
-                        <span>目标：每组达到 {maxR} {unitLabel} 以加重（区间：{minR}~{maxR} {unitLabel}）</span>
+                        <span>目标：本次每组 {ex.reps} {unitLabel}（区间：{minR}~{maxR} {unitLabel}，达上限加重）</span>
                       </div>
                       <div className="text-base-content/60 font-semibold flex items-center gap-1">
                         <span>📈 上次表现：</span>

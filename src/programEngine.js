@@ -396,11 +396,13 @@ export function calculateDoubleProgression(exercise, history, userEx, initialWei
 
   const defaultWeight = getRoundedWeight(initialWeight ?? 10);
 
+  // Check if overall program is in deload
+  const isProgramDeload = userProgram?.program_state?.is_deload ||
+                          userProgram?.program_state?.deload_active ||
+                          (userProgram?.program_state?.global_deload?.status === 'active') ||
+                          false;
+
   if (!history || history.length === 0) {
-    const isProgramDeload = userProgram?.program_state?.is_deload ||
-                            userProgram?.program_state?.deload_active ||
-                            (userProgram?.program_state?.global_deload?.status === 'active') ||
-                            false;
     if (deloadMode === 'follow_program' && isProgramDeload) {
       return {
         weight_kg: defaultWeight,
@@ -413,9 +415,9 @@ export function calculateDoubleProgression(exercise, history, userEx, initialWei
     }
     return {
       weight_kg: defaultWeight,
-      planned_reps: maxReps,
+      planned_reps: minReps,
       sets: targetSets,
-      scheme_text: `${targetSets}组 × ${minReps}~${maxReps}${unitLabel}`,
+      scheme_text: `${targetSets}组 × ${minReps}${unitLabel} (区间: ${minReps}~${maxReps})`,
       amrap_last: false,
       stalled: false
     };
@@ -438,32 +440,23 @@ export function calculateDoubleProgression(exercise, history, userEx, initialWei
     lastActual = Number(last.actual_last_set_reps) || 0;
   }
 
-  // A regular session has planned_reps === maxReps
-  const wasLastRegular = lastPlannedReps === maxReps;
-  const isSuccess = wasLastRegular && lastActual >= maxReps;
+  // Check if the last workout was a deload (either programmatic or local)
+  const wasLastDeload = last.sets?.length === 2 || last.scheme_text?.includes('减量');
 
-  if (isSuccess) {
-    const nextWeight = getRoundedWeight(lastWeight + increment);
-    return {
-      weight_kg: nextWeight,
-      planned_reps: maxReps,
-      sets: targetSets,
-      scheme_text: `${targetSets}组 × ${minReps}~${maxReps}${unitLabel}`,
-      amrap_last: false,
-      stalled: false
-    };
+  // Find the last non-deload session's planned reps at the current weight
+  let lastRegularPlannedReps = lastPlannedReps;
+  if (wasLastDeload) {
+    const lastRegular = [...history].reverse().find(h => {
+      const isDel = h.sets?.length === 2 || h.scheme_text?.includes('减量');
+      return !isDel;
+    });
+    lastRegularPlannedReps = lastRegular ? Number(lastRegular.planned_reps) : minReps;
   }
 
-  const nextWeight = lastWeight;
-
-  // 1. Check if overall program is in deload
-  const isProgramDeload = userProgram?.program_state?.is_deload ||
-                          userProgram?.program_state?.deload_active ||
-                          (userProgram?.program_state?.global_deload?.status === 'active') ||
-                          false;
+  // 1. Program-level Deload Mode
   if (deloadMode === 'follow_program' && isProgramDeload) {
     return {
-      weight_kg: nextWeight,
+      weight_kg: lastWeight,
       planned_reps: minReps,
       sets: 2,
       scheme_text: `2组 × ${minReps}${unitLabel} (减量)`,
@@ -472,24 +465,42 @@ export function calculateDoubleProgression(exercise, history, userEx, initialWei
     };
   }
 
-  // 2. If the last session was a deload, return to regular workouts
-  if (lastPlannedReps === minReps) {
+  // 2. Return to regular workouts if the last session was a deload
+  if (wasLastDeload) {
     return {
-      weight_kg: nextWeight,
-      planned_reps: maxReps,
+      weight_kg: lastWeight,
+      planned_reps: lastRegularPlannedReps,
       sets: targetSets,
-      scheme_text: `${targetSets}组 × ${minReps}~${maxReps}${unitLabel}`,
+      scheme_text: `${targetSets}组 × ${lastRegularPlannedReps}${unitLabel} (区间: ${minReps}~${maxReps})`,
       amrap_last: false,
       stalled: false
     };
   }
 
-  // 3. Deload mode checks
+  // 3. Regular progression check
+  const isSuccess = lastActual >= lastPlannedReps;
+  let nextWeight = lastWeight;
+  let nextPlannedReps = lastPlannedReps;
+
+  if (isSuccess) {
+    if (lastPlannedReps >= maxReps) {
+      nextWeight = getRoundedWeight(lastWeight + increment);
+      nextPlannedReps = minReps;
+    } else {
+      nextPlannedReps = lastPlannedReps + 1;
+    }
+  } else {
+    nextWeight = lastWeight;
+    nextPlannedReps = lastPlannedReps;
+  }
+
+  // 4. Local Deload mode checks for the upcoming session
   if (deloadMode === 'sessions') {
     const weightHist = history.filter(h => Number(h.weight_kg) === nextWeight);
     let lastDeloadIdx = -1;
     for (let i = weightHist.length - 1; i >= 0; i--) {
-      if (Number(weightHist[i].planned_reps) === minReps) {
+      const isDel = weightHist[i].sets?.length === 2 || weightHist[i].scheme_text?.includes('减量');
+      if (isDel) {
         lastDeloadIdx = i;
         break;
       }
@@ -509,7 +520,8 @@ export function calculateDoubleProgression(exercise, history, userEx, initialWei
     const weightHist = history.filter(h => Number(h.weight_kg) === nextWeight);
     let lastDeloadIdx = -1;
     for (let i = weightHist.length - 1; i >= 0; i--) {
-      if (Number(weightHist[i].planned_reps) === minReps) {
+      const isDel = weightHist[i].sets?.length === 2 || weightHist[i].scheme_text?.includes('减量');
+      if (isDel) {
         lastDeloadIdx = i;
         break;
       }
@@ -519,7 +531,6 @@ export function calculateDoubleProgression(exercise, history, userEx, initialWei
       const startDate = new Date(startSession.created_at);
       const now = new Date();
       const diffDays = (now - startDate) / (1000 * 60 * 60 * 24);
-      // Tolerance of 0.5 days to avoid hourly edge cases
       if (diffDays >= (deloadValue * 7 - 0.5)) {
         return {
           weight_kg: nextWeight,
@@ -535,9 +546,9 @@ export function calculateDoubleProgression(exercise, history, userEx, initialWei
 
   return {
     weight_kg: nextWeight,
-    planned_reps: maxReps,
+    planned_reps: nextPlannedReps,
     sets: targetSets,
-    scheme_text: `${targetSets}组 × ${minReps}~${maxReps}${unitLabel}`,
+    scheme_text: `${targetSets}组 × ${nextPlannedReps}${unitLabel} (区间: ${minReps}~${maxReps})`,
     amrap_last: false,
     stalled: false
   };
