@@ -2805,6 +2805,7 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [userProgramId, setUserProgramId] = useState(null);
+  const [existingProgramState, setExistingProgramState] = useState(null);
   const config = program.config || {};
   const defaultWeights = config.default_weights || {};
   const defaultIncrements = config.default_increment || {};
@@ -2872,8 +2873,10 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
         if (existingUP) {
           if (isExistingActive) {
             setUserProgramId(existingUP.id);
+            setExistingProgramState(existingUP.program_state || null);
           } else {
             setUserProgramId(null); // 全新订阅，执行写入
+            setExistingProgramState(null);
           }
           if (existingUP.exercise_config) {
             setExerciseConfig(existingUP.exercise_config);
@@ -2910,7 +2913,7 @@ function GenericConfig({ program, exercisesMap, onBack, onActivated, isExisting 
       const upData = {
         is_active: true,
         ended_at: null, // 激活计划时确保结束时间清空
-        program_state: initialState,
+        program_state: existingProgramState || initialState,
         exercise_config: exerciseConfig,
         schedule,
         updated_at: new Date().toISOString()

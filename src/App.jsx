@@ -128,6 +128,7 @@ function App() {
   const [isRestDayValue, setIsRestDayValue] = useState(false);
   const [nextTrainingDateValue, setNextTrainingDateValue] = useState('');
   const [daysUntilStartValue, setDaysUntilStartValue] = useState(0);
+  const [isSavingSession, setIsSavingSession] = useState(false);
 
   // 训练会话状态
   const [sessionState, setSessionState] = useState(() => {
@@ -889,12 +890,14 @@ function App() {
 
   // 保存训练记录
   const handleSaveSession = async (setDetails = {}) => {
+    if (isSavingSession) return;
     const activeUP = userPrograms.find(u => u.id === activeProgramId);
     const activeProgram = programs.find(p => p.id === activeUP?.program_id);
     if (!activeUP || !activeProgram) {
       setToast({ type: 'error', message: '未找到活跃计划' });
       return;
     }
+    setIsSavingSession(true);
 
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
@@ -1021,7 +1024,10 @@ function App() {
       }
     }
 
-    if (hasValidationError) return;
+    if (hasValidationError) {
+      setIsSavingSession(false);
+      return;
+    }
 
     try {
       // ============== 任务 6: 自动推算 + 写入 one_rm_records ==============
@@ -1259,7 +1265,7 @@ function App() {
       console.error('保存训练记录失败：', err);
       setToast({ type: 'error', message: '保存记录失败：' + err.message });
     } finally {
-      // no-op
+      setIsSavingSession(false);
     }
   };
 
@@ -1540,6 +1546,7 @@ function App() {
                 }
               }}
               onSave={handleSaveSession}
+              isSaving={isSavingSession}
               onCancel={handleCancelSession}
               gymEquipmentConfig={gymEquipmentConfig}
               unit={getActiveUserProgram()?.exercise_config?._unit || 'kg'}

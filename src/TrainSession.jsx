@@ -280,6 +280,7 @@ function TrainSession({
   closeSetCard,
   onMinimize,
   onSave,
+  isSaving = false,
   onCancel,
   gymEquipmentConfig = null,
   unit = 'kg',
@@ -2996,8 +2997,9 @@ function TrainSession({
             type="button"
             className="btn btn-primary btn-sm h-8 px-4 rounded-xl text-xs font-bold text-primary-content shadow-md active:scale-95 transition-all cursor-pointer"
             onClick={() => onSave(setDetails)}
+            disabled={isSaving}
           >
-            完成
+            {isSaving ? '保存中...' : '完成'}
           </button>
         </div>
 
@@ -3037,7 +3039,14 @@ function TrainSession({
         {renderExerciseList()}
         {isSessionFinished() && (
           <div className="mt-2 animate-fadeIn">
-            <button type="button" className="btn btn-success btn-lg btn-block text-success-content font-semibold gap-2 shadow-lg" onClick={() => onSave(setDetails)}><Sparkles size={18} />完成今日训练打卡</button>
+            <button
+              type="button"
+              className="btn btn-success btn-lg btn-block text-success-content font-semibold gap-2 shadow-lg"
+              onClick={() => onSave(setDetails)}
+              disabled={isSaving}
+            >
+              {isSaving ? '保存中...' : <><Sparkles size={18} />完成今日训练打卡</>}
+            </button>
           </div>
         )}
       </div>

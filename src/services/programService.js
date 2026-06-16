@@ -8,7 +8,7 @@ export const fetchActiveUserProgram = async (programId) => {
   const userId = await requireCurrentUserId();
   const { data, error } = await supabase
     .from('user_programs')
-    .select('id, exercise_config, schedule, day_map')
+    .select('id, exercise_config, schedule, day_map, program_state')
     .eq('user_id', userId)
     .eq('program_id', programId)
     .eq('is_active', true)
@@ -27,7 +27,7 @@ export const fetchLastEndedUserProgram = async (programId) => {
   const userId = await requireCurrentUserId();
   const { data, error } = await supabase
     .from('user_programs')
-    .select('exercise_config, schedule, day_map')
+    .select('exercise_config, schedule, day_map, program_state')
     .eq('user_id', userId)
     .eq('program_id', programId)
     .eq('is_active', false)

@@ -230,6 +230,15 @@ export const deleteWorkouts = async (workoutIds) => {
 
   if (setsError) throw setsError;
 
+  // 先删除关联的 1RM 纪录，防止外键约束报错
+  const { error: oneRmError } = await supabase
+    .from('one_rm_records')
+    .delete()
+    .eq('user_id', userId)
+    .in('source_workout_id', workoutIds);
+
+  if (oneRmError) throw oneRmError;
+
   // 再删除训练记录
   const { error: workoutError } = await supabase
     .from('workouts')
