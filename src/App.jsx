@@ -1201,16 +1201,30 @@ function App() {
       };
       const updatedAt = new Date().toISOString();
 
-      await completeWorkoutSession({
-        session_id: sessionId,
-        session_duration_seconds: sessionDurationSeconds,
-        user_program_id: activeUP.id,
-        program_state: newState,
-        updated_at: updatedAt,
-        workout_records: workoutRecords,
-        workout_sets: setsToInsert,
-        one_rm_records: oneRmRecords
-      });
+      const savePromises = [
+        completeWorkoutSession({
+          session_id: sessionId,
+          session_duration_seconds: sessionDurationSeconds,
+          user_program_id: activeUP.id,
+          program_state: newState,
+          updated_at: updatedAt,
+          workout_records: workoutRecords,
+          workout_sets: setsToInsert,
+          one_rm_records: oneRmRecords
+        })
+      ];
+
+      if (activeUP.exercise_config?._changed) {
+        delete activeUP.exercise_config._changed;
+        savePromises.push(
+          saveUserProgram(activeUP.id, null, {
+            exercise_config: activeUP.exercise_config,
+            updated_at: updatedAt
+          })
+        );
+      }
+
+      await Promise.all(savePromises);
 
       const stalledExercises = [];
       Object.keys(updatedExercises).forEach(exKey => {

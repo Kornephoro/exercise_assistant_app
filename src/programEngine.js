@@ -153,7 +153,10 @@ function getNextTrainingDate(schedule, lastTrainingDate, startDate) {
     const trainingDays = schedule?.training_days || [];
     if (trainingDays.length === 0) return '';
     const weekdaysEng = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const targetIndices = trainingDays.map(day => weekdaysEng.indexOf(day)).filter(idx => idx !== -1);
+    const targetIndices = trainingDays
+      .map(day => weekdaysEng.indexOf(day))
+      .filter(idx => idx !== -1)
+      .sort((a, b) => a - b);
     if (targetIndices.length === 0) return '';
     
     const todayIdx = today.getDay();
@@ -437,6 +440,26 @@ export function calculateDoubleProgression(exercise, history, userEx, initialWei
 
   // Check if the last workout was a deload (either programmatic or local)
   const wasLastDeload = last.sets?.length === 2 || last.scheme_text?.includes('减量');
+
+  // 如果是首次正式训练，且实际完成次数低于设定的下限次（例如配置 12-15 次只做了 10 次），则同步下调下限为实际次数
+  const isFirstRegularWorkout = history.length === 1 && !wasLastDeload;
+  if (isFirstRegularWorkout && lastActual < minReps && lastActual > 0) {
+    userEx.min_reps = lastActual;
+    if (userProgram && userProgram.exercise_config && userProgram.exercise_config[exercise]) {
+      userProgram.exercise_config[exercise].min_reps = lastActual;
+      userProgram.exercise_config._changed = true;
+    }
+    const updatedMinReps = lastActual;
+    const nextPlanned = Math.min(updatedMinReps + 1, maxReps);
+    return {
+      weight_kg: lastWeight,
+      planned_reps: nextPlanned,
+      sets: targetSets,
+      scheme_text: `${targetSets}组 × ${nextPlanned}${unitLabel} (区间: ${updatedMinReps}~${maxReps})`,
+      amrap_last: false,
+      stalled: false
+    };
+  }
 
   // Find the last non-deload session's planned reps at the current weight
   let lastRegularPlannedReps = lastPlannedReps;
