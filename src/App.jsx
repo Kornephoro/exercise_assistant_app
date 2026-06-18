@@ -1541,38 +1541,42 @@ function App() {
       {sessionState.isActive && (
         <div style={{ display: sessionState.isMinimized ? 'none' : 'block' }}>
           <Suspense fallback={<ScreenFallback label="正在加载训练..." />}>
-            <TrainSession
-              currentDay={todayWorkout?.dayLabel || ''}
-              sessionState={sessionState}
-              setSessionState={setSessionState}
-              todayWorkout={todayWorkout}
-              setTodayWorkout={setTodayWorkout}
-              exercisesMap={exercisesMap}
-              getExerciseCNName={getExerciseCNName}
-              setDetails={setDetails}
-              setSetDetails={setSetDetails}
-              showSetCard={showSetCard}
-              focusedSet={focusedSet}
-              openSetCard={openSetCard}
-              closeSetCard={closeSetCard}
-              onMinimize={() => {
-                if (window.location.hash === '#session') {
-                  window.history.back();
-                } else {
-                  updateNavigationState({ isMinimized: true });
-                }
-              }}
-              onSave={handleSaveSession}
-              isSaving={isSavingSession}
-              onCancel={handleCancelSession}
-              gymEquipmentConfig={gymEquipmentConfig}
-              unit={getActiveUserProgram()?.exercise_config?._unit || 'kg'}
-              restTimer={restTimer}
-              setRestTimer={setRestTimer}
-              historyByExerciseTier={historyByExerciseTier}
-              exerciseConfig={getActiveUserProgram()?.exercise_config || {}}
-              onChangeExerciseUnit={handleUpdateExerciseUnit}
-            />
+            {todayWorkout ? (
+              <TrainSession
+                currentDay={todayWorkout?.dayLabel || ''}
+                sessionState={sessionState}
+                setSessionState={setSessionState}
+                todayWorkout={todayWorkout}
+                setTodayWorkout={setTodayWorkout}
+                exercisesMap={exercisesMap}
+                getExerciseCNName={getExerciseCNName}
+                setDetails={setDetails}
+                setSetDetails={setSetDetails}
+                showSetCard={showSetCard}
+                focusedSet={focusedSet}
+                openSetCard={openSetCard}
+                closeSetCard={closeSetCard}
+                onMinimize={() => {
+                  if (window.location.hash === '#session') {
+                    window.history.back();
+                  } else {
+                    updateNavigationState({ isMinimized: true });
+                  }
+                }}
+                onSave={handleSaveSession}
+                isSaving={isSavingSession}
+                onCancel={handleCancelSession}
+                gymEquipmentConfig={gymEquipmentConfig}
+                unit={getActiveUserProgram()?.exercise_config?._unit || 'kg'}
+                restTimer={restTimer}
+                setRestTimer={setRestTimer}
+                historyByExerciseTier={historyByExerciseTier}
+                exerciseConfig={getActiveUserProgram()?.exercise_config || {}}
+                onChangeExerciseUnit={handleUpdateExerciseUnit}
+              />
+            ) : (
+              <ScreenFallback label="正在恢复训练数据..." />
+            )}
           </Suspense>
         </div>
       )}

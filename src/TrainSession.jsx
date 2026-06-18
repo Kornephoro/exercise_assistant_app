@@ -290,6 +290,17 @@ function TrainSession({
   exerciseConfig = {},
   onChangeExerciseUnit
 }) {
+  if (!todayWorkout || !todayWorkout.exercises) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-bg-main dark:bg-bg-main-dark">
+        <div className="flex flex-col items-center gap-3">
+          <div className="loading loading-ring loading-lg text-primary text-primary-dark"></div>
+          <span className="text-sm font-bold text-text-secondary dark:text-text-secondary-dark">正在准备训练数据...</span>
+        </div>
+      </div>
+    );
+  }
+
   const getRecordingMethod = (exerciseKey) => exercisesMap?.[exerciseKey]?.recording_method || 'standard';
 
   const handleSyncWeightToSubsequentSets = (exIdx, currentSetIdx, weightKg) => {
