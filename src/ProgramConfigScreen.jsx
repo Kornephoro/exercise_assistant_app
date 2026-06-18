@@ -778,27 +778,70 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
         ? { scheduleType: 'weekly', training_days: trainingDays }
         : { scheduleType: 'custom-ratio', trainDays, restDays };
 
+      // 运行期重测状态重置与自增
+      const hasStarted = existingProgramState?.total_sessions > 0;
+      let finalProgramState = {
+        ...(existingProgramState || {
+          current_day: dayKeys[0] || 'Day1',
+          scheme_index: {},
+          start_date: startDate,
+          last_training_date: startDate
+        }),
+        global_deload: existingProgramState?.global_deload || {
+          status: 'inactive',
+          last_deload_completed_at: null,
+          last_deload_session_count: 0,
+          postponed_until: null,
+          active_start_at: null,
+          active_end_at: null,
+          pending_next_session: false,
+          transition_week_index: null
+        }
+      };
+
+      if (hasStarted && finalProgramState.exercises) {
+        const updatedExercises = JSON.parse(JSON.stringify(finalProgramState.exercises));
+        const newWeights = {
+          squat: { T1: squatT1Weight, T2: squatT2Weight },
+          bench: { T1: benchT1Weight, T2: benchT2Weight },
+          deadlift: { T1: deadliftT1Weight, T2: deadliftT2Weight },
+          press: { T1: pressT1Weight, T2: pressT2Weight }
+        };
+
+        for (const lift of ['squat', 'bench', 'deadlift', 'press']) {
+          const exState = updatedExercises[lift] || {};
+          const isT1Retest = exState.T1?.status === 'needs_retest';
+          const isT2Retest = exState.T2?.status === 'needs_retest';
+
+          if (isT1Retest || isT2Retest) {
+            if (exState.T1) {
+              const newT1Weight = parseFloat(newWeights[lift].T1);
+              exState.T1.status = 'active';
+              exState.T1.scheme_index = 0;
+              if (!isNaN(newT1Weight)) {
+                exState.T1.weight = toKg(newT1Weight, lift);
+              }
+              exState.T1.major_cycle = (exState.T1.major_cycle || 0) + 1;
+            }
+            if (exState.T2) {
+              const newT2Weight = parseFloat(newWeights[lift].T2);
+              exState.T2.status = 'active';
+              exState.T2.scheme_index = 0;
+              if (!isNaN(newT2Weight)) {
+                exState.T2.weight = toKg(newT2Weight, lift);
+              }
+              exState.T2.major_cycle = (exState.T2.major_cycle || 0) + 1;
+            }
+          }
+          updatedExercises[lift] = exState;
+        }
+        finalProgramState.exercises = updatedExercises;
+      }
+
       const upData = {
         is_active: true,
         ended_at: null, // 激活计划时确保结束时间清空
-        program_state: {
-          ...(existingProgramState || {
-            current_day: dayKeys[0] || 'Day1',
-            scheme_index: {},
-            start_date: startDate,
-            last_training_date: startDate
-          }),
-          global_deload: existingProgramState?.global_deload || {
-            status: 'inactive',
-            last_deload_completed_at: null,
-            last_deload_session_count: 0,
-            postponed_until: null,
-            active_start_at: null,
-            active_end_at: null,
-            pending_next_session: false,
-            transition_week_index: null
-          }
-        },
+        program_state: finalProgramState,
         exercise_config: exerciseConfig,
         schedule,
         day_map: updatedDayMap,
@@ -1580,170 +1623,239 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
       })()}
 
       {/* 第三步：各主项 1RM 与进阶参数 */}
-      <div className="card">
-        <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark mb-2 pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
-          <Zap size={16} className="text-primary" /><span>第三步：设置各主项 1RM 与进阶参数（推荐）</span>
-        </h3>
-        <p className="text-xs text-text-secondary dark:text-text-secondary-dark mb-4 leading-relaxed bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-lg p-2.5">
-          <Info size={14} className="text-primary shrink-0" /> <b>最佳实践：</b>请在此输入您的 1RM（单次最大重量），然后点击下方的<b>「一键应用 1RM → 起始重量」</b>按钮。系统将自动按 <b>85%</b> 的安全比例计算 T1 首训起始重量并同步到下方的「第四步」，同时 T2 按 <b>65%</b> 比例计算。<br />
-          <AlertTriangle size={14} className="inline shrink-0" /> <i>如果您不知道 1RM，可以直接跳过此步，直接到「第四步」手动填入起始重量。</i>
-        </p>
+      {(() => {
+        const hasStarted = existingProgramState?.total_sessions > 0;
+        return (
+          <div className="card">
+            <h3 className="text-base font-extrabold text-text-main dark:text-text-main-dark mb-2 pb-2 border-b border-border-card dark:border-border-card-dark flex items-center gap-2 select-none">
+              <Zap size={16} className="text-primary" />
+              <span>
+                第三步：{hasStarted ? '力量监控与 1RM 重测 (计划进行中)' : '设置各主项 1RM 与进阶参数（推荐）'}
+              </span>
+            </h3>
+            {hasStarted ? (
+              <p className="text-xs text-text-secondary dark:text-text-secondary-dark mb-4 leading-relaxed bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-lg p-2.5">
+                <Info size={14} className="text-primary shrink-0" /> <b>运行期提示：</b> 您的训练已正式开始，目前系统以您实际打卡的进阶重量为基准。<br />
+                平时无需点击“应用”以防覆盖当前的进阶负荷。当某个动作挑战 10×1 失败需重测时，系统将在此激活重测应用按钮，帮您推算下一轮起始负荷。
+              </p>
+            ) : (
+              <p className="text-xs text-text-secondary dark:text-text-secondary-dark mb-4 leading-relaxed bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-lg p-2.5">
+                <Info size={14} className="text-primary shrink-0" /> <b>最佳实践：</b>请在此输入您的 1RM（单次最大重量），然后点击下方的<b>「一键应用 1RM → 起始重量」</b>按钮。系统将自动按 <b>85%</b> 的安全比例计算 T1 首训起始重量并同步到下方的「第四步」，同时 T2 按 <b>65%</b> 比例计算。<br />
+                <AlertTriangle size={14} className="inline shrink-0" /> <i>如果您不知道 1RM，可以直接跳过此步，直接到「第四步」手动填入起始重量。</i>
+              </p>
+            )}
 
-        <div className="flex flex-col gap-3">
-          {(() => {
-            const lifts = [
-              { key: 'squat',    label: '深蹲 (Squat)',    oneRm: squatOneRm,    setOneRm: setSquatOneRm,    t1Step: squatT1Step, setT1: setSquatT1Step,    t2Step: squatT2Step, setT2: setSquatT2Step,    t1Chain: squatT1Chain, setT1Chain: setSquatT1Chain, t2Chain: squatT2Chain, setT2Chain: setSquatT2Chain, warmupEnabled: squatWarmupEnabled, setWarmupEnabled: setSquatWarmupEnabled, warmupSets: squatWarmupSets, setWarmupSets: setSquatWarmupSets },
-              { key: 'bench',    label: '卧推 (Bench)',    oneRm: benchOneRm,    setOneRm: setBenchOneRm,    t1Step: benchT1Step, setT1: setBenchT1Step,    t2Step: benchT2Step, setT2: setBenchT2Step,    t1Chain: benchT1Chain, setT1Chain: setBenchT1Chain, t2Chain: benchT2Chain, setT2Chain: setBenchT2Chain, warmupEnabled: benchWarmupEnabled, setWarmupEnabled: setBenchWarmupEnabled, warmupSets: benchWarmupSets, setWarmupSets: setBenchWarmupSets },
-              { key: 'deadlift', label: '硬拉 (Deadlift)', oneRm: deadliftOneRm, setOneRm: setDeadliftOneRm, t1Step: deadliftT1Step, setT1: setDeadliftT1Step, t2Step: deadliftT2Step, setT2: setDeadliftT2Step, t1Chain: deadliftT1Chain, setT1Chain: setDeadliftT1Chain, t2Chain: deadliftT2Chain, setT2Chain: setDeadliftT2Chain, warmupEnabled: deadliftWarmupEnabled, setWarmupEnabled: setDeadliftWarmupEnabled, warmupSets: deadliftWarmupSets, setWarmupSets: setDeadliftWarmupSets },
-              { key: 'press',    label: '推举 (Press)',    oneRm: pressOneRm,    setOneRm: setPressOneRm,    t1Step: pressT1Step, setT1: setPressT1Step,    t2Step: pressT2Step, setT2: setPressT2Step,    t1Chain: pressT1Chain, setT1Chain: setPressT1Chain, t2Chain: pressT2Chain, setT2Chain: setPressT2Chain, warmupEnabled: pressWarmupEnabled, setWarmupEnabled: setPressWarmupEnabled, warmupSets: pressWarmupSets, setWarmupSets: setPressWarmupSets },
-            ];
-            return lifts.map(L => {
-              const exUnit = exerciseUnits[L.key] || weightUnit;
-              const rm = parseFloat(L.oneRm) || 0;
-              let t1Start = deriveStartFromOneRm(rm, 0.85);
-              let t2Start = deriveStartFromOneRm(rm, 0.65);
-              if (gymEquipmentConfig) {
-                const barWeight = gymEquipmentConfig[exUnit]?.barbell?.bar_weight ?? (exUnit === 'kg' ? 20 : 45);
-                const enabledPlates = gymEquipmentConfig[exUnit]?.barbell?.enabled_plates || (exUnit === 'kg' ? [25, 20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]);
-                const plateLimits = gymEquipmentConfig[exUnit]?.barbell?.plate_limits || {};
-                t1Start = roundToClosestLoadable(t1Start, barWeight, enabledPlates, plateLimits);
-                t2Start = roundToClosestLoadable(t2Start, barWeight, enabledPlates, plateLimits);
-              }
-              const cloudOneRm = latestOneRms[L.key];
-              return (
-                <div key={L.key} className="p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50 flex flex-col gap-3">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <span className="text-base font-bold text-text-main dark:text-text-main-dark">{L.label}</span>
-                    {cloudOneRm && (
-                      <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-mono">
-                        云端 1RM: {cloudOneRm.e1rm_kg}kg
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => applyOneRmToInitial(L.key)}
-                    className="btn-main w-full"
-                    title={`用 1RM × 0.85 自动填入起始重量`}
-                  >
-                    <Sparkles size={14} />一键应用 1RM → 起始重量
-                  </button>
+            <div className="flex flex-col gap-3">
+              {(() => {
+                const lifts = [
+                  { key: 'squat',    label: '深蹲 (Squat)',    oneRm: squatOneRm,    setOneRm: setSquatOneRm,    t1Step: squatT1Step, setT1: setSquatT1Step,    t2Step: squatT2Step, setT2: setSquatT2Step,    t1Chain: squatT1Chain, setT1Chain: setSquatT1Chain, t2Chain: squatT2Chain, setT2Chain: setSquatT2Chain, warmupEnabled: squatWarmupEnabled, setWarmupEnabled: setSquatWarmupEnabled, warmupSets: squatWarmupSets, setWarmupSets: setSquatWarmupSets },
+                  { key: 'bench',    label: '卧推 (Bench)',    oneRm: benchOneRm,    setOneRm: setBenchOneRm,    t1Step: benchT1Step, setT1: setBenchT1Step,    t2Step: benchT2Step, setT2: setBenchT2Step,    t1Chain: benchT1Chain, setT1Chain: setBenchT1Chain, t2Chain: benchT2Chain, setT2Chain: setBenchT2Chain, warmupEnabled: benchWarmupEnabled, setWarmupEnabled: setBenchWarmupEnabled, warmupSets: benchWarmupSets, setWarmupSets: setBenchWarmupSets },
+                  { key: 'deadlift', label: '硬拉 (Deadlift)', oneRm: deadliftOneRm, setOneRm: setDeadliftOneRm, t1Step: deadliftT1Step, setT1: setDeadliftT1Step, t2Step: deadliftT2Step, setT2: setDeadliftT2Step, t1Chain: deadliftT1Chain, setT1Chain: setDeadliftT1Chain, t2Chain: deadliftT2Chain, setT2Chain: setDeadliftT2Chain, warmupEnabled: deadliftWarmupEnabled, setWarmupEnabled: setDeadliftWarmupEnabled, warmupSets: deadliftWarmupSets, setWarmupSets: setDeadliftWarmupSets },
+                  { key: 'press',    label: '推举 (Press)',    oneRm: pressOneRm,    setOneRm: setPressOneRm,    t1Step: pressT1Step, setT1: setPressT1Step,    t2Step: pressT2Step, setT2: setPressT2Step,    t1Chain: pressT1Chain, setT1Chain: setPressT1Chain, t2Chain: pressT2Chain, setT2Chain: setPressT2Chain, warmupEnabled: pressWarmupEnabled, setWarmupEnabled: setPressWarmupEnabled, warmupSets: pressWarmupSets, setWarmupSets: setPressWarmupSets },
+                ];
+                return lifts.map(L => {
+                  const exUnit = exerciseUnits[L.key] || weightUnit;
+                  const rm = parseFloat(L.oneRm) || 0;
+                  let t1Start = deriveStartFromOneRm(rm, 0.85);
+                  let t2Start = deriveStartFromOneRm(rm, 0.65);
+                  if (gymEquipmentConfig) {
+                    const barWeight = gymEquipmentConfig[exUnit]?.barbell?.bar_weight ?? (exUnit === 'kg' ? 20 : 45);
+                    const enabledPlates = gymEquipmentConfig[exUnit]?.barbell?.enabled_plates || (exUnit === 'kg' ? [25, 20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]);
+                    const plateLimits = gymEquipmentConfig[exUnit]?.barbell?.plate_limits || {};
+                    t1Start = roundToClosestLoadable(t1Start, barWeight, enabledPlates, plateLimits);
+                    t2Start = roundToClosestLoadable(t2Start, barWeight, enabledPlates, plateLimits);
+                  }
+                  const cloudOneRm = latestOneRms[L.key];
 
-                  {/* 1RM 输入 + T1/T2 加重 */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between h-6">
-                        <label className="section-subtitle select-none mb-0">1RM</label>
+                  // 运行期状态解析
+                  const exState = existingProgramState?.exercises?.[L.key] || {};
+                  const currentT1Weight = exState.T1?.weight;
+                  const currentT2Weight = exState.T2?.weight;
+                  const isT1Retest = exState.T1?.status === 'needs_retest';
+                  const isT2Retest = exState.T2?.status === 'needs_retest';
+                  const isRetest = isT1Retest || isT2Retest;
+
+                  const cardBorderClass = hasStarted && isRetest 
+                    ? 'border-2 border-orange-500 bg-orange-500/5 dark:bg-orange-500/10' 
+                    : 'border-border-card/50 dark:border-border-card-dark/50';
+
+                  return (
+                    <div key={L.key} className={`p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border flex flex-col gap-3 ${cardBorderClass}`}>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="text-base font-bold text-text-main dark:text-text-main-dark flex items-center gap-1.5">
+                          {L.label}
+                          {hasStarted && isRetest && (
+                            <span className="text-[10px] font-black text-orange-500 bg-orange-500/10 px-1.5 py-0.5 rounded animate-pulse">⚠️ 待重测</span>
+                          )}
+                        </span>
+                        {cloudOneRm && (
+                          <span className="text-xs text-text-secondary dark:text-text-secondary-dark font-mono">
+                            云端 1RM: {cloudOneRm.e1rm_kg}kg
+                          </span>
+                        )}
+                      </div>
+
+                      {/* 当前实际进阶负负荷展示 */}
+                      {hasStarted && (
+                        <div className="flex items-center justify-between text-[11px] bg-bg-main/30 dark:bg-bg-main-dark/30 border border-border-card/30 rounded-lg p-2 font-semibold select-none">
+                          <span className="text-text-secondary">当前执行负荷:</span>
+                          <div className="flex items-center gap-2 font-mono">
+                            <span className="text-tier-t1">T1: {currentT1Weight ?? '--'}{exUnit}</span>
+                            <span className="opacity-30">|</span>
+                            <span className="text-tier-t2">T2: {currentT2Weight ?? '--'}{exUnit}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 应用按钮按状态分发 */}
+                      {hasStarted ? (
+                        isRetest ? (
+                          <button
+                            type="button"
+                            onClick={() => applyOneRmToInitial(L.key)}
+                            className="btn w-full bg-orange-500 hover:bg-orange-600 text-white font-extrabold flex items-center justify-center gap-1.5 animate-pulse rounded-xl h-11 border-none cursor-pointer text-xs md:text-sm"
+                            title="点击应用新 1RM，计算该动作下一轮的起始重量"
+                          >
+                            <Sparkles size={14} />极限重测：应用新 1RM 推算下轮起始负荷
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled
+                            className="btn w-full bg-base-300 dark:bg-neutral-800 text-text-secondary/50 font-bold flex items-center justify-center gap-1.5 rounded-xl h-11 border-none opacity-60 cursor-not-allowed text-xs md:text-sm"
+                            title="目前动作进阶正常，无需应用 1RM"
+                          >
+                            计划进行中（负荷自动进阶中）
+                          </button>
+                        )
+                      ) : (
                         <button
                           type="button"
-                          className="btn-aux h-5 px-1 rounded text-[10px] font-extrabold text-primary bg-primary/10 hover:bg-primary/20 cursor-pointer flex items-center gap-0.5"
-                          onClick={() => {
-                            setCalcLift(L.key);
-                            setCalcTab('formula');
-                            setCalcWeight(L.oneRm || '');
-                            setCalcReps(5);
-                            setCalcRpe(8);
-                          }}
-                          title="估算 1RM"
+                          onClick={() => applyOneRmToInitial(L.key)}
+                          className="btn-main w-full text-xs md:text-sm"
+                          title={`用 1RM × 0.85 自动填入起始重量`}
                         >
-                          <Calculator size={10} />
-                          <span>估算</span>
+                          <Sparkles size={14} />一键应用 1RM → 起始重量
                         </button>
-                      </div>
-                      <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          value={L.oneRm}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            L.setOneRm(val);
-                            const newStep = calculateDefaultIncrement(val, L.key, exerciseUnits, weightUnit, gymEquipmentConfig);
-                            L.setT1(newStep);
-                            L.setT2(newStep);
-                          }}
-                          className={inputClass}
-                        />
-                        <span className="text-sm font-medium text-text-secondary/50 select-none">{exUnit}</span>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center h-6">
-                        <label className="section-subtitle select-none mb-0">T1 加重</label>
-                      </div>
-                      <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          value={L.t1Step}
-                          onChange={(e) => L.setT1(e.target.value)}
-                          className={inputClass}
-                        />
-                        <span className="text-sm font-medium text-text-secondary/50 select-none">{exUnit}</span>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center h-6">
-                        <label className="section-subtitle select-none mb-0">T2 加重</label>
-                      </div>
-                      <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          value={L.t2Step}
-                          onChange={(e) => L.setT2(e.target.value)}
-                          className={inputClass}
-                        />
-                        <span className="text-sm font-medium text-text-secondary/50 select-none">{exUnit}</span>
-                      </div>
-                    </div>
-                  </div>
+                      )}
 
-                  {rm > 0 && (
-                    <div className="text-xs text-text-secondary dark:text-text-secondary-dark font-mono bg-bg-main/40 dark:bg-bg-main-dark/40 border border-border-card/50 dark:border-border-card-dark/50 rounded-lg p-2.5 flex flex-col gap-1.5">
-                      <div className="flex items-start gap-1.5">
-                        <Lightbulb size={14} className="text-primary shrink-0 mt-0.5" />
-                        <div className="flex flex-col gap-1">
-                          <div>
-                            1RM 推导：T1 起始 <span className="font-bold text-primary">{t1Start}{exUnit}</span>
-                            <span className="mx-1 opacity-50">·</span>
-                            T2 起始 <span className="font-bold text-primary">{t2Start}{exUnit}</span>
+                      {/* 1RM 输入 + T1/T2 加重 */}
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between h-6">
+                            <label className="section-subtitle select-none mb-0">1RM</label>
+                            <button
+                              type="button"
+                              className="btn-aux h-5 px-1 rounded text-[10px] font-extrabold text-primary bg-primary/10 hover:bg-primary/20 cursor-pointer flex items-center gap-0.5"
+                              onClick={() => {
+                                setCalcLift(L.key);
+                                setCalcTab('formula');
+                                setCalcWeight(L.oneRm || '');
+                                setCalcReps(5);
+                                setCalcRpe(8);
+                              }}
+                              title="估算 1RM"
+                            >
+                              <Calculator size={10} />
+                              <span>估算</span>
+                            </button>
                           </div>
-                          <div className="text-[10px] text-text-secondary/70">
-                            加重提示：T1/T2 初始加重默认为该动作 1RM 的 5% 并根据杠铃片就近取值
+                          <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              value={L.oneRm}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                L.setOneRm(val);
+                                const newStep = calculateDefaultIncrement(val, L.key, exerciseUnits, weightUnit, gymEquipmentConfig);
+                                L.setT1(newStep);
+                                L.setT2(newStep);
+                              }}
+                              className={inputClass}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 select-none">{exUnit}</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center h-6">
+                            <label className="section-subtitle select-none mb-0">T1 加重</label>
+                          </div>
+                          <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              value={L.t1Step}
+                              onChange={(e) => L.setT1(e.target.value)}
+                              className={inputClass}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 select-none">{exUnit}</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center h-6">
+                            <label className="section-subtitle select-none mb-0">T2 加重</label>
+                          </div>
+                          <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-11 transition-colors">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              value={L.t2Step}
+                              onChange={(e) => L.setT2(e.target.value)}
+                              className={inputClass}
+                            />
+                            <span className="text-sm font-medium text-text-secondary/50 select-none">{exUnit}</span>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
 
-                  <div className="flex flex-col gap-2">
-                    <ProgressionChainEditor
-                      tierLabel="T1"
-                      chain={L.t1Chain}
-                      onChange={L.setT1Chain}
-                    />
-                    <ProgressionChainEditor
-                      tierLabel="T2"
-                      chain={L.t2Chain}
-                      onChange={L.setT2Chain}
-                    />
-                    <WarmupSetsEditor
-                      enabled={L.warmupEnabled}
-                      onEnabledChange={L.setWarmupEnabled}
-                      sets={L.warmupSets}
-                      onSetsChange={L.setWarmupSets}
-                    />
-                  </div>
-                </div>
-              );
-            });
-          })()}
-        </div>
-      </div>
+                      {rm > 0 && (
+                        <div className="text-xs text-text-secondary dark:text-text-secondary-dark font-mono bg-bg-main/40 dark:bg-bg-main-dark/40 border border-border-card/50 dark:border-border-card-dark/50 rounded-lg p-2.5 flex flex-col gap-1.5">
+                          <div className="flex items-start gap-1.5">
+                            <Lightbulb size={14} className="text-primary shrink-0 mt-0.5" />
+                            <div className="flex flex-col gap-1">
+                              <div>
+                                1RM 推导：T1 起始 <span className="font-bold text-primary">{t1Start}{exUnit}</span>
+                                <span className="mx-1 opacity-50">·</span>
+                                T2 起始 <span className="font-bold text-primary">{t2Start}{exUnit}</span>
+                              </div>
+                              <div className="text-[10px] text-text-secondary/70">
+                                加重提示：T1/T2 初始加重默认为该动作 1RM 的 5% 并根据杠铃片就近取值
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex flex-col gap-2">
+                        <ProgressionChainEditor
+                          tierLabel="T1"
+                          chain={L.t1Chain}
+                          onChange={L.setT1Chain}
+                        />
+                        <ProgressionChainEditor
+                          tierLabel="T2"
+                          chain={L.t2Chain}
+                          onChange={L.setT2Chain}
+                        />
+                        <WarmupSetsEditor
+                          enabled={L.warmupEnabled}
+                          onEnabledChange={L.setWarmupEnabled}
+                          sets={L.warmupSets}
+                          onSetsChange={L.setWarmupSets}
+                        />
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 第四步：首训起始重量（T1/T2 分开） */}
       <div className="card">

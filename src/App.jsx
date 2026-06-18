@@ -1226,6 +1226,38 @@ function App() {
 
       await Promise.all(savePromises);
 
+      // 手动时间校准逻辑：将自定义的训练开始时间覆写入 workouts
+      try {
+        const sessionStartMs = sessionState.startTime || Date.now();
+        const sessionDateStr = sessionState.sessionDate; // "YYYY-MM-DD"
+        let finalCreatedAtISO = new Date(sessionStartMs).toISOString();
+
+        if (sessionDateStr) {
+          const dDate = new Date(sessionDateStr);
+          const dTime = new Date(sessionStartMs);
+          const combined = new Date(
+            dDate.getFullYear(),
+            dDate.getMonth(),
+            dDate.getDate(),
+            dTime.getHours(),
+            dTime.getMinutes(),
+            dTime.getSeconds()
+          );
+          finalCreatedAtISO = combined.toISOString();
+        }
+
+        const { error: updateTimeErr } = await supabase
+          .from('workouts')
+          .update({ created_at: finalCreatedAtISO })
+          .eq('session_id', sessionId);
+          
+        if (updateTimeErr) {
+          console.warn('自定义训练时间同步到 workouts 表失败:', updateTimeErr.message);
+        }
+      } catch (err) {
+        console.warn('同步自定义训练时间失败 (非阻塞):', err.message);
+      }
+
       const stalledExercises = [];
       Object.keys(updatedExercises).forEach(exKey => {
         Object.keys(updatedExercises[exKey]).forEach(tierKey => {

@@ -349,6 +349,53 @@ function TrainSession({
 
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [showSessionNotesModal, setShowSessionNotesModal] = useState(false);
+  const [showCustomTimeModal, setShowCustomTimeModal] = useState(false);
+  const [customStartTime, setCustomStartTime] = useState(''); // "HH:MM"
+  const [customDurationMinutes, setCustomDurationMinutes] = useState('');
+
+  const handleOpenCustomTimeModal = () => {
+    const date = new Date(sessionState.startTime || Date.now());
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    setCustomStartTime(`${hours}:${minutes}`);
+    
+    const minutesElapsed = Math.round(secondsElapsed / 60);
+    setCustomDurationMinutes(String(minutesElapsed || 45));
+    
+    setShowCustomTimeModal(true);
+  };
+
+  const handleSaveCustomTime = () => {
+    const durationMin = parseFloat(customDurationMinutes) || 45;
+    const durationSeconds = Math.round(durationMin * 60);
+
+    const [hours, minutes] = customStartTime.split(':').map(v => parseInt(v, 10));
+    const newStart = new Date(sessionState.startTime || Date.now());
+    if (!isNaN(hours) && !isNaN(minutes)) {
+      newStart.setHours(hours);
+      newStart.setMinutes(minutes);
+      newStart.setSeconds(0);
+    }
+    
+    setSessionState(prev => {
+      const isPaused = !!prev.isPaused;
+      return {
+        ...prev,
+        isPaused,
+        ...(isPaused ? {
+          startTime: newStart.getTime(),
+          elapsedTime: durationSeconds
+        } : {
+          startTime: Date.now() - durationSeconds * 1000,
+          elapsedTime: 0
+        })
+      };
+    });
+
+    setSecondsElapsed(durationSeconds);
+    setShowCustomTimeModal(false);
+  };
+
   const [showSessionSettingsModal, setShowSessionSettingsModal] = useState(false);
   const [confirmState, setConfirmState] = useState(null); // { title, message, onConfirm, variant }
 
@@ -2565,6 +2612,113 @@ function TrainSession({
     );
   };
 
+  // ============ CUSTOM TIME MODAL ============
+  const renderCustomTimeModal = () => {
+    if (!showCustomTimeModal) return null;
+    
+    const offsetStartTime = (minutesOffset) => {
+      const currentStart = sessionState.startTime || Date.now();
+      const newStart = currentStart - minutesOffset * 60 * 1000;
+      
+      const date = new Date(newStart);
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      setCustomStartTime(`${hours}:${minutes}`);
+      
+      const prevDur = parseFloat(customDurationMinutes) || 0;
+      setCustomDurationMinutes(String(prevDur + minutesOffset));
+    };
+
+    return (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 backdrop-blur-sm p-4">
+        <div className="bg-bg-card dark:bg-bg-card-dark rounded-2xl shadow-2xl w-full max-w-sm flex flex-col border border-border-card dark:border-border-card-dark select-none animate-fadeIn">
+          <div className="p-4 border-b border-border-card dark:border-border-card-dark flex items-center justify-between">
+            <span className="font-extrabold text-base text-text-main dark:text-text-main-dark">手动调整训练时间</span>
+            <button type="button" onClick={() => setShowCustomTimeModal(false)} className="btn btn-ghost btn-circle btn-xs h-6 w-6 text-text-secondary">
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="p-4 flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-text-secondary dark:text-text-secondary-dark uppercase tracking-wide">1. 训练开始时间</label>
+              <input
+                type="time"
+                value={customStartTime}
+                onChange={(e) => setCustomStartTime(e.target.value)}
+                className="input input-bordered w-full h-10 font-mono text-sm rounded-xl focus:border-primary text-center bg-bg-main dark:bg-bg-main-dark border-border-card dark:border-border-card-dark"
+              />
+              <div className="grid grid-cols-3 gap-1.5 mt-1">
+                <button
+                  type="button"
+                  onClick={() => offsetStartTime(10)}
+                  className="btn btn-xs h-7 min-h-0 bg-base-200 hover:bg-base-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-[10px] font-bold rounded-lg border-none cursor-pointer"
+                >
+                  提前10分钟
+                </button>
+                <button
+                  type="button"
+                  onClick={() => offsetStartTime(30)}
+                  className="btn btn-xs h-7 min-h-0 bg-base-200 hover:bg-base-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-[10px] font-bold rounded-lg border-none cursor-pointer"
+                >
+                  提前30分钟
+                </button>
+                <button
+                  type="button"
+                  onClick={() => offsetStartTime(60)}
+                  className="btn btn-xs h-7 min-h-0 bg-base-200 hover:bg-base-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-[10px] font-bold rounded-lg border-none cursor-pointer"
+                >
+                  提前1小时
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-text-secondary dark:text-text-secondary-dark uppercase tracking-wide">2. 本次训练总时长 (分钟)</label>
+              <input
+                type="number"
+                min="1"
+                max="360"
+                value={customDurationMinutes}
+                onChange={(e) => setCustomDurationMinutes(e.target.value)}
+                className="input input-bordered w-full h-10 font-mono text-sm rounded-xl focus:border-primary text-center bg-bg-main dark:bg-bg-main-dark border-border-card dark:border-border-card-dark"
+                placeholder="如 45"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  let est = 10;
+                  (todayWorkout?.exercises || []).forEach(ex => {
+                    const sets = ex.sets || 3;
+                    const factor = ex.tier === 'T1' ? 3.0 : ex.tier === 'T2' ? 2.5 : 2.0;
+                    est += sets * factor;
+                  });
+                  setCustomDurationMinutes(String(Math.round(est)));
+                }}
+                className="btn btn-link btn-xs text-primary dark:text-primary-dark font-bold justify-start p-0 h-auto min-h-0 text-[10px] cursor-pointer"
+              >
+                💡 使用动作组数估算推荐时间
+              </button>
+            </div>
+          </div>
+
+          <div className="p-4 border-t border-border-card dark:border-border-card-dark flex justify-end gap-2.5">
+            <button type="button" onClick={() => setShowCustomTimeModal(false)} className="btn btn-ghost btn-sm h-9 px-4 rounded-xl text-xs font-semibold cursor-pointer">
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveCustomTime}
+              className="btn btn-primary btn-sm h-9 px-5 rounded-xl text-xs font-bold text-primary-content cursor-pointer"
+            >
+              确认修改
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ============ SESSION SETTINGS MODAL ============
   const renderSessionSettingsModal = () => {
     if (!showSessionSettingsModal) return null;
@@ -3001,6 +3155,14 @@ function TrainSession({
             >
               {sessionState.isPaused ? <Play size={11} fill="currentColor" /> : <Pause size={11} fill="currentColor" />}
             </button>
+            <button
+              type="button"
+              onClick={handleOpenCustomTimeModal}
+              className="btn btn-circle btn-xs h-7 w-7 min-h-0 border-0 flex items-center justify-center bg-base-200 text-base-content/70 hover:bg-base-300 transition-all ml-1 cursor-pointer"
+              title="手动微调训练开始时间与时长"
+            >
+              <Timer size={12} />
+            </button>
           </div>
 
           {/* 右上角：“完成”打卡按钮 */}
@@ -3104,6 +3266,7 @@ function TrainSession({
       {renderWeightCalculatorSheet()}
       {renderAddExerciseModal()}
       {renderSessionNotesModal()}
+      {renderCustomTimeModal()}
       {renderSessionSettingsModal()}
       {renderSetSettingsModal()}
       {renderExerciseSettingsModal()}

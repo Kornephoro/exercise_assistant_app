@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Activity, Calendar, ChevronDown, Clock, Dumbbell, ListChecks, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { buildWorkoutSessions, formatDateTime, formatDuration, formatSetMeta, formatSetResult } from '../utils/workoutSummary';
 
@@ -74,27 +74,36 @@ function ExerciseSummary({ exercise, getExerciseCNName }) {
         <div className="flex flex-col gap-1.5">
           {sets.map((set, index) => {
             const setMeta = formatSetMeta(set);
+            const rawNotes = set.notes || '';
+            const setNotes = rawNotes.replace(/\[训练心得:\s*([\s\S]*?)\]\n?/, '').trim();
             return (
-              <div
-                key={set.id || `${exercise.id}-${set.set_number}-${index}`}
-                className="grid grid-cols-[52px_1fr_auto] items-center gap-2 rounded-lg bg-bg-card/70 dark:bg-bg-card-dark/70 border border-border-card/45 dark:border-border-card-dark/45 px-2.5 py-2"
-              >
-                <span className={`text-[11px] font-bold ${set.is_warmup ? 'text-text-secondary dark:text-text-secondary-dark' : 'text-primary'}`}>
-                  {set.is_warmup ? `热身${set.set_number}` : `第${set.set_number}组`}
-                </span>
-                <span className="text-sm font-bold text-text-main dark:text-text-main-dark truncate">
-                  {formatSetResult(set)}
-                </span>
-                <div className="flex items-center justify-end gap-1.5 min-w-0">
-                  {setMeta && (
-                    <span className="text-[10px] font-semibold text-text-secondary dark:text-text-secondary-dark truncate max-w-[104px]">
-                      {setMeta}
-                    </span>
-                  )}
-                  <span className={`text-[10px] font-semibold shrink-0 ${set.completed === false ? 'text-text-secondary dark:text-text-secondary-dark' : 'text-success'}`}>
-                    {set.completed === false ? '未完成' : '完成'}
+              <div key={set.id || `${exercise.id}-${set.set_number}-${index}`} className="flex flex-col gap-1 w-full">
+                <div
+                  className="grid grid-cols-[52px_1fr_auto] items-center gap-2 rounded-lg bg-bg-card/70 dark:bg-bg-card-dark/70 border border-border-card/45 dark:border-border-card-dark/45 px-2.5 py-2"
+                >
+                  <span className={`text-[11px] font-bold ${set.is_warmup ? 'text-text-secondary dark:text-text-secondary-dark' : 'text-primary'}`}>
+                    {set.is_warmup ? `热身${set.set_number}` : `第${set.set_number}组`}
                   </span>
+                  <span className="text-sm font-bold text-text-main dark:text-text-main-dark truncate">
+                    {formatSetResult(set)}
+                  </span>
+                  <div className="flex items-center justify-end gap-1.5 min-w-0">
+                    {setMeta && (
+                      <span className="text-[10px] font-semibold text-text-secondary dark:text-text-secondary-dark truncate max-w-[104px]">
+                        {setMeta}
+                      </span>
+                    )}
+                    <span className={`text-[10px] font-semibold shrink-0 ${set.completed === false ? 'text-text-secondary dark:text-text-secondary-dark' : 'text-success'}`}>
+                      {set.completed === false ? '未完成' : '完成'}
+                    </span>
+                  </div>
                 </div>
+                {setNotes && (
+                  <div className="text-[10px] text-text-secondary/80 bg-bg-main/30 dark:bg-bg-main-dark/30 px-2.5 py-1.5 rounded-lg border border-border-card/30 flex items-start gap-1 select-none leading-relaxed ml-2">
+                    <span className="shrink-0 text-primary">📝 备注:</span>
+                    <span className="whitespace-pre-wrap">{setNotes}</span>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -135,6 +144,22 @@ function SessionSummaryCard({ session, getExerciseCNName, title, compact = false
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const detailId = `session-detail-${session.key.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+
+  const sessionNotes = useMemo(() => {
+    let notes = '';
+    session.exercises.forEach(ex => {
+      ex.sets?.forEach(set => {
+        const rawNotes = set.notes || '';
+        if (rawNotes) {
+          const match = rawNotes.match(/\[训练心得:\s*([\s\S]*?)\]/);
+          if (match) {
+            notes = match[1];
+          }
+        }
+      });
+    });
+    return notes.trim();
+  }, [session]);
 
   const handleDelete = async (event) => {
     event.stopPropagation();
@@ -234,6 +259,13 @@ function SessionSummaryCard({ session, getExerciseCNName, title, compact = false
         <Stat icon={Calendar} label="训练日期" value={formatDateTime(session.startedAt).split(' ')[0]} />
         <Stat icon={ListChecks} label="完成组数" value={`${session.totalSets} 组`} />
       </div>
+
+      {sessionNotes && (
+        <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 flex gap-2 text-xs text-text-secondary dark:text-text-secondary-dark leading-relaxed select-none">
+          <span className="text-primary font-bold shrink-0">🧠 训练心得:</span>
+          <span className="whitespace-pre-wrap">{sessionNotes}</span>
+        </div>
+      )}
 
       {compact && (
         <div className="flex flex-col gap-2">
