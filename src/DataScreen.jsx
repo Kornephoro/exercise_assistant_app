@@ -35,7 +35,7 @@ function SubTabBar({ active, onChange }) {
   );
 }
 
-function DataScreen({ getExerciseCNName, onLatestOneRmChange }) {
+function DataScreen({ getExerciseCNName, activeUserProgram, onLatestOneRmChange }) {
   const [subTab, setSubTab] = useState('strength');
 
   return (
@@ -49,7 +49,12 @@ function DataScreen({ getExerciseCNName, onLatestOneRmChange }) {
 
       {subTab === 'strength' && <OneRMStrength onLatestChange={onLatestOneRmChange} />}
       {subTab === 'body' && <BodyMetrics />}
-      {subTab === 'calendar' && <CalendarScreen getExerciseCNName={getExerciseCNName} />}
+      {subTab === 'calendar' && (
+        <CalendarScreen 
+          getExerciseCNName={getExerciseCNName} 
+          activeUserProgram={activeUserProgram} 
+        />
+      )}
     </div>
   );
 }

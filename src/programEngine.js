@@ -713,7 +713,27 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier, gymEqui
   if (dayConfig.T2) {
     const exObj = processTierExercise('T2', dayConfig.T2, historyByExerciseTier, exConfig, config,
       gymEquipmentConfig, exercisesMap, unit, getWarmupSets, gzclpGetTierProgression, userProgram);
+    
+    if (dayConfig.T2_superset?.enabled && dayConfig.T2_superset.exercise) {
+      exObj.superset_id = 'T2_superset';
+      exObj.rest_between = dayConfig.T2_superset.rest_between ?? 45;
+      exObj.rest_after = dayConfig.T2_superset.rest_after ?? 90;
+    }
+
     exercises.push(applyGlobalDeloadToExercise(exObj, userProgram, exercisesMap[dayConfig.T2], gymEquipmentConfig, unit));
+
+    // Check if T2 superset is enabled and add its companion exercise
+    if (dayConfig.T2_superset?.enabled && dayConfig.T2_superset.exercise) {
+      const supEx = dayConfig.T2_superset.exercise;
+      const exObjSup = processTierExercise('T2', supEx, historyByExerciseTier, exConfig, config,
+        gymEquipmentConfig, exercisesMap, unit, getWarmupSets, gzclpGetTierProgression, userProgram);
+      exObjSup.is_superset_companion = true;
+      exObjSup.superset_parent = dayConfig.T2;
+      exObjSup.superset_id = 'T2_superset';
+      exObjSup.rest_between = dayConfig.T2_superset.rest_between ?? 45;
+      exObjSup.rest_after = dayConfig.T2_superset.rest_after ?? 90;
+      exercises.push(applyGlobalDeloadToExercise(exObjSup, userProgram, exercisesMap[supEx], gymEquipmentConfig, unit));
+    }
   }
 
   // T3
@@ -777,6 +797,17 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier, gymEqui
         needs_retest: needsRetest,
         recording_method: t3RecordingMethod
       };
+
+      // Check if this T3 exercise is part of a T3 superset
+      const t3Supersets = dayConfig.T3_supersets || [];
+      const ssIdx = t3Supersets.findIndex(ss => ss.exercises && ss.exercises.includes(ex));
+      if (ssIdx !== -1) {
+        const ss = t3Supersets[ssIdx];
+        exObj.superset_id = `T3_superset_${ssIdx}`;
+        exObj.rest_between = ss.rest_between ?? 30;
+        exObj.rest_after = ss.rest_after ?? 90;
+      }
+
       exercises.push(applyGlobalDeloadToExercise(exObj, userProgram, exercisesMap[ex], gymEquipmentConfig, unit));
     }
   }
@@ -799,7 +830,9 @@ function gzclpGetNextWorkout(config, userProgram, historyByExerciseTier, gymEqui
   return {
     exercises,
     dayLabel: currentDay,
-    nextDay: gzclpGetNextDay(config, currentDay, schedule, lastTrainingDate, state.start_date)
+    nextDay: gzclpGetNextDay(config, currentDay, schedule, lastTrainingDate, state.start_date),
+    T2_superset: dayConfig.T2_superset || { enabled: false, exercise: '', rest_between: 45, rest_after: 90 },
+    T3_supersets: dayConfig.T3_supersets || []
   };
 }
 

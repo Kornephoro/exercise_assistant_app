@@ -210,6 +210,9 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
   const [selectorSearch, setSelectorSearch] = useState('');
   const [selectorMuscleFilter, setSelectorMuscleFilter] = useState('');
   const [selectorShowAll, setSelectorShowAll] = useState(false);
+  const [t3SupersetCreator, setT3SupersetCreator] = useState({});
+  const [customT2Weights, setCustomT2Weights] = useState({});
+  const [customT2Steps, setCustomT2Steps] = useState({});
 
   // 单位系统
   const [weightUnit, setWeightUnit] = useState('kg');
@@ -348,7 +351,9 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
         T2: baseDayMap[label]?.T2 || null,
         t3: baseDayMap[label]?.T3 || [],
         warmup: baseDayMap[label]?.warmup || [],
-        stretching: baseDayMap[label]?.stretching || []
+        stretching: baseDayMap[label]?.stretching || [],
+        T2_superset: baseDayMap[label]?.T2_superset || { enabled: false, exercise: '', rest_between: 45, rest_after: 90 },
+        T3_supersets: baseDayMap[label]?.T3_supersets || []
       }));
       if (template.length > 0) {
         setDayTemplate(template);
@@ -369,6 +374,27 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
         if (ec[ex]?.unit) savedExerciseUnits[ex] = ec[ex].unit;
       });
       setExerciseUnits(savedExerciseUnits);
+
+      // 从 exercise_config 或默认值加载其它动作 T2 配置
+      const customW = {};
+      const customS = {};
+      Object.keys(ec).forEach(ex => {
+        if (!['squat', 'bench', 'deadlift', 'press', '_unit'].includes(ex)) {
+          const u = ec[ex]?.unit || savedUnit;
+          let weightInKg = 30;
+          if (ec[ex]?.initial_weight_t2 !== undefined) {
+            weightInKg = ec[ex].initial_weight_t2;
+          } else if (ec[ex]?.initial_weight !== undefined) {
+            weightInKg = parseFloat(ec[ex].initial_weight) * 0.65;
+          }
+          let stepInKg = ec[ex]?.increment_t2 ?? 2.5;
+
+          customW[ex] = u === 'lbs' ? convertWeight(weightInKg, 'lbs').toString() : weightInKg.toString();
+          customS[ex] = u === 'lbs' ? convertWeight(stepInKg, 'lbs').toString() : stepInKg.toString();
+        }
+      });
+      setCustomT2Weights(customW);
+      setCustomT2Steps(customS);
 
       const getT1Incr = (ex) => {
         if (ec[ex]?.increment_t1 !== undefined && ec[ex]?.increment_t1 !== null) {
@@ -758,16 +784,43 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
         }))
       };
 
-      // 构建更新后的 day_map（包含用户选择的 T1/T2 搭配、T3 动作、热身和拉伸动作）
+      // 合并自定义 T2 超级组动作配置到 exerciseConfig 中
+      for (const day of dayTemplate) {
+        if (day.T2_superset?.enabled && day.T2_superset.exercise) {
+          const ex = day.T2_superset.exercise;
+          const unit = exerciseUnits[ex] || weightUnit;
+          const w = parseFloat(customT2Weights[ex]) || (unit === 'lbs' ? 65 : 30);
+          const s = parseFloat(customT2Steps[ex]) || (unit === 'lbs' ? 5 : 2.5);
+
+          exerciseConfig[ex] = {
+            ...exerciseConfig[ex],
+            initial_weight_t2: unit === 'lbs' ? toStorageWeight(w, 'lbs') : w,
+            increment_t2: unit === 'lbs' ? toStorageWeight(s, 'lbs') : s,
+            unit,
+            t2_chain: exerciseConfig[ex]?.t2_chain || DEFAULT_T2_CHAIN.map(sc => ({ sets: sc.sets, reps: sc.reps, amrap: !!sc.amrap }))
+          };
+        }
+      }
+
+      // 构建更新后的 day_map（包含用户选择的 T1/T2 搭配、T3 动作、热身和拉伸动作以及超级组配置）
       const updatedDayMap = {};
       for (const day of dayTemplate) {
+        // 清理 T3 超级组中的无效动作
+        const validT3List = (day.t3 || []).filter(name => name && name.trim());
+        const cleanedT3Supersets = (day.T3_supersets || []).map(ss => ({
+          ...ss,
+          exercises: ss.exercises.filter(ex => validT3List.includes(ex))
+        })).filter(ss => ss.exercises.length >= 2);
+
         updatedDayMap[day.label] = {
           ...program.config?.day_map?.[day.label],
           T1: day.T1 || null,
           T2: day.T2 || null,
-          T3: (day.t3 || []).filter(name => name && name.trim()),
+          T3: validT3List,
           warmup: (day.warmup || []).filter(item => item.exercise && item.exercise.trim()),
-          stretching: (day.stretching || []).filter(item => item.exercise && item.exercise.trim())
+          stretching: (day.stretching || []).filter(item => item.exercise && item.exercise.trim()),
+          T2_superset: day.T2_superset || { enabled: false, exercise: '', rest_between: 45, rest_after: 90 },
+          T3_supersets: cleanedT3Supersets
         };
       }
 
@@ -1476,8 +1529,9 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
         const t1Missing = MAIN_LIFTS.filter(l => !t1Used.includes(l.key)).map(l => l.key);
         const t2Missing = MAIN_LIFTS.filter(l => !t2Used.includes(l.key)).map(l => l.key);
         const sameDayConflicts = dayTemplate.filter(d => d.T1 && d.T2 && d.T1 === d.T2).map(d => d.label);
+        const supersetSameConflicts = dayTemplate.filter(d => d.T2_superset?.enabled && d.T2_superset.exercise && d.T2 === d.T2_superset.exercise).map(d => d.label);
 
-        const hasViolations = t1Conflicts.length > 0 || t2Conflicts.length > 0 || sameDayConflicts.length > 0;
+        const hasViolations = t1Conflicts.length > 0 || t2Conflicts.length > 0 || sameDayConflicts.length > 0 || supersetSameConflicts.length > 0;
 
         const setDayT1 = (dayLabel, liftKey) => {
           setDayTemplate(prev => prev.map(d => d.label === dayLabel ? { ...d, T1: liftKey } : d));
@@ -1544,6 +1598,12 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                     <span>同日冲突：{sameDayConflicts.join('、')} 的 T1 和 T2 选择了相同动作</span>
                   </div>
                 )}
+                {supersetSameConflicts.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <ShieldAlert size={12} className="shrink-0" />
+                    <span>同日超级组冲突：{supersetSameConflicts.join('、')} 的 T2 主项与其绑定的超级组搭配动作相同</span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1602,6 +1662,86 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                         </select>
                       </div>
                     </div>
+
+                    {day.T2 && (
+                      <div className="mt-2.5 p-2.5 rounded-lg bg-bg-main/30 dark:bg-bg-main-dark/30 border border-border-card/30 dark:border-border-card-dark/30 flex flex-col gap-2">
+                        <label className="flex items-center gap-2 text-xs font-bold text-text-main dark:text-text-main-dark cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            className="checkbox checkbox-primary checkbox-xs"
+                            checked={day.T2_superset?.enabled || false}
+                            onChange={(e) => {
+                              const enabled = e.target.checked;
+                              setDayTemplate(prev => prev.map(d => d.label === day.label ? {
+                                ...d,
+                                T2_superset: {
+                                  ...(d.T2_superset || { exercise: '', rest_between: 45, rest_after: 90 }),
+                                  enabled
+                                }
+                              } : d));
+                            }}
+                          />
+                          <span>🔗 开启 T2 超级组</span>
+                        </label>
+
+                        {day.T2_superset?.enabled && (
+                          <div className="flex flex-col gap-2.5 pl-6 mt-1 border-l-2 border-primary/20">
+                            <div className="flex flex-col gap-1">
+                              <label className="text-[10px] font-bold text-text-secondary uppercase">超级组搭配动作</label>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline border-border-card dark:border-border-card-dark text-left justify-start cursor-pointer h-9 bg-bg-card dark:bg-bg-card-dark text-xs"
+                                onClick={() => {
+                                  setSelectingTarget({ type: 'T2_superset', dayLabel: day.label, idx: 0 });
+                                  setSelectorOpen(true);
+                                }}
+                              >
+                                <span className={`truncate text-xs ${day.T2_superset?.exercise ? 'text-text-main dark:text-text-main-dark font-semibold' : 'text-text-secondary italic'}`}>
+                                  {getCNName(day.T2_superset?.exercise, exerciseNameMap) || '点击选择动作...'}
+                                </span>
+                              </button>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="flex flex-col gap-1">
+                                <label className="text-[10px] font-bold text-text-secondary">动作间休息 (秒)</label>
+                                <input
+                                  type="number"
+                                  className="input input-bordered input-xs h-8 bg-bg-card dark:bg-bg-card-dark border-border-card text-text-main dark:text-text-main-dark text-xs rounded-lg font-bold"
+                                  min="0"
+                                  placeholder="45"
+                                  value={day.T2_superset?.rest_between ?? 45}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value) || 0;
+                                    setDayTemplate(prev => prev.map(d => d.label === day.label ? {
+                                      ...d,
+                                      T2_superset: { ...d.T2_superset, rest_between: val }
+                                    } : d));
+                                  }}
+                                />
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <label className="text-[10px] font-bold text-text-secondary">整组后休息 (秒)</label>
+                                <input
+                                  type="number"
+                                  className="input input-bordered input-xs h-8 bg-bg-card dark:bg-bg-card-dark border-border-card text-text-main dark:text-text-main-dark text-xs rounded-lg font-bold"
+                                  min="0"
+                                  placeholder="90"
+                                  value={day.T2_superset?.rest_after ?? 90}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value) || 0;
+                                    setDayTemplate(prev => prev.map(d => d.label === day.label ? {
+                                      ...d,
+                                      T2_superset: { ...d.T2_superset, rest_after: val }
+                                    } : d));
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1901,6 +2041,85 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
               </div>
             );
           })}
+          
+          {/* T2 超级组动作配置 */}
+          {(() => {
+            const activeSupersetExercises = [];
+            const seen = new Set();
+            dayTemplate.forEach(day => {
+              if (day.T2_superset?.enabled && day.T2_superset.exercise) {
+                const exName = day.T2_superset.exercise.trim();
+                if (exName && !seen.has(exName)) {
+                  seen.add(exName);
+                  activeSupersetExercises.push(exName);
+                }
+              }
+            });
+
+            if (activeSupersetExercises.length === 0) return null;
+
+            return (
+              <div className="flex flex-col gap-3 mt-4 pt-4 border-t border-border-card/30 dark:border-border-card-dark/30">
+                <h4 className="text-sm font-bold text-text-secondary dark:text-text-secondary-dark flex items-center gap-1.5 select-none">
+                  <Link size={14} className="text-primary animate-pulse" />
+                  <span>🔗 T2 超级组动作起始配置</span>
+                </h4>
+                {activeSupersetExercises.map(exName => {
+                  const exUnit = exerciseUnits[exName] || weightUnit;
+                  const weight = customT2Weights[exName] ?? (exUnit === 'lbs' ? '65' : '30');
+                  const step = customT2Steps[exName] ?? (exUnit === 'lbs' ? '5' : '2.5');
+
+                  return (
+                    <div key={exName} className="p-3 rounded-xl bg-bg-main/20 dark:bg-bg-main-dark/20 border border-border-card/50 dark:border-border-card-dark/50">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="badge bg-tier-t2/10 text-tier-t2 dark:text-tier-t2-dark border-tier-t2/20 dark:border-tier-t2-dark/20 font-extrabold text-xs">T2</span>
+                          <span className="text-sm font-bold text-text-main dark:text-text-main-dark">{getCNName(exName, exerciseNameMap)}</span>
+                        </div>
+                        <span className="text-[10px] text-text-secondary font-mono">{exUnit}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] font-bold text-text-secondary uppercase">T2 起始重量</label>
+                          <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-10 transition-colors">
+                            <input
+                              type="number"
+                              step="0.5"
+                              className={inputClass}
+                              value={weight}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setCustomT2Weights(prev => ({ ...prev, [exName]: val }));
+                              }}
+                              placeholder="如 30"
+                            />
+                            <span className="text-xs text-text-secondary/50 select-none">{exUnit}</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] font-bold text-text-secondary uppercase">T2 递增步长</label>
+                          <div className="input input-bordered flex items-center gap-1 bg-bg-card dark:bg-bg-card-dark border-border-card dark:border-border-card-dark focus-within:border-primary px-2 h-10 transition-colors">
+                            <input
+                              type="number"
+                              step="0.5"
+                              className={inputClass}
+                              value={step}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setCustomT2Steps(prev => ({ ...prev, [exName]: val }));
+                              }}
+                              placeholder="如 2.5"
+                            />
+                            <span className="text-xs text-text-secondary/50 select-none">{exUnit}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -2097,8 +2316,153 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                    );
                  })}
                </div>
-            </div>
-          ))}
+
+               {/* T3 超级组设置 */}
+               {(() => {
+                 const validT3List = (day.t3 || []).filter(name => name && name.trim());
+                 if (validT3List.length < 2) return null;
+
+                 const cleanSupersets = (day.T3_supersets || []).map(ss => ({
+                   ...ss,
+                   exercises: ss.exercises.filter(ex => validT3List.includes(ex))
+                 })).filter(ss => ss.exercises.length >= 2);
+
+                 const exercisesInSupersets = new Set();
+                 cleanSupersets.forEach(ss => ss.exercises.forEach(ex => exercisesInSupersets.add(ex)));
+
+                 const freeExercises = validT3List.filter(ex => !exercisesInSupersets.has(ex));
+
+                 return (
+                   <div className="mt-3 pt-3 border-t border-border-card/30 dark:border-border-card-dark/30 flex flex-col gap-2">
+                     <span className="text-xs font-bold text-text-secondary dark:text-text-secondary-dark flex items-center gap-1">
+                       <Link size={12} className="text-primary" />
+                       <span>🔗 T3 超级组配置</span>
+                     </span>
+
+                     {cleanSupersets.map((ss, ssIdx) => (
+                       <div key={ssIdx} className="p-2 rounded-lg bg-primary/5 dark:bg-primary/10 border border-primary/20 flex flex-col gap-2">
+                         <div className="flex items-center justify-between">
+                           <span className="text-xs font-bold text-primary">
+                             超级组 {ssIdx + 1}: {ss.exercises.map(ex => getCNName(ex, exerciseNameMap)).join(' + ')}
+                           </span>
+                           <button
+                             type="button"
+                             className="text-[10px] text-error hover:underline cursor-pointer font-bold"
+                             onClick={() => {
+                               const newTemplate = [...dayTemplate];
+                               const updatedSS = [...cleanSupersets];
+                               updatedSS.splice(ssIdx, 1);
+                               newTemplate[dayIdx] = {
+                                 ...day,
+                                 T3_supersets: updatedSS
+                               };
+                               setDayTemplate(newTemplate);
+                             }}
+                           >
+                             解除
+                           </button>
+                         </div>
+                         
+                         <div className="grid grid-cols-2 gap-2">
+                           <div className="flex flex-col gap-1">
+                             <label className="text-[9px] font-bold text-text-secondary">动作间休息 (秒)</label>
+                             <input
+                               type="number"
+                               className="input input-bordered input-xs h-7 bg-bg-card dark:bg-bg-card-dark border-border-card text-text-main dark:text-text-main-dark text-xs rounded-lg font-bold"
+                               min="0"
+                               placeholder="30"
+                               value={ss.rest_between ?? 30}
+                               onChange={(e) => {
+                                 const val = parseInt(e.target.value) || 0;
+                                 const newTemplate = [...dayTemplate];
+                                 const updatedSS = [...cleanSupersets];
+                                 updatedSS[ssIdx] = { ...updatedSS[ssIdx], rest_between: val };
+                                 newTemplate[dayIdx] = { ...day, T3_supersets: updatedSS };
+                                 setDayTemplate(newTemplate);
+                               }}
+                             />
+                           </div>
+                           <div className="flex flex-col gap-1">
+                             <label className="text-[9px] font-bold text-text-secondary">整组后休息 (秒)</label>
+                             <input
+                               type="number"
+                               className="input input-bordered input-xs h-7 bg-bg-card dark:bg-bg-card-dark border-border-card text-text-main dark:text-text-main-dark text-xs rounded-lg font-bold"
+                               min="0"
+                               placeholder="90"
+                               value={ss.rest_after ?? 90}
+                               onChange={(e) => {
+                                 const val = parseInt(e.target.value) || 0;
+                                 const newTemplate = [...dayTemplate];
+                                 const updatedSS = [...cleanSupersets];
+                                 updatedSS[ssIdx] = { ...updatedSS[ssIdx], rest_after: val };
+                                 newTemplate[dayIdx] = { ...day, T3_supersets: updatedSS };
+                                 setDayTemplate(newTemplate);
+                               }}
+                             />
+                           </div>
+                         </div>
+                       </div>
+                     ))}
+
+                     {freeExercises.length >= 2 && (
+                       <div className="p-2 rounded-lg bg-bg-main/30 dark:bg-bg-main-dark/30 border border-border-card/30 dark:border-border-card-dark/30 flex flex-col gap-2">
+                         <span className="text-[10px] font-bold text-text-secondary">组合空闲动作组成新超级组：</span>
+                         <div className="flex flex-wrap gap-2">
+                           {freeExercises.map(ex => {
+                             const isChecked = (t3SupersetCreator[day.label] || []).includes(ex);
+                             return (
+                               <label key={ex} className="flex items-center gap-1 text-[11px] text-text-main dark:text-text-main-dark cursor-pointer select-none bg-bg-card dark:bg-bg-card-dark px-2 py-1 rounded border border-border-card/50">
+                                 <input
+                                   type="checkbox"
+                                   className="checkbox checkbox-primary checkbox-xs scale-90"
+                                   checked={isChecked}
+                                   onChange={(e) => {
+                                     const checked = e.target.checked;
+                                     setT3SupersetCreator(prev => {
+                                       const daySelected = prev[day.label] || [];
+                                       const nextSelected = checked
+                                         ? [...daySelected, ex]
+                                         : daySelected.filter(x => x !== ex);
+                                       return { ...prev, [day.label]: nextSelected };
+                                     });
+                                   }}
+                                 />
+                                 <span>{getCNName(ex, exerciseNameMap)}</span>
+                               </label>
+                             );
+                           })}
+                         </div>
+                         
+                         <button
+                           type="button"
+                           className="btn btn-xs btn-primary font-bold self-end h-6 min-h-0 text-[10px] rounded-lg mt-1"
+                           disabled={(t3SupersetCreator[day.label] || []).length < 2}
+                           onClick={() => {
+                             const selected = t3SupersetCreator[day.label] || [];
+                             if (selected.length < 2) return;
+                             const newTemplate = [...dayTemplate];
+                             const updatedSS = [...cleanSupersets, {
+                               exercises: selected,
+                               rest_between: 30,
+                               rest_after: 90
+                             }];
+                             newTemplate[dayIdx] = {
+                               ...day,
+                               T3_supersets: updatedSS
+                             };
+                             setDayTemplate(newTemplate);
+                             setT3SupersetCreator(prev => ({ ...prev, [day.label]: [] }));
+                           }}
+                         >
+                           + 生成超级组
+                         </button>
+                       </div>
+                     )}
+                   </div>
+                 );
+               })()}
+             </div>
+           ))}
         </div>
 
         {/* T3 动作配置池 */}
@@ -2803,7 +3167,9 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
             ? '选择练前热身动作'
             : selectingTarget?.type === 'stretching'
               ? '选择练后拉伸动作'
-              : '选择 T3 辅助动作'
+              : selectingTarget?.type === 'T2_superset'
+                ? '选择 T2 超级组搭配动作'
+                : '选择 T3 辅助动作'
         }
         subtitle={selectingTarget ? `为 ${selectingTarget.dayLabel} 选择动作` : undefined}
         search={selectorSearch}
@@ -2818,6 +3184,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                 if (d.label !== dayLabel) return d;
                 if (type === 'warmup') return { ...d, warmup: d.warmup.map((item, i) => i === idx ? { ...item, exercise: '' } : item) };
                 if (type === 'stretching') return { ...d, stretching: d.stretching.map((item, i) => i === idx ? { ...item, exercise: '' } : item) };
+                if (type === 'T2_superset') return { ...d, T2_superset: { ...(d.T2_superset || { enabled: false, rest_between: 45, rest_after: 90 }), exercise: '' } };
                 return { ...d, t3: d.t3.map((ex, i) => i === idx ? '' : ex) };
               });
               setDayTemplate(newTemplate);
@@ -2828,13 +3195,15 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
           </button>
         }
         exercises={filteredExercises}
-        emptyMessage="未找到匹配的动作"
+        emptyMessage="未找到匹配 of 动作"
         renderItem={(ex) => {
           const isSelected = selectingTarget?.type === 'warmup'
             ? dayTemplate.find(d => d.label === selectingTarget.dayLabel)?.warmup[selectingTarget.idx]?.exercise === ex.name
             : selectingTarget?.type === 'stretching'
               ? dayTemplate.find(d => d.label === selectingTarget.dayLabel)?.stretching[selectingTarget.idx]?.exercise === ex.name
-              : dayTemplate.find(d => d.label === selectingTarget.dayLabel)?.t3[selectingTarget.idx] === ex.name;
+              : selectingTarget?.type === 'T2_superset'
+                ? dayTemplate.find(d => d.label === selectingTarget.dayLabel)?.T2_superset?.exercise === ex.name
+                : dayTemplate.find(d => d.label === selectingTarget.dayLabel)?.t3[selectingTarget.idx] === ex.name;
 
           return (
             <button key={ex.name} type="button"
@@ -2850,6 +3219,7 @@ function GzclpConfig({ program, onBack, onActivated, isExisting, gymEquipmentCon
                   if (d.label !== dayLabel) return d;
                   if (type === 'warmup') return { ...d, warmup: d.warmup.map((item, i) => i === idx ? { exercise: ex.name, sets: item.sets || 2, reps: item.reps || (ex.recording_method === 'duration_only' ? 30 : 10), recording_method: ex.recording_method || 'reps_only' } : item) };
                   if (type === 'stretching') return { ...d, stretching: d.stretching.map((item, i) => i === idx ? { exercise: ex.name, sets: item.sets || 2, reps: item.reps || (ex.recording_method === 'duration_only' ? 30 : 10), recording_method: ex.recording_method || 'reps_only' } : item) };
+                  if (type === 'T2_superset') return { ...d, T2_superset: { ...(d.T2_superset || { enabled: true, rest_between: 45, rest_after: 90 }), exercise: ex.name } };
                   return { ...d, t3: d.t3.map((name, i) => i === idx ? ex.name : name) };
                 });
                 setDayTemplate(newTemplate);

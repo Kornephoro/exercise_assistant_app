@@ -1496,7 +1496,10 @@ function App() {
         {/* TAB 4: 数据 */}
         {activeTab === 'data' && (
           <Suspense fallback={<ScreenFallback label="正在加载数据..." />}>
-            <DataScreen getExerciseCNName={getExerciseCNName} />
+            <DataScreen 
+              getExerciseCNName={getExerciseCNName} 
+              activeUserProgram={getActiveUserProgram()} 
+            />
           </Suspense>
         )}
 

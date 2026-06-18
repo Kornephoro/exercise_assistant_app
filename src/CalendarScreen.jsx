@@ -10,7 +10,7 @@ import WorkoutSessionSummary from './components/WorkoutSessionSummary';
  * @param {Object} props
  * @param {Function} props.getExerciseCNName 动作中文翻译函数 (来自 App.jsx)
  */
-function CalendarScreen({ getExerciseCNName }) {
+function CalendarScreen({ getExerciseCNName, activeUserProgram }) {
   // 1. 本地日期初始化
   const today = new Date();
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
@@ -350,6 +350,7 @@ function CalendarScreen({ getExerciseCNName }) {
             getExerciseCNName={getExerciseCNName}
             title={`${currentYear}年${currentMonth + 1}月${selectedDate}日 训练总结`}
             onDeleteSession={handleDeleteSession}
+            activeUserProgram={activeUserProgram}
           />
         )}
       </div>

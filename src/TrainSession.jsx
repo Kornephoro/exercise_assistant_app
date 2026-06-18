@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Minimize2, X, Check, Sparkles, SkipForward, Plus, FastForward, Dumbbell, Calculator, Play, Pause, Settings, PenLine, Filter, Search, Zap, RotateCcw, RefreshCw, Timer, Lightbulb } from 'lucide-react';
+import { Minimize2, X, Check, Sparkles, SkipForward, Plus, FastForward, Dumbbell, Calculator, Play, Pause, Settings, PenLine, Filter, Search, Zap, RotateCcw, RefreshCw, Timer, Lightbulb, Link } from 'lucide-react';
 import { convertWeight, getBarbellPlateBreakdown, toStorageWeight } from './unitUtils';
 import BarbellVisualizer from './BarbellVisualizer';
 import { fetchLatestOneRmForExercises } from './services/workoutService';
@@ -827,11 +827,27 @@ function TrainSession({
     const nextSet = getNextSet(exerciseIdx, setIdx, todayWorkout.exercises, sessionState.setsData);
 
     if (nextSet) {
+      // 计算超级组智能休息时间
+      const currentEx = todayWorkout.exercises[exerciseIdx];
+      const nextEx = todayWorkout.exercises[nextSet.exerciseIdx];
+      let restSeconds = customRestSeconds;
+
+      if (currentEx.superset_id && nextEx.superset_id && currentEx.superset_id === nextEx.superset_id) {
+        if (setIdx === nextSet.setIdx) {
+          restSeconds = currentEx.rest_between ?? 30;
+        } else {
+          restSeconds = currentEx.rest_after ?? 90;
+        }
+      } else if (currentEx.superset_id) {
+        // 离开超级组时使用大休
+        restSeconds = currentEx.rest_after ?? 90;
+      }
+
       setRestTimer({
         active: true,
-        total: customRestSeconds,
-        remaining: customRestSeconds,
-        endTime: Date.now() + customRestSeconds * 1000,
+        total: restSeconds,
+        remaining: restSeconds,
+        endTime: Date.now() + restSeconds * 1000,
         isMinimized: false
       });
     }
@@ -1563,221 +1579,468 @@ function TrainSession({
     const exercises = todayWorkout?.exercises || [];
     if (exercises.length === 0) return null;
 
+    // 分组逻辑：将超级组动作归并到一个卡片中，其余动作独立卡片
+    const grouped = [];
+    const processedIdx = new Set();
+
+    const T2_superset = todayWorkout?.T2_superset || { enabled: false };
+    const T3_supersets = todayWorkout?.T3_supersets || [];
+
+    for (let i = 0; i < exercises.length; i++) {
+      if (processedIdx.has(i)) continue;
+
+      const ex = exercises[i];
+      
+      // T2 超级组处理
+      if (ex.tier === 'T2' && T2_superset.enabled && ex.exercise === todayWorkout.T2 && !ex.is_superset_companion) {
+        const compIdx = exercises.findIndex((item, idx) => !processedIdx.has(idx) && item.tier === 'T2' && item.is_superset_companion && item.superset_parent === ex.exercise);
+        if (compIdx !== -1) {
+          grouped.push({
+            type: 'superset',
+            tier: 'T2',
+            exercises: [
+              { item: ex, index: i },
+              { item: exercises[compIdx], index: compIdx }
+            ],
+            rest_between: T2_superset.rest_between ?? 45,
+            rest_after: T2_superset.rest_after ?? 90
+          });
+          processedIdx.add(i);
+          processedIdx.add(compIdx);
+          continue;
+        }
+      }
+
+      // T3 超级组处理
+      if (ex.tier === 'T3') {
+        const ss = T3_supersets.find(s => s.exercises.includes(ex.exercise));
+        if (ss) {
+          const ssExercises = [];
+          const matchedIndices = [];
+          
+          ss.exercises.forEach(ssExName => {
+            const idx = exercises.findIndex((item, index) => !processedIdx.has(index) && item.tier === 'T3' && item.exercise === ssExName);
+            if (idx !== -1) {
+              ssExercises.push({ item: exercises[idx], index: idx });
+              matchedIndices.push(idx);
+            }
+          });
+
+          if (ssExercises.length >= 2) {
+            grouped.push({
+              type: 'superset',
+              tier: 'T3',
+              exercises: ssExercises,
+              rest_between: ss.rest_between ?? 30,
+              rest_after: ss.rest_after ?? 90
+            });
+            matchedIndices.forEach(idx => processedIdx.add(idx));
+            continue;
+          }
+        }
+      }
+
+      // 普通单动作
+      grouped.push({
+        type: 'single',
+        tier: ex.tier,
+        item: ex,
+        index: i
+      });
+      processedIdx.add(i);
+    }
+
     return (
       <div className="flex flex-col gap-4">
-        {exercises.map((ex, exIdx) => {
-          const tier = ex.tier || 'T1';
-          const sets = sessionState.setsData[exIdx] || [];
-          const completedCount = sets.filter(s => s.completed).length;
-          const isFullyCompleted = completedCount === sets.length && sets.length > 0;
+        {grouped.map((group, gIdx) => {
+          if (group.type === 'single') {
+            const ex = group.item;
+            const exIdx = group.index;
+            const tier = ex.tier || 'T1';
+            const sets = sessionState.setsData[exIdx] || [];
+            const completedCount = sets.filter(s => s.completed).length;
+            const isFullyCompleted = completedCount === sets.length && sets.length > 0;
 
-          const exUnit = exerciseConfig?.[ex.exercise]?.unit || unit || 'kg';
+            const exUnit = exerciseConfig?.[ex.exercise]?.unit || unit || 'kg';
+            
+            const tierBorder = tier === 'T1' ? 'border-l-primary' : tier === 'T2' ? 'border-l-secondary' : 'border-l-accent';
+            const tierBadge = tier === 'T1' ? 'badge-primary' : tier === 'T2' ? 'badge-secondary' : 'badge-accent';
 
-          return (
-            <div key={exIdx} className={`card bg-base-100 border border-base-300 border-l-4 ${tierBorder} shadow-sm transition-all duration-300 ${isFullyCompleted ? 'opacity-50' : ''}`}>
-              <div className="card-body px-0 py-3 gap-2">
-                <div className="flex items-center justify-between px-3">
-                  <div className="flex items-center gap-2">
-                    <span className={`badge ${tierBadge} font-bold text-xs`}>{tier}</span>
-                    <span className="text-sm font-bold text-base-content">{getExerciseCNName(ex.exercise)}</span>
-                    <span className="text-xs font-mono font-bold text-base-content/40 bg-base-200 px-1.5 py-0.5 rounded">
-                      {exUnit === 'lbs' ? `${convertWeight(ex.weight, 'lbs').toFixed(1)}lbs` : `${ex.weight?.toFixed(1)}kg`}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const newUnit = exUnit === 'lbs' ? 'kg' : 'lbs';
-                        onChangeExerciseUnit?.(ex.exercise, newUnit);
-                      }}
-                      className="text-[10px] font-mono font-bold text-primary dark:text-primary-dark bg-primary/5 dark:bg-primary/10 border border-primary/10 px-1.5 py-0.5 rounded hover:bg-primary/20 select-none cursor-pointer"
-                      title="切换单位"
-                    >
-                      {exUnit}
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-semibold text-base-content/40">{completedCount}/{sets.length}</span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSettingsExIdx(exIdx);
-                        const curType = exercisesMap?.[ex.exercise]?.exercise_type || '';
-                        setExFilterType(curType);
-                        setExFilterPattern('');
-                        setExFilterEquipment('');
-                        setReplaceExerciseSearch('');
-                        setShowExerciseSettingsModal(true);
-                      }}
-                      className="btn btn-ghost btn-circle btn-xs h-6 w-6 min-h-0 text-base-content/50 hover:bg-base-200 hover:text-base-content rounded-full flex items-center justify-center cursor-pointer"
-                      title="动作设置"
-                    >
-                      <Settings size={13} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* 双进阶模式额外信息提示 */}
-                {(() => {
-                  const exConfig = exerciseConfig?.[ex.exercise];
-                  const isDoubleProg = exConfig?.progression_type === 'double_progression';
-                  if (!isDoubleProg) return null;
-
-                  const minR = exConfig.min_reps ?? 12;
-                  const maxR = exConfig.max_reps ?? 15;
-                  const recMethod = exercisesMap?.[ex.exercise]?.recording_method || ex.recording_method || 'standard';
-                  const unitLabel = recMethod === 'duration_only' ? '秒' : recMethod === 'distance_only' ? '米' : '次';
-
-                  // 获取历史记录
-                  const hist = historyByExerciseTier?.[ex.exercise]?.[tier] || [];
-                  const lastWorkout = hist.length > 0 ? hist[hist.length - 1] : null;
-                  const lastWorkSets = lastWorkout?.sets?.filter(s => !s.is_warmup) || [];
-                  const lastRepsText = lastWorkSets.length > 0 
-                    ? lastWorkSets.map(s => {
-                        if (recMethod === 'duration_only') return s.duration_seconds || s.planned_reps;
-                        if (recMethod === 'distance_only' || recMethod === 'loaded_carry') return s.distance_meters || s.planned_reps;
-                        return s.actual_reps ?? s.planned_reps;
-                      }).join(', ') + ' ' + unitLabel
-                    : '无历史记录';
-
-                  return (
-                    <div className="flex flex-col gap-1 mx-3 px-2.5 py-2 rounded-xl bg-accent/5 dark:bg-accent/10 border border-accent/10 text-xs text-accent">
-                      <div className="flex items-center gap-1.5 font-bold">
-                        <span className="badge badge-accent badge-outline scale-90 px-1.5 text-[9px] font-extrabold">双进阶</span>
-                        <span>目标：本次每组 {ex.reps} {unitLabel}（区间：{minR}~{maxR} {unitLabel}，达上限加重）</span>
-                      </div>
-                      <div className="text-base-content/60 font-semibold flex items-center gap-1">
-                        <span>📈 上次表现：</span>
-                        <span className="font-mono text-base-content">{lastRepsText}</span>
-                        <span className="text-[10px] text-base-content/40 ml-1">（本次请尽力超越上次）</span>
-                      </div>
+            return (
+              <div key={`single_${exIdx}`} className={`card bg-base-100 border border-base-300 border-l-4 ${tierBorder} shadow-sm transition-all duration-300 ${isFullyCompleted ? 'opacity-50' : ''}`}>
+                <div className="card-body px-0 py-3 gap-2">
+                  <div className="flex items-center justify-between px-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`badge ${tierBadge} font-bold text-xs`}>{tier}</span>
+                      <span className="text-sm font-bold text-base-content">{getExerciseCNName(ex.exercise)}</span>
+                      <span className="text-xs font-mono font-bold text-base-content/40 bg-base-200 px-1.5 py-0.5 rounded">
+                        {exUnit === 'lbs' ? `${convertWeight(ex.weight, 'lbs').toFixed(1)}lbs` : `${ex.weight?.toFixed(1)}kg`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newUnit = exUnit === 'lbs' ? 'kg' : 'lbs';
+                          onChangeExerciseUnit?.(ex.exercise, newUnit);
+                        }}
+                        className="text-[10px] font-mono font-bold text-primary dark:text-primary-dark bg-primary/5 dark:bg-primary/10 border border-primary/10 px-1.5 py-0.5 rounded hover:bg-primary/20 select-none cursor-pointer"
+                        title="切换单位"
+                      >
+                        {exUnit}
+                      </button>
                     </div>
-                  );
-                })()}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-semibold text-base-content/40">{completedCount}/{sets.length}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSettingsExIdx(exIdx);
+                          const curType = exercisesMap?.[ex.exercise]?.exercise_type || '';
+                          setExFilterType(curType);
+                          setExFilterPattern('');
+                          setExFilterEquipment('');
+                          setReplaceExerciseSearch('');
+                          setShowExerciseSettingsModal(true);
+                        }}
+                        className="btn btn-ghost btn-circle btn-xs h-6 w-6 min-h-0 text-base-content/50 hover:bg-base-200 hover:text-base-content rounded-full flex items-center justify-center cursor-pointer"
+                        title="动作设置"
+                      >
+                        <Settings size={13} />
+                      </button>
+                    </div>
+                  </div>
 
-                {(() => {
-                  const exInfo = exercisesMap?.[ex.exercise];
-                  const isBarbell = exInfo?.equipment?.includes('barbell') || 
-                                    MAIN_LIFT_KEYS.includes(ex.exercise.toLowerCase());
-                  if (!isBarbell || !gymEquipmentConfig) return null;
-                  
-                  const configForUnit = gymEquipmentConfig[exUnit] || gymEquipmentConfig.kg;
-                  const barWeight = configForUnit.barbell?.bar_weight ?? (exUnit === 'kg' ? 20 : 45);
-                  const enabledPlates = configForUnit.barbell?.enabled_plates || (exUnit === 'kg' ? [25, 20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]);
-                  const plateLimits = configForUnit.barbell?.plate_limits || {};
-                  
-                  const weightInUnit = exUnit === 'lbs' ? convertWeight(ex.weight, 'lbs') : ex.weight;
-                  const breakdown = getBarbellPlateBreakdown(weightInUnit, barWeight, enabledPlates, plateLimits);
-                   if (!breakdown || breakdown.plates.length === 0) {
+                  {/* 双进阶模式额外信息提示 */}
+                  {(() => {
+                    const exConfig = exerciseConfig?.[ex.exercise];
+                    const isDoubleProg = exConfig?.progression_type === 'double_progression';
+                    if (!isDoubleProg) return null;
+
+                    const minR = exConfig.min_reps ?? 12;
+                    const maxR = exConfig.max_reps ?? 15;
+                    const recMethod = exercisesMap?.[ex.exercise]?.recording_method || ex.recording_method || 'standard';
+                    const unitLabel = recMethod === 'duration_only' ? '秒' : recMethod === 'distance_only' ? '米' : '次';
+
+                    // 获取历史记录
+                    const hist = historyByExerciseTier?.[ex.exercise]?.[tier] || [];
+                    const lastWorkout = hist.length > 0 ? hist[hist.length - 1] : null;
+                    const lastWorkSets = lastWorkout?.sets?.filter(s => !s.is_warmup) || [];
+                    const lastRepsText = lastWorkSets.length > 0 
+                      ? lastWorkSets.map(s => {
+                          if (recMethod === 'duration_only') return s.duration_seconds || s.planned_reps;
+                          if (recMethod === 'distance_only' || recMethod === 'loaded_carry') return s.distance_meters || s.planned_reps;
+                          return s.actual_reps ?? s.planned_reps;
+                        }).join(', ') + ' ' + unitLabel
+                      : '无历史记录';
+
                     return (
-                      <div className="flex flex-col gap-1.5 mb-2 select-none w-full px-3">
-                        <div className="text-[10px] text-base-content/45 bg-base-200/50 px-2.5 py-1.5 rounded-lg font-semibold w-fit border border-base-300/40">
-                          <Lightbulb size={12} className="inline shrink-0" /> 配片: 空杆 {barWeight}{exUnit}
+                      <div className="flex flex-col gap-1 mx-3 px-2.5 py-2 rounded-xl bg-accent/5 dark:bg-accent/10 border border-accent/10 text-xs text-accent">
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <span className="badge badge-accent badge-outline scale-90 px-1.5 text-[9px] font-extrabold">双进阶</span>
+                          <span>目标：本次每组 {ex.reps} {unitLabel}（区间：{minR}~{maxR} {unitLabel}，达上限加重）</span>
+                        </div>
+                        <div className="text-base-content/60 font-semibold flex items-center gap-1">
+                          <span>📈 上次表现：</span>
+                          <span className="font-mono text-base-content">{lastRepsText}</span>
+                          <span className="text-[10px] text-base-content/40 ml-1">（本次请尽力超越上次）</span>
                         </div>
                       </div>
                     );
-                  }
-                  
-                  const counts = {};
-                  breakdown.plates.forEach(p => { counts[p] = (counts[p] || 0) + 1; });
-                  const plateTexts = Object.entries(counts)
-                    .sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]))
-                    .map(([plate, count]) => `${plate}${exUnit} × ${count}`);
-                  
-                  return (
-                    <div className="flex flex-col gap-1.5 mb-2 select-none w-full px-3">
-                      <div className="text-[10px] text-primary dark:text-primary-dark bg-primary/5 dark:bg-primary/10 border border-primary/10 rounded-lg px-2.5 py-1.5 flex items-center gap-1 font-semibold">
-                        <span><Lightbulb size={12} className="inline shrink-0" /> 配片建议:</span>
-                        <span>{barWeight}{exUnit} 空杆 + 单侧 [{plateTexts.join(', ')}]</span>
-                      </div>
-                    </div>
-                  );
-                })()}
+                  })()}
 
-                <div className="flex flex-col gap-2.5">
-                  {ex.needs_retest ? (
-                    renderRetestCard(ex, exIdx)
-                  ) : (
-                    <>
-                      {sets.map((set, setIdx) => {
-                        const setKey = getSetKey(exIdx, setIdx);
-                        const detail = setDetails[setKey] || {};
-                        const isLastSet = setIdx === sets.length - 1;
-                        const isSkipped = !!set.skipped;
-                        
-                        let btnClassName = `flex items-center justify-between p-4 rounded-2xl border-2 transition-all duration-200 text-left w-full `;
-                        if (isSkipped) {
-                          btnClassName += `border-dashed border-base-300 bg-base-200/20 opacity-50`;
-                        } else if (set.completed) {
-                          btnClassName += `border-green-500/30 bg-green-500/5`;
-                        } else if (isLastSet && !set.completed) {
-                          btnClassName += `border-primary/40 bg-primary/5`;
-                        } else {
-                          btnClassName += `border-base-300 bg-base-200/30 hover:border-base-content/15`;
-                        }
-
-                        return (
-                          <button key={setIdx} type="button" className={btnClassName} onClick={() => openSetCard(exIdx, setIdx)}>
-                            <div className="flex items-center gap-3">
-                              {isSkipped ? (
-                                <div className="w-8 h-8 rounded-full border border-base-300 flex items-center justify-center"><SkipForward size={12} className="text-base-content/30" /></div>
-                              ) : set.completed ? (
-                                <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center"><Check size={14} className="text-white" /></div>
-                              ) : (
-                                <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${isLastSet ? 'border-primary' : 'border-base-300'}`}><span className="text-xs font-bold text-base-content/40">{set.set_number}</span></div>
-                              )}
-                              <div className="flex flex-col">
-                                <span className={`text-sm font-bold ${isSkipped ? 'text-base-content/40' : set.completed ? 'text-base-content/30 line-through' : 'text-base-content'}`}>
-                                  第 {set.set_number} 组
-                                </span>
-                                <span className="text-xs font-semibold text-base-content/40">目标: {set.planned_reps}{set.is_amrap && (() => { const m = getRecordingMethod(ex.exercise); return m !== 'duration_only' && m !== 'distance_only'; })() ? '+' : ''}{(() => { const m = getRecordingMethod(ex.exercise); return m === 'duration_only' ? '秒' : m === 'distance_only' ? '米' : '次'; })()}</span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              {isSkipped ? (
-                                <span className="text-xs font-bold text-base-content/30">已跳过</span>
-                              ) : (
-                                <>
-                                  {detail.record_rpe !== false && detail.rpe !== undefined && detail.rpe !== null && (
-                                    <span className={`text-xs font-bold font-mono ${getRpeColor(detail.rpe)}`}>RPE {detail.rpe.toFixed(1)}</span>
-                                  )}
-                                  {['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(getRecordingMethod(ex.exercise)) && (
-                                    <span className="text-sm font-mono font-bold text-base-content/60">
-                                      {exUnit === 'lbs' 
-                                        ? `${convertWeight(set.weight_kg || ex.weight, 'lbs').toFixed(1)}lbs` 
-                                        : `${(set.weight_kg || ex.weight)?.toFixed(1)}kg`
-                                      }
-                                    </span>
-                                  )}
-                                  {set.completed && <span className="text-base font-mono font-black text-green-500">{set.actual_reps ?? set.planned_reps}{(() => { const m = getRecordingMethod(ex.exercise); return m === 'duration_only' ? '秒' : m === 'distance_only' ? '米' : '次'; })()}</span>}
-                                </>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
-                      {['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(getRecordingMethod(ex.exercise)) && sets.length > 1 && (
-                        <div className="flex justify-end px-3">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const currentWeight = sets[0]?.weight_kg ?? ex.weight ?? 0;
-                              handleSyncWeightToSubsequentSets(exIdx, -1, currentWeight);
-                            }}
-                            className="btn btn-ghost btn-xs text-primary dark:text-primary-dark font-extrabold gap-1 px-2 py-1 select-none cursor-pointer rounded bg-primary/5 hover:bg-primary/10"
-                          >
-                            <RefreshCw size={11} />
-                            <span>同步首组重量到其余未完成组</span>
-                          </button>
+                  {(() => {
+                    const exInfo = exercisesMap?.[ex.exercise];
+                    const isBarbell = exInfo?.equipment?.includes('barbell') || 
+                                      MAIN_LIFT_KEYS.includes(ex.exercise.toLowerCase());
+                    if (!isBarbell || !gymEquipmentConfig) return null;
+                    
+                    const configForUnit = gymEquipmentConfig[exUnit] || gymEquipmentConfig.kg;
+                    const barWeight = configForUnit.barbell?.bar_weight ?? (exUnit === 'kg' ? 20 : 45);
+                    const enabledPlates = configForUnit.barbell?.enabled_plates || (exUnit === 'kg' ? [25, 20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]);
+                    const plateLimits = configForUnit.barbell?.plate_limits || {};
+                    
+                    const weightInUnit = exUnit === 'lbs' ? convertWeight(ex.weight, 'lbs') : ex.weight;
+                    const breakdown = getBarbellPlateBreakdown(weightInUnit, barWeight, enabledPlates, plateLimits);
+                    if (!breakdown || breakdown.plates.length === 0) {
+                      return (
+                        <div className="flex flex-col gap-1.5 mb-2 select-none w-full px-3">
+                          <div className="text-[10px] text-base-content/45 bg-base-200/50 px-2.5 py-1.5 rounded-lg font-semibold w-fit border border-base-300/40">
+                            <Lightbulb size={12} className="inline shrink-0" /> 配片: 空杆 {barWeight}{exUnit}
+                          </div>
                         </div>
-                      )}
-                    </>
-                  )}
+                      );
+                    }
+                    
+                    const counts = {};
+                    breakdown.plates.forEach(p => { counts[p] = (counts[p] || 0) + 1; });
+                    const plateTexts = Object.entries(counts)
+                      .sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]))
+                      .map(([plate, count]) => `${plate}${exUnit} × ${count}`);
+                    
+                    return (
+                      <div className="flex flex-col gap-1.5 mb-2 select-none w-full px-3">
+                        <div className="text-[10px] text-primary dark:text-primary-dark bg-primary/5 dark:bg-primary/10 border border-primary/10 rounded-lg px-2.5 py-1.5 flex items-center gap-1 font-semibold">
+                          <span><Lightbulb size={12} className="inline shrink-0" /> 配片建议:</span>
+                          <span>{barWeight}{exUnit} 空杆 + 单侧 [{plateTexts.join(', ')}]</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div className="flex flex-col gap-2.5">
+                    {ex.needs_retest ? (
+                      renderRetestCard(ex, exIdx)
+                    ) : (
+                      <>
+                        {sets.map((set, setIdx) => {
+                          const setKey = getSetKey(exIdx, setIdx);
+                          const detail = setDetails[setKey] || {};
+                          const isLastSet = setIdx === sets.length - 1;
+                          const isSkipped = !!set.skipped;
+                          
+                          let btnClassName = `flex items-center justify-between p-4 rounded-2xl border-2 transition-all duration-200 text-left w-full `;
+                          if (isSkipped) {
+                            btnClassName += `border-dashed border-base-300 bg-base-200/20 opacity-50`;
+                          } else if (set.completed) {
+                            btnClassName += `border-green-500/30 bg-green-500/5`;
+                          } else if (isLastSet && !set.completed) {
+                            btnClassName += `border-primary/40 bg-primary/5`;
+                          } else {
+                            btnClassName += `border-base-300 bg-base-200/30 hover:border-base-content/15`;
+                          }
+
+                          return (
+                            <button key={setIdx} type="button" className={btnClassName} onClick={() => openSetCard(exIdx, setIdx)}>
+                              <div className="flex items-center gap-3">
+                                {isSkipped ? (
+                                  <div className="w-8 h-8 rounded-full border border-base-300 flex items-center justify-center"><SkipForward size={12} className="text-base-content/30" /></div>
+                                ) : set.completed ? (
+                                  <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center"><Check size={14} className="text-white" /></div>
+                                ) : (
+                                  <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${isLastSet ? 'border-primary' : 'border-base-300'}`}><span className="text-xs font-bold text-base-content/40">{set.set_number}</span></div>
+                                )}
+                                <div className="flex flex-col">
+                                  <span className={`text-sm font-bold ${isSkipped ? 'text-base-content/40' : set.completed ? 'text-base-content/30 line-through' : 'text-base-content'}`}>
+                                    第 {set.set_number} 组
+                                  </span>
+                                  <span className="text-xs font-semibold text-base-content/40">目标: {set.planned_reps}{set.is_amrap && (() => { const m = getRecordingMethod(ex.exercise); return m !== 'duration_only' && m !== 'distance_only'; })() ? '+' : ''}{(() => { const m = getRecordingMethod(ex.exercise); return m === 'duration_only' ? '秒' : m === 'distance_only' ? '米' : '次'; })()}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                {isSkipped ? (
+                                  <span className="text-xs font-bold text-base-content/30">已跳过</span>
+                                ) : (
+                                  <>
+                                    {detail.record_rpe !== false && detail.rpe !== undefined && detail.rpe !== null && (
+                                      <span className={`text-xs font-bold font-mono ${getRpeColor(detail.rpe)}`}>RPE {detail.rpe.toFixed(1)}</span>
+                                    )}
+                                    {['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(getRecordingMethod(ex.exercise)) && (
+                                      <span className="text-sm font-mono font-bold text-base-content/60">
+                                        {exUnit === 'lbs' 
+                                          ? `${convertWeight(set.weight_kg || ex.weight, 'lbs').toFixed(1)}lbs` 
+                                          : `${(set.weight_kg || ex.weight)?.toFixed(1)}kg`
+                                        }
+                                      </span>
+                                    )}
+                                    {set.completed && <span className="text-base font-mono font-black text-green-500">{set.actual_reps ?? set.planned_reps}{(() => { const m = getRecordingMethod(ex.exercise); return m === 'duration_only' ? '秒' : m === 'distance_only' ? '米' : '次'; })()}</span>}
+                                  </>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                        {['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(getRecordingMethod(ex.exercise)) && sets.length > 1 && (
+                          <div className="flex justify-end px-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const currentWeight = sets[0]?.weight_kg ?? ex.weight ?? 0;
+                                handleSyncWeightToSubsequentSets(exIdx, -1, currentWeight);
+                              }}
+                              className="btn btn-ghost btn-xs text-primary dark:text-primary-dark font-extrabold gap-1 px-2 py-1 select-none cursor-pointer rounded bg-primary/5 hover:bg-primary/10"
+                            >
+                              <RefreshCw size={11} />
+                              <span>同步首组重量到其余未完成组</span>
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
+            );
+          } else {
+            // 超级组卡片渲染
+            const tier = group.tier;
+            const exercisesList = group.exercises; // [{ item, index }, { item, index }, ...]
+            
+            // 校验完成状态
+            const allCompleted = exercisesList.every(exItem => {
+              const sets = sessionState.setsData[exItem.index] || [];
+              return sets.length > 0 && sets.every(s => s.completed || s.skipped);
+            });
+            
+            const completedTotalCount = exercisesList.reduce((acc, exItem) => acc + (sessionState.setsData[exItem.index] || []).filter(s => s.completed).length, 0);
+            const plannedTotalCount = exercisesList.reduce((acc, exItem) => acc + (sessionState.setsData[exItem.index] || []).length, 0);
+
+            const tierBorder = tier === 'T2' ? 'border-l-primary' : 'border-l-accent';
+            const tierBadge = tier === 'T2' ? 'badge-primary' : 'badge-accent';
+
+            // 扁平交替生成超级组动作组次
+            const alternatingSets = [];
+            const maxSets = Math.max(...exercisesList.map(e => (sessionState.setsData[e.index] || []).length));
+            
+            for (let round = 0; round < maxSets; round++) {
+              exercisesList.forEach(e => {
+                const sets = sessionState.setsData[e.index] || [];
+                if (round < sets.length) {
+                  alternatingSets.push({
+                    exIdx: e.index,
+                    exercise: e.item,
+                    set: sets[round],
+                    setIdx: round,
+                    roundIdx: round + 1
+                  });
+                }
+              });
+            }
+
+            return (
+              <div key={`superset_${tier}_${exercisesList.map(e=>e.index).join('_')}`} className={`card bg-base-100 border border-base-300 border-l-4 ${tierBorder} shadow-sm transition-all duration-300 ${allCompleted ? 'opacity-50' : ''}`}>
+                <div className="card-body px-0 py-3 gap-2">
+                  <div className="flex items-center justify-between px-3">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`badge ${tierBadge} font-bold text-xs flex items-center gap-0.5`}>
+                        <Link size={10} /> {tier} 超级组
+                      </span>
+                      <span className="text-sm font-bold text-base-content flex items-center gap-1 flex-wrap">
+                        {exercisesList.map((e, idx) => (
+                          <span key={idx} className="flex items-center gap-1">
+                            {idx > 0 && <span className="opacity-40 font-normal">+</span>}
+                            <span>{getExerciseCNName(e.item.exercise)}</span>
+                            <span className="text-[10px] font-mono font-bold text-base-content/40 bg-base-200 px-1 rounded">
+                              {(() => {
+                                const exUnit = exerciseConfig?.[e.item.exercise]?.unit || unit || 'kg';
+                                return exUnit === 'lbs' ? `${convertWeight(e.item.weight, 'lbs').toFixed(1)}lbs` : `${e.item.weight?.toFixed(1)}kg`;
+                              })()}
+                            </span>
+                          </span>
+                        ))}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-semibold text-base-content/40">{completedTotalCount}/{plannedTotalCount}</span>
+                    </div>
+                  </div>
+
+                  {/* 动作间微休与组间大休提示 */}
+                  <div className="mx-3 px-2 py-1.5 bg-base-200/50 dark:bg-base-200/20 rounded-xl border border-base-300/40 text-[10px] text-base-content/60 font-semibold flex items-center gap-3">
+                    <span className="flex items-center gap-0.5"><Timer size={11} className="text-primary" /> 动作间微休: {group.rest_between}秒</span>
+                    <span className="flex items-center gap-0.5"><Timer size={11} className="text-secondary" /> 整组后大休: {group.rest_after}秒</span>
+                  </div>
+
+                  {/* 交替打卡组 */}
+                  <div className="flex flex-col gap-2.5">
+                    {alternatingSets.map(({ exIdx, exercise, set, setIdx, roundIdx }) => {
+                      const setKey = getSetKey(exIdx, setIdx);
+                      const detail = setDetails[setKey] || {};
+                      const isLastSet = setIdx === (sessionState.setsData[exIdx] || []).length - 1;
+                      const isSkipped = !!set.skipped;
+                      const exUnit = exerciseConfig?.[exercise.exercise]?.unit || unit || 'kg';
+                      const method = getRecordingMethod(exercise.exercise);
+                      
+                      let btnClassName = `flex items-center justify-between p-3.5 rounded-2xl border-2 transition-all duration-200 text-left w-full `;
+                      if (isSkipped) {
+                        btnClassName += `border-dashed border-base-300 bg-base-200/20 opacity-50`;
+                      } else if (set.completed) {
+                        btnClassName += `border-green-500/30 bg-green-500/5`;
+                      } else {
+                        btnClassName += `border-base-300 bg-base-200/30 hover:border-base-content/15`;
+                      }
+
+                      return (
+                        <button key={`${exIdx}_${setIdx}`} type="button" className={btnClassName} onClick={() => openSetCard(exIdx, setIdx)}>
+                          <div className="flex items-center gap-3">
+                            {isSkipped ? (
+                              <div className="w-8 h-8 rounded-full border border-base-300 flex items-center justify-center"><SkipForward size={12} className="text-base-content/30" /></div>
+                            ) : set.completed ? (
+                              <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center"><Check size={14} className="text-white" /></div>
+                            ) : (
+                              <div className="w-8 h-8 rounded-full border border-base-300 flex items-center justify-center"><span className="text-xs font-bold text-base-content/40">{set.set_number}</span></div>
+                            )}
+                            <div className="flex flex-col">
+                              <span className={`text-xs font-bold ${isSkipped ? 'text-base-content/40' : set.completed ? 'text-base-content/30 line-through' : 'text-base-content'}`}>
+                                {getExerciseCNName(exercise.exercise)} · 第 {set.set_number} 组
+                              </span>
+                              <span className="text-[10px] font-semibold text-base-content/40">
+                                目标: {set.planned_reps}{set.is_amrap && method !== 'duration_only' && method !== 'distance_only' ? '+' : ''}{method === 'duration_only' ? '秒' : method === 'distance_only' ? '米' : '次'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {isSkipped ? (
+                              <span className="text-xs font-bold text-base-content/30">已跳过</span>
+                            ) : (
+                              <>
+                                {detail.record_rpe !== false && detail.rpe !== undefined && detail.rpe !== null && (
+                                  <span className={`text-xs font-bold font-mono ${getRpeColor(detail.rpe)}`}>RPE {detail.rpe.toFixed(1)}</span>
+                                )}
+                                {['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(method) && (
+                                  <span className="text-xs font-mono font-bold text-base-content/60">
+                                    {exUnit === 'lbs' 
+                                      ? `${convertWeight(set.weight_kg || exercise.weight, 'lbs').toFixed(1)}lbs` 
+                                      : `${(set.weight_kg || exercise.weight)?.toFixed(1)}kg`
+                                    }
+                                  </span>
+                                )}
+                                {set.completed && <span className="text-sm font-mono font-black text-green-500">{set.actual_reps ?? set.planned_reps}{method === 'duration_only' ? '秒' : method === 'distance_only' ? '米' : '次'}</span>}
+                              </>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* 同步重量辅助按钮 */}
+                  {(() => {
+                    const syncableExercises = exercisesList.filter(exItem => {
+                      const method = getRecordingMethod(exItem.item.exercise);
+                      const sets = sessionState.setsData[exItem.index] || [];
+                      return ['standard', 'bodyweight_added', 'bodyweight_assisted'].includes(method) && sets.length > 1;
+                    });
+
+                    if (syncableExercises.length === 0) return null;
+
+                    return (
+                      <div className="flex flex-wrap justify-end gap-2 px-3 mt-1.5">
+                        {syncableExercises.map(exItem => {
+                          const cnName = getExerciseCNName(exItem.item.exercise);
+                          return (
+                            <button
+                              key={exItem.index}
+                              type="button"
+                              onClick={() => {
+                                const sets = sessionState.setsData[exItem.index] || [];
+                                const currentWeight = sets[0]?.weight_kg ?? exItem.item.weight ?? 0;
+                                handleSyncWeightToSubsequentSets(exItem.index, -1, currentWeight);
+                              }}
+                              className="btn btn-ghost btn-xs text-primary dark:text-primary-dark font-extrabold gap-1 px-2 py-1 select-none cursor-pointer rounded bg-primary/5 hover:bg-primary/10"
+                            >
+                              <RefreshCw size={11} />
+                              <span>同步首组重量: {cnName}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            );
+          }
         })}
       </div>
     );

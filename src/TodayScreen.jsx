@@ -814,6 +814,7 @@ function TodayScreen({
               title="今日训练总结"
               latestOnly
               compact
+              activeUserProgram={activeUserProgram}
             />
             {/* 手动减载按钮 (从下次开始) */}
             {activeUserProgram && !isSessionActive && (

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Activity, Calendar, ChevronDown, Clock, Dumbbell, ListChecks, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
+import { Activity, Calendar, ChevronDown, Clock, Dumbbell, ListChecks, Trash2, AlertTriangle, Loader2, Link } from 'lucide-react';
 import { buildWorkoutSessions, formatDateTime, formatDuration, formatSetMeta, formatSetResult } from '../utils/workoutSummary';
 
 const TIER_STYLES = {
@@ -49,17 +49,47 @@ function Stat({ icon: Icon, label, value }) {
   );
 }
 
-function ExerciseSummary({ exercise, getExerciseCNName }) {
+function ExerciseSummary({ exercise, getExerciseCNName, activeUserProgram, trainingDay }) {
   const tier = exercise.tier || 'T1';
   const style = TIER_STYLES[tier] || TIER_STYLES.T1;
   const sets = exercise.sets || [];
 
+  const isSuperset = useMemo(() => {
+    if (!activeUserProgram || !trainingDay) return false;
+    const dayMap = activeUserProgram.day_map || {};
+    const dayConfig = dayMap[trainingDay];
+    if (!dayConfig) return false;
+
+    const currentEx = exercise.exercise;
+    const currentTier = exercise.tier;
+
+    if (currentTier === 'T2') {
+      const t2Superset = dayConfig.T2_superset;
+      if (t2Superset?.enabled && t2Superset.exercise) {
+        return currentEx === dayConfig.T2 || currentEx === t2Superset.exercise;
+      }
+    }
+
+    if (currentTier === 'T3') {
+      const t3Supersets = dayConfig.T3_supersets || [];
+      return t3Supersets.some(ss => ss.exercises && ss.exercises.includes(currentEx));
+    }
+
+    return false;
+  }, [activeUserProgram, trainingDay, exercise.exercise, exercise.tier]);
+
   return (
     <section className={`rounded-xl border border-border-card dark:border-border-card-dark border-l-4 ${style.edge} bg-bg-main/10 dark:bg-bg-main-dark/20 p-3 flex flex-col gap-3`}>
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h4 className="text-base font-extrabold text-text-main dark:text-text-main-dark truncate">
-            {getExerciseCNName(exercise.exercise)}
+        <div className="min-w-0 flex-1">
+          <h4 className="text-base font-extrabold text-text-main dark:text-text-main-dark flex items-center gap-1.5 flex-wrap">
+            <span>{getExerciseCNName(exercise.exercise)}</span>
+            {isSuperset && (
+              <span className="badge badge-xs bg-primary/10 text-primary border-primary/20 font-bold px-1.5 py-0.5 h-auto rounded flex items-center gap-0.5 select-none shrink-0">
+                <Link size={10} />
+                超级组
+              </span>
+            )}
           </h4>
           <p className="text-xs text-text-secondary dark:text-text-secondary-dark mt-0.5">
             负重 {getExerciseWeightLabel(exercise)} · 容量 {formatVolume(exercise.volumeKg)}
@@ -117,18 +147,48 @@ function ExerciseSummary({ exercise, getExerciseCNName }) {
   );
 }
 
-function ExerciseOverview({ exercise, getExerciseCNName }) {
+function ExerciseOverview({ exercise, getExerciseCNName, activeUserProgram, trainingDay }) {
   const tier = exercise.tier || 'T1';
   const style = TIER_STYLES[tier] || TIER_STYLES.T1;
 
+  const isSuperset = useMemo(() => {
+    if (!activeUserProgram || !trainingDay) return false;
+    const dayMap = activeUserProgram.day_map || {};
+    const dayConfig = dayMap[trainingDay];
+    if (!dayConfig) return false;
+
+    const currentEx = exercise.exercise;
+    const currentTier = exercise.tier;
+
+    if (currentTier === 'T2') {
+      const t2Superset = dayConfig.T2_superset;
+      if (t2Superset?.enabled && t2Superset.exercise) {
+        return currentEx === dayConfig.T2 || currentEx === t2Superset.exercise;
+      }
+    }
+
+    if (currentTier === 'T3') {
+      const t3Supersets = dayConfig.T3_supersets || [];
+      return t3Supersets.some(ss => ss.exercises && ss.exercises.includes(currentEx));
+    }
+
+    return false;
+  }, [activeUserProgram, trainingDay, exercise.exercise, exercise.tier]);
+
   return (
     <div className="flex items-center justify-between gap-3 rounded-xl border border-border-card/45 dark:border-border-card-dark/45 bg-bg-main/10 dark:bg-bg-main-dark/20 px-3 py-2">
-      <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
         <span className={`badge badge-sm font-bold px-2 h-5 rounded border shrink-0 ${style.badge}`}>
           {tier}
         </span>
-        <span className="text-sm font-extrabold text-text-main dark:text-text-main-dark truncate">
-          {getExerciseCNName(exercise.exercise)}
+        <span className="text-sm font-extrabold text-text-main dark:text-text-main-dark truncate flex items-center gap-1">
+          <span>{getExerciseCNName(exercise.exercise)}</span>
+          {isSuperset && (
+            <span className="badge badge-xs bg-primary/10 text-primary border-primary/20 font-bold px-1 py-0.5 h-auto rounded flex items-center gap-0.5 select-none shrink-0" title="超级组">
+              <Link size={8} />
+              超级组
+            </span>
+          )}
         </span>
       </div>
       <div className="flex items-center gap-2 shrink-0 text-xs">
@@ -139,7 +199,7 @@ function ExerciseOverview({ exercise, getExerciseCNName }) {
   );
 }
 
-function SessionSummaryCard({ session, getExerciseCNName, title, compact = false, onDelete = null }) {
+function SessionSummaryCard({ session, getExerciseCNName, title, compact = false, onDelete = null, activeUserProgram }) {
   const [expanded, setExpanded] = useState(!compact);
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -274,6 +334,8 @@ function SessionSummaryCard({ session, getExerciseCNName, title, compact = false
               key={exercise.id || `${session.key}-overview-${exercise.exercise}-${exercise.tier}`}
               exercise={exercise}
               getExerciseCNName={getExerciseCNName}
+              activeUserProgram={activeUserProgram}
+              trainingDay={session.trainingDay}
             />
           ))}
         </div>
@@ -295,6 +357,8 @@ function SessionSummaryCard({ session, getExerciseCNName, title, compact = false
               key={exercise.id || `${session.key}-${exercise.exercise}-${exercise.tier}`}
               exercise={exercise}
               getExerciseCNName={getExerciseCNName}
+              activeUserProgram={activeUserProgram}
+              trainingDay={session.trainingDay}
             />
           ))}
         </div>
@@ -303,7 +367,7 @@ function SessionSummaryCard({ session, getExerciseCNName, title, compact = false
   );
 }
 
-function WorkoutSessionSummary({ workouts, getExerciseCNName, title, latestOnly = false, compact = false, onDeleteSession = null }) {
+function WorkoutSessionSummary({ workouts, getExerciseCNName, title, latestOnly = false, compact = false, onDeleteSession = null, activeUserProgram }) {
   // onDeleteSession: 可选回调 (session) => Promise<void>，传入后每个会话卡片右上角显示删除按钮
   const sessions = buildWorkoutSessions(workouts);
   const visibleSessions = latestOnly ? sessions.slice(0, 1) : sessions;
@@ -320,6 +384,7 @@ function WorkoutSessionSummary({ workouts, getExerciseCNName, title, latestOnly 
           compact={compact}
           onDelete={onDeleteSession}
           title={latestOnly || visibleSessions.length === 1 ? title : `${title || '训练总结'} · 第 ${visibleSessions.length - index} 次`}
+          activeUserProgram={activeUserProgram}
         />
       ))}
     </div>
